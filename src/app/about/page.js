@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { Check, ChevronRight, Users, Code, Clock, Award, Briefcase, Target } from 'lucide-react';
+import { Check, ChevronRight, Users, Code, Clock, Award, } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

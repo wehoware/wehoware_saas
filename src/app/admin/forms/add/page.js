@@ -464,7 +464,7 @@ export default function AddFormTemplate() {
                                 onClick={() => removeOption(index, optIndex)}
                                 className="text-red-500 hover:text-red-700"
                               >
-                                <FaTrash />
+                                <Trash className="inline" />
                               </button>
                             </div>
                           ))}

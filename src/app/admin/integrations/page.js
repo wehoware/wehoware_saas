@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import supabase from "@/lib/supabase";
 import Link from "next/link";
-import { Plus, Edit, FolderSync, Pause, Play } from "lucide-react";
+import { Plus, Edit, FolderSync, Pause, Play, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 export default function IntegrationsPage() {
@@ -112,10 +112,6 @@ export default function IntegrationsPage() {
   async function syncIntegration(id) {
     try {
       toast.success("Sync requested. This may take a few moments.");
-
-      // In a real implementation, you would call an API endpoint to trigger the sync
-      // For demo purposes, we're just updating the last_sync_at timestamp
-
       const { error } = await supabase
         .from("wehoware_integrations")
         .update({

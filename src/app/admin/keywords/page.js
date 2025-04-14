@@ -42,7 +42,7 @@ export default function ClientKeywordsPage() {
     if (activeClient) {
       fetchSections();
     }
-  }, [activeClient]);
+  }, [activeClient ]);
 
   // Retrieve sections from Supabase.
   const fetchSections = async () => {

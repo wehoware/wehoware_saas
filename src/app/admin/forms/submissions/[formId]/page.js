@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import supabase from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Download, Tags, Check, Times, Notes } from 'lucide-react';
+import { ArrowLeft, Download, Tags, Check} from 'lucide-react';
 import { toast } from 'react-hot-toast';        
 
 export default function FormSubmissions({ params }) {
@@ -287,14 +287,13 @@ export default function FormSubmissions({ params }) {
                         className="text-red-500 hover:text-red-700"
                         title="Archive"
                       >
-                        <Times className="inline" />
+                  
                       </button>
                       <button
                         onClick={() => openSubmissionDetails(submission)}
                         className="text-blue-500 hover:text-blue-700"
                         title="Add Notes"
                       >
-                        <Notes className="inline" />
                       </button>
                     </div>
                   </td>

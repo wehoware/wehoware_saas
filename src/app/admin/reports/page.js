@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import supabase from "@/lib/supabase";
 import Link from 'next/link';
-import { File, Download, Plus, Tags, Check, Times, Notes } from 'lucide-react';
+import { File, Download, Plus, Edit, Eye, Share, Trash , Clock} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export default function ReportsPage() {

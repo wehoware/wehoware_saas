@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Check, X, } from "lucide-react";
 import supabase from "@/lib/supabase";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";

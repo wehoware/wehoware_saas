@@ -102,7 +102,6 @@ export const POST = withAuth(async (request) => {
       status: status || 'draft',
       featured_image,
       client_id,
-      author_id: request.user.id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

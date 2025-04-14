@@ -53,9 +53,7 @@ CREATE TABLE IF NOT EXISTS wehoware_blog_categories (
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
   description TEXT,
-  seo_description TEXT,
   icon_url TEXT,
-  display_order INTEGER DEFAULT 0,
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -76,7 +74,6 @@ CREATE TABLE IF NOT EXISTS wehoware_blogs (
   thumbnail TEXT,
   status TEXT DEFAULT 'Draft' CHECK (status IN ('Draft', 'Published', 'Archived')),
   category_id UUID REFERENCES wehoware_blog_categories(id),
-  author_id UUID REFERENCES auth.users(id),
   featured BOOLEAN DEFAULT FALSE,
   read_time INTEGER,
   views INTEGER DEFAULT 0,
@@ -128,7 +125,7 @@ CREATE TABLE IF NOT EXISTS wehoware_services (
   active BOOLEAN DEFAULT TRUE,
   category_id UUID REFERENCES wehoware_service_categories(id),
   fee DECIMAL(10, 2),
-  fee_currency TEXT DEFAULT 'USD',
+  fee_currency TEXT DEFAULT 'CAD',
   service_code TEXT,
   featured BOOLEAN DEFAULT FALSE,
   rating DECIMAL(3,2) DEFAULT 0,
@@ -204,8 +201,13 @@ CREATE TABLE IF NOT EXISTS wehoware_settings (
   setting_value TEXT,
   setting_group TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (client_id, setting_key)
 );
+
+-- Optional: Create indexes for faster lookups
+CREATE INDEX IF NOT EXISTS idx_settings_client_id ON wehoware_settings(client_id);
+CREATE INDEX IF NOT EXISTS idx_settings_setting_key ON wehoware_settings(setting_key);
 
 -- ====================================================
 -- 11. Notification Preferences
@@ -433,8 +435,32 @@ CREATE TABLE IF NOT EXISTS wehoware_client_switch_history (
 CREATE INDEX IF NOT EXISTS idx_client_switch_history_user_id ON wehoware_client_switch_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_client_switch_history_client_id ON wehoware_client_switch_history(client_id);
 
+
 -- ====================================================
--- 24. Enable Row Level Security on all wehoware_ tables
+-- 24. Client Keywords Table
+-- ====================================================
+CREATE TABLE IF NOT EXISTS wehoware_client_keywords (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  client_id UUID NOT NULL REFERENCES wehoware_clients(id) ON DELETE CASCADE,
+  employee_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  keywords JSONB NOT NULL DEFAULT '{"sections": []}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (client_id, employee_id)
+);
+
+-- Optional: Create indexes for faster lookups by client or employee
+CREATE INDEX IF NOT EXISTS idx_client_keywords_client_id 
+  ON wehoware_client_keywords(client_id);
+
+CREATE INDEX IF NOT EXISTS idx_client_keywords_employee_id 
+  ON wehoware_client_keywords(employee_id);
+
+
+
+
+-- ====================================================
+-- 25. Enable Row Level Security on all wehoware_ tables
 -- ====================================================
 ALTER TABLE wehoware_clients DISABLE ROW LEVEL SECURITY;
 ALTER TABLE wehoware_profiles DISABLE ROW LEVEL SECURITY;

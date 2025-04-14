@@ -22,7 +22,6 @@ import {
   Eye,
   ArrowUpDown,
   Briefcase,
-  Settings,
   Loader2,
   FolderTree,
 } from "lucide-react";
@@ -36,9 +35,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function ServicesPage() {
   const router = useRouter();
+  const { activeClient, clientUrl } = useAuth();
   const [services, setServices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -52,16 +53,13 @@ export default function ServicesPage() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [serviceToDelete, setServiceToDelete] = useState(null);
-
+  const [categories, setCategories] = useState([]);
   // Fetch services from Supabase
   useEffect(() => {
+    if (!activeClient?.id) return;
     fetchServices();
-  }, [showActiveOnly, sortField, sortOrder]);
-
-  // Fetch on mount
-  useEffect(() => {
-    fetchServices();
-  }, []);
+    fetchCategories();
+  }, [showActiveOnly, sortField, sortOrder, activeClient]);
 
   const fetchServices = async () => {
     try {
@@ -71,6 +69,7 @@ export default function ServicesPage() {
       let query = supabase
         .from("wehoware_services")
         .select("*")
+        .eq("client_id", activeClient.id)
         .order(sortField, { ascending: sortOrder === "asc" });
 
       if (showActiveOnly) {
@@ -90,6 +89,24 @@ export default function ServicesPage() {
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("wehoware_service_categories")
+        .select("*")
+        .eq("client_id", activeClient.id)
+        .order("name");
+
+      if (error) {
+        throw error;
+      }
+
+      setCategories(data || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
     }
   };
 
@@ -184,7 +201,9 @@ export default function ServicesPage() {
         <Card className="border border-gray-200 shadow-sm hover:shadow transition-shadow duration-200">
           <CardHeader>
             <CardTitle>Services Statistics</CardTitle>
-            <CardDescription>Overview of your services performance</CardDescription>
+            <CardDescription>
+              Overview of your services performance
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
@@ -199,10 +218,7 @@ export default function ServicesPage() {
                   Published
                 </div>
                 <div className="text-2xl font-bold">
-                  {
-                    services.filter((service) => service.active === true)
-                      .length
-                  }
+                  {services.filter((service) => service.active === true).length}
                 </div>
               </div>
               <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
@@ -210,16 +226,17 @@ export default function ServicesPage() {
                   Drafts
                 </div>
                 <div className="text-2xl font-bold">
-                  {services.filter((service) => service.active === false).length}
+                  {
+                    services.filter((service) => service.active === false)
+                      .length
+                  }
                 </div>
               </div>
               <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
                 <div className="text-sm font-medium text-muted-foreground">
                   Categories
                 </div>
-                <div className="text-2xl font-bold">
-                  {new Set( services.map((service) => service.category)).size}
-                </div>
+                <div className="text-2xl font-bold">{categories.length}</div>
               </div>
             </div>
           </CardContent>
@@ -332,7 +349,7 @@ export default function ServicesPage() {
                                 size="sm"
                                 onClick={() =>
                                   window.open(
-                                    `/services/${service.slug}`,
+                                    `${clientUrl}/services/${service.slug}`,
                                     "_blank"
                                   )
                                 }

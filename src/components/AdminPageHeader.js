@@ -11,7 +11,11 @@ export default function AdminPageHeader({
   onAction, 
   actionDisabled,
   backLink,
-  backIcon
+  backIcon,
+  secondaryActionLabel,
+  secondaryActionIcon,
+  onSecondaryAction,
+  secondaryActionDisabled
 }) {
   return (
     <div className="flex flex-col pb-6 mb-6 border-b border-gray-200">
@@ -36,16 +40,27 @@ export default function AdminPageHeader({
           )}
         </div>
         
-        {actionLabel && onAction && (
-          <Button 
-            className="mt-4 sm:mt-0"
-            onClick={onAction}
-            disabled={actionDisabled}
-          >
-            {actionIcon && <span className="mr-2">{actionIcon}</span>}
-            {actionLabel}
-          </Button>
-        )}
+        <div className="flex space-x-2 mt-4 sm:mt-0">
+          {secondaryActionLabel && onSecondaryAction && (
+            <Button 
+              variant="outline"
+              onClick={onSecondaryAction}
+              disabled={secondaryActionDisabled}
+            >
+              {secondaryActionIcon && <span className="mr-2">{secondaryActionIcon}</span>}
+              {secondaryActionLabel}
+            </Button>
+          )}
+          {actionLabel && onAction && (
+            <Button 
+              onClick={onAction}
+              disabled={actionDisabled}
+            >
+              {actionIcon && <span className="mr-2">{actionIcon}</span>}
+              {actionLabel}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

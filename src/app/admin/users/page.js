@@ -34,7 +34,7 @@ import ConfirmDialog from "@/components/ui/confirm-dialog";
 
 export default function UsersPage() {
   const router = useRouter();
-  const { user, isEmployee } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +53,7 @@ export default function UsersPage() {
           router.push("/login");
           return;
         }
-        if (!isEmployee) {
+        if (!isAdmin) {
           toast.error("Access Denied: Only employees can access this page");
           router.push("/admin");
           return;
@@ -68,7 +68,7 @@ export default function UsersPage() {
     };
 
     checkUserRole();
-  }, [user, isEmployee, router]);
+  }, [user, isAdmin, router]);
 
   const fetchUsers = async () => {
     try {
@@ -80,8 +80,6 @@ export default function UsersPage() {
       if (!response.ok) {
         throw new Error(data.error || `API Error: ${response.statusText}`);
       }
-
-      console.log("Users fetched from API:", data.users);
 
       // Apply client-side sorting (API doesn't handle sorting yet)
       const sortedUsers = [...data.users].sort((a, b) => {
@@ -186,7 +184,7 @@ export default function UsersPage() {
     return matchesSearch && matchesRole;
   });
 
-  if (!isEmployee) {
+  if (!isAdmin) {
     return (
       <div className="w-full h-[60vh] flex items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />

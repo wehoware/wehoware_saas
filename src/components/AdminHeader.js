@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import {
-  Bell,
   ChevronDown,
   LogOut,
   Menu,
   Search,
   Settings,
   User,
+  TrainFront,
+  NotebookPen,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,20 +28,26 @@ import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 
 const AdminHeader = ({ className }) => {
-  const { user, activeClient, switchClient, logout, isEmployee } = useAuth();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const {
+    user,
+    activeClient,
+    switchClient,
+    logout,
+    isEmployee,
+    isClient,
+    isAdmin,
+  } = useAuth();
   const router = useRouter();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
-  // Get user initials for avatar fallback
-  const getUserInitials = () => {
+  // Compute user initials with memoization for performance.
+  const userInitials = React.useMemo(() => {
     if (!user) return "U";
-    const firstName = user.firstName || "";
-    const lastName = user.lastName || "";
-    return (
-      `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() ||
-      user.email.charAt(0).toUpperCase()
-    );
-  };
+    const first = user.firstName?.trim().charAt(0) || "";
+    const last = user.lastName?.trim().charAt(0) || "";
+    if (first || last) return (first + last).toUpperCase();
+    return user.email?.charAt(0).toUpperCase() || "U";
+  }, [user]);
 
   return (
     <header
@@ -48,16 +55,16 @@ const AdminHeader = ({ className }) => {
     >
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between py-2">
-          {/* Logo */}
-          <div className="flex items-center">
+          {/* Left Section: Search and Client Switcher */}
+          <div className="flex items-center gap-4">
+            {/* Search Input */}
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search..." className="pl-8" />
             </div>
-
-            {/* Client Dropdown - Only visible to employees */}
-            {isEmployee && user?.accessibleClients?.length > 0 && (
-              <div className="hidden md:block">
+            {/* Client Switcher: Visible for employees or admins with accessible clients */}
+            {(isEmployee || isAdmin) && user?.accessibleClients?.length > 0 && (
+              <div className="hidden md:block ">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -65,7 +72,7 @@ const AdminHeader = ({ className }) => {
                       className="flex items-center gap-2"
                     >
                       <span className="max-w-[150px] truncate">
-                        {activeClient?.name || "Select Client"}
+                        {activeClient?.name || "select client"}
                       </span>
                       <ChevronDown className="h-4 w-4" />
                     </Button>
@@ -95,62 +102,60 @@ const AdminHeader = ({ className }) => {
                 </DropdownMenu>
               </div>
             )}
+            {(isAdmin || isEmployee) && (
+              <div className="hidden md:block ">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      Tools
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <TrainFront className="mr-2 h-4 w-4" />
+                      Humaniser
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <NotebookPen className="mr-2 h-4 w-4" />
+                      Keywords Analysis
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <NotebookPen className="mr-2 h-4 w-4" />
+                      Competitor Analysis
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
 
-          {/* Desktop Navigation */}
+          {/* Right Section: Desktop Profile & Actions */}
           <div className="hidden items-center gap-4 md:flex">
             <span className="text-xs text-muted-foreground capitalize">
               {user?.role || "Role"}
             </span>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                3
-              </span>
-            </Button>
-
-            {/* User dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
-                    <AvatarFallback>{getUserInitials()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col items-start text-sm">
-                    <span className="font-medium">
-                      {(user?.firstName && user.firstName.toUpperCase()) ||
-                        (user?.lastName && user.lastName.toUpperCase()) ||
-                        (user?.email && user.email.toUpperCase()) ||
-                        "User"}
-                    </span>
-                  </div>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/admin/profile")}>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => router.push("/admin/settings")}
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <span className="flex items-center gap-2">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
+                <AvatarFallback>{userInitials}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col items-start text-sm">
+                <span className="font-medium">
+                  {(user?.firstName && user.firstName.toUpperCase()) ||
+                    (user?.lastName && user.lastName.toUpperCase()) ||
+                    (user?.email && user.email.toUpperCase()) ||
+                    "User"}
+                </span>
+              </div>
+            </span>
           </div>
 
-          {/* Mobile menu */}
+          {/* Mobile Menu: Visible on smaller screens */}
           <div className="md:hidden">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
@@ -161,20 +166,20 @@ const AdminHeader = ({ className }) => {
               <SheetContent side="right" className="w-80">
                 <div className="flex h-full flex-col">
                   <div className="mb-4 flex flex-col gap-6">
-                    {/* Mobile search */}
+                    {/* Mobile Search */}
                     <div className="relative">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input placeholder="Search..." className="pl-8" />
                     </div>
 
-                    {/* Mobile profile summary */}
+                    {/* Mobile Profile Summary */}
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarImage
                           src={user?.avatarUrl}
                           alt={user?.firstName}
                         />
-                        <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                        <AvatarFallback>{userInitials}</AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="font-medium">
@@ -190,7 +195,7 @@ const AdminHeader = ({ className }) => {
                       </div>
                     </div>
 
-                    {/* Mobile client selector (for employees) */}
+                    {/* Mobile Client Selector for Employees */}
                     {isEmployee && user?.accessibleClients?.length > 0 && (
                       <div className="border-t pt-4">
                         <div className="mb-2 text-sm font-medium">Client</div>
@@ -220,39 +225,6 @@ const AdminHeader = ({ className }) => {
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  <div className="mt-auto border-t pt-4">
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        router.push("/admin/profile");
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      My Profile
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start mt-2"
-                      onClick={() => {
-                        router.push("/admin/settings");
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start mt-2 text-destructive"
-                      onClick={logout}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Log Out
-                    </Button>
                   </div>
                 </div>
               </SheetContent>

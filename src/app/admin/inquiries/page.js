@@ -11,13 +11,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Search,
@@ -38,9 +31,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/auth-context";
+import { toast } from "react-hot-toast";
 
 export default function InquiriesPage() {
   const router = useRouter();
+  const { activeClient } = useAuth();
   const [inquiries, setInquiries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,8 +51,10 @@ export default function InquiriesPage() {
 
   // Fetch inquiries when statusFilter, sortField, or sortOrder changes (runs on mount too)
   useEffect(() => {
-    fetchInquiries();
-  }, [statusFilter, sortField, sortOrder]);
+    if (activeClient?.id) {
+      fetchInquiries();
+    }
+  }, [statusFilter, sortField, sortOrder, activeClient?.id]);
 
   // Fetch services on mount
   useEffect(() => {
@@ -66,6 +64,13 @@ export default function InquiriesPage() {
   const fetchInquiries = async () => {
     try {
       setIsLoading(true);
+
+      // Ensure we have an active client before fetching
+      if (!activeClient?.id) {
+        setInquiries([]); // Clear inquiries if no client selected
+        setIsLoading(false);
+        return;
+      }
 
       // Build query for inquiries with a join on services (only title)
       let query = supabase
@@ -77,6 +82,9 @@ export default function InquiriesPage() {
         `
         )
         .order(sortField, { ascending: sortOrder === "asc" });
+
+      // Add client_id filter
+      query = query.eq("client_id", activeClient.id);
 
       // Filter by status if needed
       if (statusFilter !== "all") {
@@ -92,7 +100,10 @@ export default function InquiriesPage() {
       // Format data to include service name and formatted date
       const formattedData = data.map((inquiry) => ({
         ...inquiry,
-        service: inquiry.wehoware_services ? inquiry.wehoware_services.title : "General Inquiry",
+        service:
+          inquiry.wehoware_services && inquiry.wehoware_services.title
+            ? inquiry.wehoware_services.title
+            : "General Inquiry",
         date: new Date(inquiry.created_at).toISOString().split("T")[0],
       }));
 
@@ -108,16 +119,21 @@ export default function InquiriesPage() {
 
   const fetchServices = async () => {
     try {
-      const { data, error } = await supabase
+      // Declare query with 'let' so it can be updated
+      let query = supabase
         .from("wehoware_services")
         .select("id, title")
-        .eq("active", true)
         .order("title");
 
+      // Also filter services by active client if applicable
+      if (activeClient?.id) {
+        query = query.eq("client_id", activeClient.id);
+      }
+
+      const { data, error } = await query;
       if (error) {
         throw error;
       }
-
       setServices(data || []);
     } catch (error) {
       console.error("Error fetching services:", error);
@@ -281,23 +297,16 @@ export default function InquiriesPage() {
                       />
                     </div>
                     <div className="flex gap-4 items-center">
-                      <Select
+                      <select
+                        className="w-[180px]"
                         value={statusFilter}
-                        onValueChange={setStatusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
                       >
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue placeholder="Filter by status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Statuses</SelectItem>
-                          <SelectItem value="New">New</SelectItem>
-                          <SelectItem value="In Progress">
-                            In Progress
-                          </SelectItem>
-                          <SelectItem value="Resolved">Resolved</SelectItem>
-                        </SelectContent>
-                      </Select>
-
+                        <option value="all">All Statuses</option>
+                        <option value="New">New</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                      </select>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm">
@@ -409,24 +418,27 @@ export default function InquiriesPage() {
                                       size="sm"
                                       className="h-8 px-2"
                                       onClick={() => {
-                                        // Show inquiry details in a modal/dialog
+                                        // Instead of a <div>, we now pass inline elements
                                         setSuccessMessage(
-                                          <div className="space-y-2">
-                                            <p>
+                                          <>
+                                            <span>
                                               <strong>From:</strong>{" "}
                                               {inquiry.name} ({inquiry.email})
-                                            </p>
-                                            <p>
+                                            </span>
+                                            <br />
+                                            <span>
                                               <strong>Subject:</strong>{" "}
                                               {inquiry.subject}
-                                            </p>
-                                            <p>
+                                            </span>
+                                            <br />
+                                            <span>
                                               <strong>Message:</strong>
-                                            </p>
-                                            <p className="whitespace-pre-wrap">
+                                            </span>
+                                            <br />
+                                            <span className="whitespace-pre-wrap">
                                               {inquiry.message}
-                                            </p>
-                                          </div>
+                                            </span>
+                                          </>
                                         );
                                         setSuccessDialogOpen(true);
                                       }}

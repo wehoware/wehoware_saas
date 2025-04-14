@@ -1,25 +1,40 @@
 "use client";
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Mail, Phone, MapPin, Clock, Send, Linkedin, Facebook, Instagram, Globe } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Clock,
+  Send,
+  Linkedin,
+  Facebook,
+  Instagram,
+  Globe,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    service: '',
-    message: '',
+    name: "",
+    email: "",
+    phone: "",
+    service: "",
+    message: "",
   });
-  
+
   const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e) => {
@@ -33,15 +48,15 @@ export default function ContactPage() {
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
-    
+
     // Reset form after submission
     setTimeout(() => {
       setFormState({
-        name: '',
-        email: '',
-        phone: '',
-        service: '',
-        message: '',
+        name: "",
+        email: "",
+        phone: "",
+        service: "",
+        message: "",
       });
       setSubmitted(false);
     }, 5000);
@@ -50,75 +65,86 @@ export default function ContactPage() {
   const contactDetails = [
     {
       icon: <MapPin className="h-6 w-6 text-primary" />,
-      title: 'Our Office',
+      title: "Our Office",
       details: [
-        'WeHoWare Technologies',
-        '123 Tech Avenue',
-        'Suite 456',
-        'Toronto, Ontario',
-        'Canada',
+        "WeHoWare Technologies",
+        "123 Tech Avenue",
+        "Suite 456",
+        "Toronto, Ontario",
+        "Canada",
       ],
     },
     {
       icon: <Clock className="h-6 w-6 text-primary" />,
-      title: 'Office Hours',
+      title: "Office Hours",
       details: [
-        'Monday - Friday: 9AM - 6PM',
-        'Saturday: 10AM - 2PM',
-        'Sunday: Closed',
+        "Monday - Friday: 9AM - 6PM",
+        "Saturday: 10AM - 2PM",
+        "Sunday: Closed",
       ],
     },
     {
       icon: <Phone className="h-6 w-6 text-primary" />,
-      title: 'Phone',
-      details: [
-        '+1 647-510-4134',
-      ],
+      title: "Phone",
+      details: ["+1 647-510-4134"],
     },
     {
       icon: <Mail className="h-6 w-6 text-primary" />,
-      title: 'Email',
-      details: [
-        'support@wehoware.com',
-        'info@wehoware.com',
-      ],
+      title: "Email",
+      details: ["support@wehoware.com", "info@wehoware.com"],
     },
   ];
-  
+
   const socialLinks = [
-    { icon: <Linkedin className="h-5 w-5" />, url: 'https://www.linkedin.com/company/wehoware', name: 'LinkedIn' },
-    { icon: <Facebook className="h-5 w-5" />, url: 'https://www.facebook.com/wehoware', name: 'Facebook' },
-    { icon: <Instagram className="h-5 w-5" />, url: 'https://www.instagram.com/wehoware', name: 'Instagram' },
-    { icon: <Globe className="h-5 w-5" />, url: 'https://www.wehoware.com', name: 'Website' },
+    {
+      icon: <Linkedin className="h-5 w-5" />,
+      url: "https://www.linkedin.com/company/wehoware",
+      name: "LinkedIn",
+    },
+    {
+      icon: <Facebook className="h-5 w-5" />,
+      url: "https://www.facebook.com/wehoware",
+      name: "Facebook",
+    },
+    {
+      icon: <Instagram className="h-5 w-5" />,
+      url: "https://www.instagram.com/wehoware",
+      name: "Instagram",
+    },
+    {
+      icon: <Globe className="h-5 w-5" />,
+      url: "https://www.wehoware.com",
+      name: "Website",
+    },
   ];
 
   const services = [
-    'Web Development',
-    'Mobile App Development',
-    'Custom Software Development',
-    'UI/UX Design',
-    'Digital Marketing',
-    'SEO Services',
-    'Cloud Solutions',
-    'Other',
+    "Web Development",
+    "Mobile App Development",
+    "Custom Software Development",
+    "UI/UX Design",
+    "Digital Marketing",
+    "SEO Services",
+    "Cloud Solutions",
+    "Other",
   ];
 
   // Animation variants
   const fadeInUp = {
     hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
   };
-  
+
   const staggerContainer = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1
-      }
-    }
+        staggerChildren: 0.1,
+      },
+    },
   };
-  
+
   return (
     <div className="relative overflow-hidden">
       {/* Background elements */}
@@ -127,19 +153,24 @@ export default function ContactPage() {
         <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-background to-transparent" />
         <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-background to-transparent" />
       </div>
-      
+
       {/* Content */}
       <div className="container relative z-10 mx-auto px-4 py-32 sm:px-6 lg:px-8">
         <div className="mb-16 text-center">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex justify-center mb-4"
           >
-            <Badge variant="outline" className="px-4 py-1 border-primary/20 bg-primary/5 text-primary rounded-full">Get in Touch</Badge>
+            <Badge
+              variant="outline"
+              className="px-4 py-1 border-primary/20 bg-primary/5 text-primary rounded-full"
+            >
+              Get in Touch
+            </Badge>
           </motion.div>
-          
-          <motion.h1 
+
+          <motion.h1
             className="text-4xl sm:text-5xl font-bold mb-4 tracking-tight"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -147,27 +178,28 @@ export default function ContactPage() {
           >
             Let's Work <span className="text-primary">Together</span>
           </motion.h1>
-          
-          <motion.p 
+
+          <motion.p
             className="text-lg text-muted-foreground max-w-2xl mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            Have questions about our services or want to discuss your project? Our team of experts is ready to help turn your vision into reality.
+            Have questions about our services or want to discuss your project?
+            Our team of experts is ready to help turn your vision into reality.
           </motion.p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <motion.div 
+          <motion.div
             className="lg:col-span-1 space-y-8"
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
           >
             {contactDetails.map((item, index) => (
-              <motion.div 
-                key={index} 
+              <motion.div
+                key={index}
                 className="group p-6 rounded-xl bg-card hover:shadow-lg transition-all duration-300 border border-border hover:border-primary/40"
                 variants={fadeInUp}
                 whileHover={{ y: -5 }}
@@ -177,7 +209,9 @@ export default function ContactPage() {
                     {item.icon}
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">{item.title}</h3>
+                    <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">
+                      {item.title}
+                    </h3>
                     <div className="space-y-1 text-muted-foreground">
                       {item.details.map((detail, i) => (
                         <p key={i}>{detail}</p>
@@ -187,19 +221,19 @@ export default function ContactPage() {
                 </div>
               </motion.div>
             ))}
-            
+
             {/* Social Media Links */}
-            <motion.div 
+            <motion.div
               className="p-6 rounded-xl bg-card border border-border"
               variants={fadeInUp}
             >
               <h3 className="text-xl font-semibold mb-4">Follow Us</h3>
               <div className="flex space-x-4">
                 {socialLinks.map((link, index) => (
-                  <a 
-                    key={index} 
-                    href={link.url} 
-                    target="_blank" 
+                  <a
+                    key={index}
+                    href={link.url}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="p-3 rounded-full bg-muted hover:bg-primary/20 transition-colors"
                     aria-label={link.name}
@@ -211,7 +245,7 @@ export default function ContactPage() {
             </motion.div>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             className="lg:col-span-2"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -219,29 +253,48 @@ export default function ContactPage() {
           >
             <Card className="overflow-hidden">
               <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl z-0"></div>
-              
+
               <CardHeader className="relative z-10">
-                <CardTitle className="text-2xl font-semibold">Send Us a Message</CardTitle>
-                <CardDescription>Fill out the form below and we'll get back to you as soon as possible.</CardDescription>
+                <CardTitle className="text-2xl font-semibold">
+                  Send Us a Message
+                </CardTitle>
+                <CardDescription>
+                  Fill out the form below and we'll get back to you as soon as
+                  possible.
+                </CardDescription>
               </CardHeader>
-              
+
               <CardContent className="relative z-10">
                 {submitted ? (
-                  <motion.div 
+                  <motion.div
                     className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300 rounded-lg p-4 mb-6"
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex items-center">
-                      <svg className="h-5 w-5 text-green-500 dark:text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      <svg
+                        className="h-5 w-5 text-green-500 dark:text-green-400 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M5 13l4 4L19 7"
+                        ></path>
                       </svg>
-                      <p className="font-medium">Thank you! Your message has been sent successfully. We'll be in touch soon.</p>
+                      <p className="font-medium">
+                        Thank you! Your message has been sent successfully.
+                        We'll be in touch soon.
+                      </p>
                     </div>
                   </motion.div>
                 ) : null}
-                
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -271,7 +324,7 @@ export default function ContactPage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone Number</Label>
@@ -287,29 +340,23 @@ export default function ContactPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="service">Service of Interest</Label>
-                      <Select
+                      <select
+                        id="service"
+                        name="service"
                         value={formState.service}
-                        onValueChange={(value) => {
-                          setFormState((prev) => ({
-                            ...prev,
-                            service: value,
-                          }));
-                        }}
+                        onChange={handleChange}
+                        className="transition-all duration-300"
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a service" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {services.map((service, index) => (
-                            <SelectItem key={index} value={service}>
-                              {service}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select a service</option>
+                        {services.map((service) => (
+                          <option key={service} value={service}>
+                            {service}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="message">Your Message</Label>
                     <Textarea
@@ -323,13 +370,13 @@ export default function ContactPage() {
                       required
                     />
                   </div>
-                  
-                  <motion.div 
+
+                  <motion.div
                     className="pt-2"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    <Button 
+                    <Button
                       type="submit"
                       className="group w-full sm:w-auto"
                       size="lg"
@@ -343,7 +390,7 @@ export default function ContactPage() {
             </Card>
           </motion.div>
         </div>
-        
+
         {/* Decorative elements */}
         <div className="absolute top-1/4 left-10 h-64 w-64 rounded-full bg-primary/5 blur-3xl"></div>
         <div className="absolute bottom-1/3 right-10 h-64 w-64 rounded-full bg-blue-500/5 blur-3xl"></div>

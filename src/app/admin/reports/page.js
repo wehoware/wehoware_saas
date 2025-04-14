@@ -325,7 +325,7 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-bold">White-Label Reports</h1>
         <div className="flex space-x-2">
           {activeTab === 'reports' ? (
-            <Link href="/admin/reports/generate" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center">
+            <Link href="#" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center">
               <Plus className="mr-2" />
               New Report
             </Link>

@@ -14,7 +14,7 @@ import { Loader2 } from "lucide-react";
 
 export default function AddClientPage() {
   const router = useRouter();
-  const { user, isEmployee, isLoading: authLoading } = useAuth();
+  const { user, isEmployee, isAdmin, isLoading: authLoading } = useAuth();
 
   const [newClient, setNewClient] = useState({
     company_name: "",
@@ -34,12 +34,12 @@ export default function AddClientPage() {
       if (!user) {
         toast.error("Please log in to add a client.");
         router.push("/login");
-      } else if (!isEmployee) {
-        toast.error("Access Denied: Only employees can add clients.");
+      } else if (!isEmployee && !isAdmin) {
+        toast.error("Access Denied: Only employees and admins can add clients.");
         router.push("/admin");
       }
     }
-  }, [user, isEmployee, authLoading, router]);
+  }, [user, isEmployee, isAdmin, authLoading, router]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -57,8 +57,6 @@ export default function AddClientPage() {
       return;
     }
 
-    console.log("Client data:", newClient);
-
     try {
       setIsSubmitting(true);
       const clientData = {
@@ -67,14 +65,11 @@ export default function AddClientPage() {
         updated_at: new Date(),
       };
 
-      console.log("Client data:", clientData);
 
       const { data, error } = await supabase
         .from("wehoware_clients")
         .insert(clientData)
         .select();
-
-      console.log("Client added:", data);
 
       if (error) throw error;
       toast.success("Client added successfully");
@@ -88,7 +83,7 @@ export default function AddClientPage() {
     }
   };
 
-  if (authLoading || !user || !isEmployee) {
+  if (authLoading || !user || !isEmployee && !isAdmin) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />

@@ -4,7 +4,7 @@ import '@/styles/custom.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { AuthProvider } from '@/contexts/auth-context';
-import { Toaster } from 'sonner';
+import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -25,7 +25,7 @@ export default function RootLayout({ children }) {
           <Header />
           <main className="flex-grow overflow-hidden">{children}</main>
           <Footer />
-          <Toaster position="top-right" richColors expand={false} />
+          <Toaster position="top-right" />
         </AuthProvider>
       </body>
     </html>

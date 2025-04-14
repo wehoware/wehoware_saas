@@ -44,7 +44,7 @@ export async function POST(request) {
       const { data: clientsData, error: clientsError } = await supabase
         .from("wehoware_user_clients")
         .select(
-          "client_id, is_primary, wehoware_clients(id, company_name, domain)"
+          "client_id, is_primary, wehoware_clients(id, company_name, domain, website)"
         )
         .eq("user_id", authData.user.id);
 
@@ -53,6 +53,7 @@ export async function POST(request) {
           id: c.wehoware_clients.id,
           name: c.wehoware_clients.company_name,
           domain: c.wehoware_clients.domain,
+          website: c.wehoware_clients.website,
           isPrimary: c.is_primary,
         }));
       }
@@ -63,7 +64,7 @@ export async function POST(request) {
     if (profileData && profileData.role === "client" && profileData.client_id) {
       const { data: clientData, error: clientError } = await supabase
         .from("wehoware_clients")
-        .select("id, company_name, domain")
+        .select("id, company_name, domain, website")
         .eq("id", profileData.client_id)
         .single();
 
@@ -72,6 +73,7 @@ export async function POST(request) {
           id: clientData.id,
           name: clientData.company_name,
           domain: clientData.domain,
+          website: clientData.website,
         };
       }
     }
@@ -154,7 +156,7 @@ export async function GET(request) {
       const { data: clientsData, error: clientsError } = await supabase
         .from("wehoware_user_clients")
         .select(
-          "client_id, is_primary, wehoware_clients(id, company_name, domain)"
+          "client_id, is_primary, wehoware_clients(id, company_name, domain, website)"
         )
         .eq("user_id", data.session.user.id);
 
@@ -163,6 +165,7 @@ export async function GET(request) {
           id: c.wehoware_clients.id,
           name: c.wehoware_clients.company_name,
           domain: c.wehoware_clients.domain,
+          website: c.wehoware_clients.website,
           isPrimary: c.is_primary,
         }));
       }
@@ -173,7 +176,7 @@ export async function GET(request) {
     if (profileData && profileData.role === "client" && profileData.client_id) {
       const { data: clientData, error: clientError } = await supabase
         .from("wehoware_clients")
-        .select("id, company_name, domain")
+        .select("id, company_name, domain, website")
         .eq("id", profileData.client_id)
         .single();
 
@@ -182,6 +185,7 @@ export async function GET(request) {
           id: clientData.id,
           name: clientData.company_name,
           domain: clientData.domain,
+          website: clientData.website,
         };
       }
     }

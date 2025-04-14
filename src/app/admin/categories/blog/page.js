@@ -14,13 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Edit, Trash2, Check, X } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft } from "lucide-react";
 import supabase from "@/lib/supabase";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function BlogCategoriesPage() {
+  const { user, isEmployee, activeClient } = useAuth();
   const router = useRouter();
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +80,15 @@ export default function BlogCategoriesPage() {
 
   const handleAddCategory = async (e) => {
     e.preventDefault();
-    
+
+    if (isEmployee && !activeClient?.id) {
+      setErrorMessage(
+        "Please select an active client from the header dropdown before adding a category."
+      );
+      setErrorDialogOpen(true);
+      return;
+    }
+
     if (!newCategory.name) {
       setErrorMessage("Category name is required");
       setErrorDialogOpen(true);
@@ -87,21 +97,23 @@ export default function BlogCategoriesPage() {
 
     try {
       setIsSubmitting(true);
-      
+
       // Generate slug from name
       const slug = slugify(newCategory.name, { lower: true, strict: true });
-      
+
       // Get the current user ID for audit
-      const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
 
-      const { data, error } = await supabase.from("wehoware_blog_categories").insert({
-        name: newCategory.name,
-        slug: slug,
-        description: newCategory.description,
-        created_by: userId,
-        updated_by: userId,
-      });
+      const { data, error } = await supabase
+        .from("wehoware_blog_categories")
+        .insert({
+          client_id: activeClient.id,
+          name: newCategory.name,
+          slug: slug,
+          description: newCategory.description,
+          created_by: userId,
+          updated_by: userId,
+        });
 
       if (error) {
         throw error;
@@ -111,7 +123,7 @@ export default function BlogCategoriesPage() {
       setNewCategory({ name: "", description: "" });
       setShowAddForm(false);
       fetchCategories();
-      
+
       setSuccessMessage("Category added successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
@@ -140,16 +152,18 @@ export default function BlogCategoriesPage() {
 
     try {
       setIsSubmitting(true);
-      
+
       // Generate slug from name
       const slug = slugify(editingCategory.name, { lower: true, strict: true });
-      
+
       // Get the current user ID for audit
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const userId = user?.id;
 
       const { data, error } = await supabase
-        .from("blog_categories")
+        .from("wehoware_blog_categories")
         .update({
           name: editingCategory.name,
           slug: slug,
@@ -165,7 +179,7 @@ export default function BlogCategoriesPage() {
       // Reset editing state and refresh categories
       setEditingCategory(null);
       fetchCategories();
-      
+
       setSuccessMessage("Category updated successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
@@ -190,7 +204,7 @@ export default function BlogCategoriesPage() {
 
       // Check if category is in use
       const { data: blogData, error: blogError } = await supabase
-        .from("blogs")
+        .from("wehoware_blogs")
         .select("id")
         .eq("category_id", categoryToDelete.id)
         .limit(1);
@@ -204,7 +218,7 @@ export default function BlogCategoriesPage() {
       }
 
       const { error } = await supabase
-        .from("blog_categories")
+        .from("wehoware_blog_categories")
         .delete()
         .eq("id", categoryToDelete.id);
 
@@ -216,7 +230,7 @@ export default function BlogCategoriesPage() {
       setCategories((prev) =>
         prev.filter((category) => category.id !== categoryToDelete.id)
       );
-      
+
       setSuccessMessage("Category deleted successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
@@ -231,17 +245,21 @@ export default function BlogCategoriesPage() {
   };
 
   // Filter categories based on search term
-  const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredCategories = categories.filter(
+    (category) =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (category.description &&
+        category.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
     <div className="flex flex-col">
-      <div className="flex-1 space-y-4">
+      <div>
         <AdminPageHeader
           title="Blog Categories"
           description="Manage blog categories"
+          showBackButton={true}
+          backButtonHref="/admin/categories"
           actionLabel={showAddForm ? "Cancel" : "Add Category"}
           actionIcon={showAddForm ? <X size={16} /> : <Plus size={16} />}
           onAction={() => setShowAddForm(!showAddForm)}
@@ -333,7 +351,9 @@ export default function BlogCategoriesPage() {
                       <thead className="bg-muted/50">
                         <tr>
                           <th className="text-left p-3 font-medium">Name</th>
-                          <th className="text-left p-3 font-medium">Description</th>
+                          <th className="text-left p-3 font-medium">
+                            Description
+                          </th>
                           <th className="text-left p-3 font-medium">Slug</th>
                           <th className="text-left p-3 font-medium">Actions</th>
                         </tr>
@@ -341,7 +361,10 @@ export default function BlogCategoriesPage() {
                       <tbody>
                         {filteredCategories.length === 0 ? (
                           <tr>
-                            <td colSpan="4" className="p-4 text-center text-muted-foreground">
+                            <td
+                              colSpan="4"
+                              className="p-4 text-center text-muted-foreground"
+                            >
                               No categories found
                             </td>
                           </tr>
@@ -352,7 +375,8 @@ export default function BlogCategoriesPage() {
                               className="border-b border-gray-200 last:border-0"
                             >
                               <td className="p-3">
-                                {editingCategory && editingCategory.id === category.id ? (
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
                                   <Input
                                     name="name"
                                     value={editingCategory.name}
@@ -361,11 +385,14 @@ export default function BlogCategoriesPage() {
                                     required
                                   />
                                 ) : (
-                                  <div className="font-medium">{category.name}</div>
+                                  <div className="font-medium">
+                                    {category.name}
+                                  </div>
                                 )}
                               </td>
                               <td className="p-3">
-                                {editingCategory && editingCategory.id === category.id ? (
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
                                   <Textarea
                                     name="description"
                                     value={editingCategory.description || ""}
@@ -385,7 +412,8 @@ export default function BlogCategoriesPage() {
                                 </div>
                               </td>
                               <td className="p-3">
-                                {editingCategory && editingCategory.id === category.id ? (
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
                                   <div className="flex space-x-2">
                                     <Button
                                       variant="outline"
@@ -436,7 +464,8 @@ export default function BlogCategoriesPage() {
                   </div>
 
                   <div className="text-sm text-muted-foreground">
-                    Showing {filteredCategories.length} of {categories.length} categories
+                    Showing {filteredCategories.length} of {categories.length}{" "}
+                    categories
                   </div>
                 </>
               )}
@@ -446,7 +475,7 @@ export default function BlogCategoriesPage() {
       </div>
 
       {/* Delete confirmation dialog */}
-      <ConfirmDialog 
+      <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title="Are you sure?"
@@ -460,16 +489,16 @@ export default function BlogCategoriesPage() {
       />
 
       {/* Error dialog */}
-      <AlertComponent 
+      <AlertComponent
         open={errorDialogOpen}
         onOpenChange={setErrorDialogOpen}
         title="Error"
         message={errorMessage}
         actionLabel="OK"
       />
-      
+
       {/* Success dialog */}
-      <AlertComponent 
+      <AlertComponent
         open={successDialogOpen}
         onOpenChange={setSuccessDialogOpen}
         title="Success"

@@ -14,14 +14,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Edit, Trash2, Check, X } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft } from "lucide-react";
 import supabase from "@/lib/supabase";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function ServiceCategoriesPage() {
   const router = useRouter();
+  const { user, activeClient } = useAuth();
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,20 +40,32 @@ export default function ServiceCategoriesPage() {
   const [newCategory, setNewCategory] = useState({
     name: "",
     description: "",
+    icon_url: "",
+    active: true,
   });
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Fetch categories on mount
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    if (activeClient) {
+      fetchCategories();
+    }
+  }, [activeClient]);
 
   const fetchCategories = async () => {
     try {
       setIsLoading(true);
+
+      if (!activeClient?.id) {
+        setErrorMessage("No active client selected. Cannot fetch categories.");
+        setErrorDialogOpen(true);
+        setCategories([]);
+        return;
+      }
+
       const { data, error } = await supabase
-        .from("service_categories")
+        .from("wehoware_service_categories")
         .select("*")
+        .eq("client_id", activeClient.id)
         .order("name");
 
       if (error) {
@@ -71,14 +86,28 @@ export default function ServiceCategoriesPage() {
     const { name, value } = e.target;
     if (isNewCategory) {
       setNewCategory((prev) => ({ ...prev, [name]: value }));
-    } else {
+    } else if (editingCategory) {
       setEditingCategory((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleSwitchChange = (checked, name, isNewCategory = false) => {
+    if (isNewCategory) {
+      setNewCategory((prev) => ({ ...prev, [name]: checked }));
+    } else if (editingCategory) {
+      setEditingCategory((prev) => ({ ...prev, [name]: checked }));
     }
   };
 
   const handleAddCategory = async (e) => {
     e.preventDefault();
-    
+
+    if (!activeClient?.id) {
+      setErrorMessage("No active client selected. Cannot add category.");
+      setErrorDialogOpen(true);
+      return;
+    }
+
     if (!newCategory.name) {
       setErrorMessage("Category name is required");
       setErrorDialogOpen(true);
@@ -87,31 +116,30 @@ export default function ServiceCategoriesPage() {
 
     try {
       setIsSubmitting(true);
-      
-      // Generate slug from name
-      const slug = slugify(newCategory.name, { lower: true, strict: true });
-      
-      // Get the current user ID for audit
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
 
-      const { data, error } = await supabase.from("service_categories").insert({
+      const categoryData = {
+        client_id: activeClient.id,
         name: newCategory.name,
-        slug: slug,
+        slug: slugify(newCategory.name, { lower: true, strict: true }),
         description: newCategory.description,
-        created_by: userId,
-        updated_by: userId,
-      });
+        icon_url: newCategory.icon_url || null,
+        active: newCategory.active,
+        created_by: user?.id,
+        updated_by: user?.id,
+      };
+
+      const { data, error } = await supabase
+        .from("wehoware_service_categories")
+        .insert(categoryData);
 
       if (error) {
         throw error;
       }
 
-      // Reset form and refresh categories
-      setNewCategory({ name: "", description: "" });
+      setNewCategory({ name: "", description: "", icon_url: "", active: true });
       setShowAddForm(false);
       fetchCategories();
-      
+
       setSuccessMessage("Category added successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
@@ -123,49 +151,41 @@ export default function ServiceCategoriesPage() {
     }
   };
 
-  const startEditing = (category) => {
-    setEditingCategory({ ...category });
-  };
-
-  const cancelEditing = () => {
-    setEditingCategory(null);
-  };
-
   const handleUpdateCategory = async () => {
     if (!editingCategory.name) {
-      setErrorMessage("Category name is required");
+      setErrorMessage("Category name cannot be empty");
       setErrorDialogOpen(true);
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id;
+
+    const slug = slugify(editingCategory.name, { lower: true, strict: true });
+
     try {
       setIsSubmitting(true);
-      
-      // Generate slug from name
-      const slug = slugify(editingCategory.name, { lower: true, strict: true });
-      
-      // Get the current user ID for audit
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
 
-      const { data, error } = await supabase
-        .from("service_categories")
+      const { error } = await supabase
+        .from("wehoware_service_categories")
         .update({
           name: editingCategory.name,
           slug: slug,
           description: editingCategory.description,
+          icon_url: editingCategory.icon_url || null,
+          active: editingCategory.active,
+          updated_at: new Date(),
           updated_by: userId,
         })
         .eq("id", editingCategory.id);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      // Reset editing state and refresh categories
       setEditingCategory(null);
       fetchCategories();
-      
+
       setSuccessMessage("Category updated successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
@@ -188,9 +208,8 @@ export default function ServiceCategoriesPage() {
     try {
       setDeleteLoading(true);
 
-      // Check if category is in use
       const { data: serviceData, error: serviceError } = await supabase
-        .from("services")
+        .from("wehoware_services")
         .select("id")
         .eq("category_id", categoryToDelete.id)
         .limit(1);
@@ -204,7 +223,7 @@ export default function ServiceCategoriesPage() {
       }
 
       const { error } = await supabase
-        .from("service_categories")
+        .from("wehoware_service_categories")
         .delete()
         .eq("id", categoryToDelete.id);
 
@@ -212,11 +231,10 @@ export default function ServiceCategoriesPage() {
         throw error;
       }
 
-      // Update local state without refetching
       setCategories((prev) =>
         prev.filter((category) => category.id !== categoryToDelete.id)
       );
-      
+
       setSuccessMessage("Category deleted successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
@@ -230,18 +248,21 @@ export default function ServiceCategoriesPage() {
     }
   };
 
-  // Filter categories based on search term
-  const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredCategories = categories.filter(
+    (category) =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (category.description &&
+        category.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
     <div className="flex flex-col">
-      <div className="flex-1 space-y-4">
+      <div>
         <AdminPageHeader
           title="Service Categories"
           description="Manage service categories"
+          showBackButton={true}
+          backButtonHref="/admin/categories"
           actionLabel={showAddForm ? "Cancel" : "Add Category"}
           actionIcon={showAddForm ? <X size={16} /> : <Plus size={16} />}
           onAction={() => setShowAddForm(!showAddForm)}
@@ -278,13 +299,41 @@ export default function ServiceCategoriesPage() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="icon_url">Icon URL</Label>
+                  <Input
+                    id="icon_url"
+                    name="icon_url"
+                    value={newCategory.icon_url}
+                    onChange={(e) => handleInputChange(e, true)}
+                    placeholder="Enter icon URL"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="active"
+                    name="active"
+                    checked={newCategory.active}
+                    onCheckedChange={(checked) =>
+                      handleSwitchChange(checked, "active", true)
+                    }
+                  />
+                  <Label htmlFor="active">Active</Label>
+                </div>
+
                 <div className="flex justify-end space-x-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       setShowAddForm(false);
-                      setNewCategory({ name: "", description: "" });
+                      setNewCategory({
+                        name: "",
+                        description: "",
+                        icon_url: "",
+                        active: true,
+                      });
                     }}
                   >
                     Cancel
@@ -333,16 +382,26 @@ export default function ServiceCategoriesPage() {
                       <thead className="bg-muted/50">
                         <tr>
                           <th className="text-left p-3 font-medium">Name</th>
-                          <th className="text-left p-3 font-medium">Description</th>
-                          <th className="text-left p-3 font-medium">Slug</th>
+                          <th className="text-left p-3 font-medium">
+                            Description
+                          </th>
+                          <th className="text-left p-3 font-medium">
+                            Icon URL
+                          </th>
+                          <th className="text-left p-3 font-medium">Active</th>
                           <th className="text-left p-3 font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredCategories.length === 0 ? (
                           <tr>
-                            <td colSpan="4" className="p-4 text-center text-muted-foreground">
-                              No categories found
+                            <td
+                              colSpan="5"
+                              className="p-4 text-center text-muted-foreground"
+                            >
+                              No categories found{" "}
+                              {activeClient ? `for ${activeClient.name}` : ""}.
+                              Try adding one!
                             </td>
                           </tr>
                         ) : (
@@ -352,7 +411,8 @@ export default function ServiceCategoriesPage() {
                               className="border-b border-gray-200 last:border-0"
                             >
                               <td className="p-3">
-                                {editingCategory && editingCategory.id === category.id ? (
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
                                   <Input
                                     name="name"
                                     value={editingCategory.name}
@@ -361,31 +421,64 @@ export default function ServiceCategoriesPage() {
                                     required
                                   />
                                 ) : (
-                                  <div className="font-medium">{category.name}</div>
+                                  category.name
                                 )}
                               </td>
                               <td className="p-3">
-                                {editingCategory && editingCategory.id === category.id ? (
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
                                   <Textarea
                                     name="description"
-                                    value={editingCategory.description || ""}
+                                    value={editingCategory.description}
                                     onChange={handleInputChange}
-                                    placeholder="Enter description"
-                                    className="min-h-[80px]"
+                                    placeholder="Enter category description"
                                   />
                                 ) : (
-                                  <div className="text-sm text-muted-foreground">
-                                    {category.description || "No description"}
+                                  <div className="text-sm text-muted-foreground truncate max-w-xs">
+                                    {category.description || "-"}
                                   </div>
                                 )}
                               </td>
                               <td className="p-3">
-                                <div className="text-sm text-muted-foreground">
-                                  {category.slug}
-                                </div>
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
+                                  <Input
+                                    name="icon_url"
+                                    value={editingCategory.icon_url || ""}
+                                    onChange={handleInputChange}
+                                    placeholder="Enter icon URL"
+                                  />
+                                ) : (
+                                  <div className="text-sm text-muted-foreground truncate max-w-xs">
+                                    {category.icon_url || "-"}
+                                  </div>
+                                )}
                               </td>
                               <td className="p-3">
-                                {editingCategory && editingCategory.id === category.id ? (
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
+                                  <Switch
+                                    name="active"
+                                    checked={editingCategory.active}
+                                    onCheckedChange={(checked) =>
+                                      handleSwitchChange(checked, "active")
+                                    }
+                                  />
+                                ) : (
+                                  <span
+                                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                      category.active
+                                        ? "bg-green-100 text-green-800"
+                                        : "bg-gray-100 text-gray-800"
+                                    }`}
+                                  >
+                                    {category.active ? "Active" : "Inactive"}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {editingCategory &&
+                                editingCategory.id === category.id ? (
                                   <div className="flex space-x-2">
                                     <Button
                                       variant="outline"
@@ -402,7 +495,7 @@ export default function ServiceCategoriesPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={cancelEditing}
+                                      onClick={() => setEditingCategory(null)}
                                     >
                                       <X className="h-4 w-4" />
                                     </Button>
@@ -413,7 +506,9 @@ export default function ServiceCategoriesPage() {
                                       variant="ghost"
                                       size="icon"
                                       title="Edit"
-                                      onClick={() => startEditing(category)}
+                                      onClick={() =>
+                                        setEditingCategory(category)
+                                      }
                                     >
                                       <Edit className="h-4 w-4" />
                                     </Button>
@@ -436,7 +531,8 @@ export default function ServiceCategoriesPage() {
                   </div>
 
                   <div className="text-sm text-muted-foreground">
-                    Showing {filteredCategories.length} of {categories.length} categories
+                    Showing {filteredCategories.length} of {categories.length}{" "}
+                    categories
                   </div>
                 </>
               )}
@@ -445,8 +541,7 @@ export default function ServiceCategoriesPage() {
         </Card>
       </div>
 
-      {/* Delete confirmation dialog */}
-      <ConfirmDialog 
+      <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title="Are you sure?"
@@ -459,17 +554,15 @@ export default function ServiceCategoriesPage() {
         variant="destructive"
       />
 
-      {/* Error dialog */}
-      <AlertComponent 
+      <AlertComponent
         open={errorDialogOpen}
         onOpenChange={setErrorDialogOpen}
         title="Error"
         message={errorMessage}
         actionLabel="OK"
       />
-      
-      {/* Success dialog */}
-      <AlertComponent 
+
+      <AlertComponent
         open={successDialogOpen}
         onOpenChange={setSuccessDialogOpen}
         title="Success"

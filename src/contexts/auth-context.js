@@ -2,16 +2,20 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "react-hot-toast";
 
 const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeClient, setActiveClient] = useState(null);
+  const [clientUrl, setClientUrl] = useState(null);
+  const [activeClient, setActiveClient] = useState(null); // State for the full client object
   const router = useRouter();
   const pathname = usePathname();
+
+  // Local storage key
+  const ACTIVE_CLIENT_ID_KEY = "wehoware_activeClientId";
 
   // Initialize auth state on load
   useEffect(() => {
@@ -29,18 +33,44 @@ export function AuthProvider({ children }) {
           setUser(data.user);
 
           // Set initial active client
+          let initialActiveClient = null;
+          const savedClientId = localStorage.getItem(ACTIVE_CLIENT_ID_KEY);
+
           if (
             ["employee", "admin"].includes(data.user.role) &&
             data.user.accessibleClients?.length > 0
           ) {
-            // Find primary client or use the first one
-            const primaryClient =
-              data.user.accessibleClients.find((c) => c.isPrimary) ||
-              data.user.accessibleClients[0];
-            setActiveClient(primaryClient);
+            // Try restoring from localStorage first for employee/admin
+            if (savedClientId) {
+              initialActiveClient =
+                data.user.accessibleClients.find(
+                  (c) => c.id === savedClientId
+                ) || null;
+            }
+            // If not restored or invalid, find primary or use the first one
+            if (!initialActiveClient) {
+              initialActiveClient =
+                data.user.accessibleClients.find((c) => c.isPrimary) ||
+                data.user.accessibleClients[0];
+            }
           } else if (data.user.role === "client" && data.user.clientDetails) {
-            // For client users, set their own client as active
-            setActiveClient(data.user.clientDetails);
+            // For client users, set their own client as active (localStorage isn't strictly needed but doesn't hurt)
+            initialActiveClient = data.user.clientDetails;
+          }
+
+          setActiveClient(initialActiveClient);
+          setClientUrl(initialActiveClient?.website); // Set clientUrl from website field
+
+          // Save/update the determined active client ID to localStorage
+          if (initialActiveClient) {
+            if (initialActiveClient.id !== savedClientId) {
+              localStorage.setItem(
+                ACTIVE_CLIENT_ID_KEY,
+                initialActiveClient.id
+              );
+            }
+          } else {
+            localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
           }
 
           // Redirect to admin if on login page
@@ -96,18 +126,25 @@ export function AuthProvider({ children }) {
       setUser(data.user);
 
       // Set initial active client
+      let initialActiveClient = null;
       if (
         ["employee", "admin"].includes(data.user.role) &&
         data.user.accessibleClients?.length > 0
       ) {
-        // Find primary client or use the first one
-        const primaryClient =
+        initialActiveClient =
           data.user.accessibleClients.find((c) => c.isPrimary) ||
           data.user.accessibleClients[0];
-        setActiveClient(primaryClient);
       } else if (data.user.role === "client" && data.user.clientDetails) {
-        // For client users, set their own client as active
-        setActiveClient(data.user.clientDetails);
+        initialActiveClient = data.user.clientDetails;
+      }
+
+      setActiveClient(initialActiveClient);
+      setClientUrl(initialActiveClient?.website); // Set clientUrl from website field
+
+      if (initialActiveClient) {
+        localStorage.setItem(ACTIVE_CLIENT_ID_KEY, initialActiveClient.id);
+      } else {
+        localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
       }
 
       router.replace("/admin");
@@ -123,6 +160,9 @@ export function AuthProvider({ children }) {
   // Logout function
   const logout = async () => {
     try {
+      // Clear saved client ID before logging out
+      localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+
       await fetch("/api/v1/auth", {
         method: "DELETE",
       });
@@ -153,9 +193,17 @@ export function AuthProvider({ children }) {
     setActiveClient(client);
     toast.success(`Switched to ${client.name}`);
 
+    // Save the newly selected client ID to localStorage
+    localStorage.setItem(ACTIVE_CLIENT_ID_KEY, client.id);
+
     // Update any API calls to include the new client ID
     // This happens automatically through the auth middleware
   };
+
+  // Determine roles - ensure user and user.role exist
+  const isAdmin = user?.role === "admin";
+  const isEmployee = user?.role === "employee";
+  const isClient = user?.role === "client";
 
   // Auth context value
   const value = {
@@ -163,8 +211,10 @@ export function AuthProvider({ children }) {
     loading,
     activeClient,
     isAuthenticated: !!user,
-    isClient: user?.role === "client",
-    isEmployee: user?.role === "employee" || user?.role === "admin",
+    isAdmin,
+    isEmployee,
+    isClient,
+    clientUrl,
     login,
     logout,
     switchClient,

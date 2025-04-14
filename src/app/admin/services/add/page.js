@@ -1,6 +1,5 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -19,113 +18,258 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Save,
-  ImagePlus,
   FileText,
   Tag,
   Loader2,
+  ImagePlus,
+  UploadCloud,
+  X as XIcon,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import supabase from "@/lib/supabase";
 import slugify from "slugify";
-
+import { useAuth } from "@/contexts/auth-context";
+import { toast } from "react-hot-toast";
+import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 
 export default function AddServicePage() {
   const router = useRouter();
+  const { activeClient, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
-
-  // Form state
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const fileInputRef = useRef(null);
+  const [originalThumbnailUrl, setOriginalThumbnailUrl] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [categories, setCategories] = useState([]);
   const [formData, setFormData] = useState({
-    // Content Tab
     title: "",
-    description: "",
+    slug: "",
+    category_id: "",
+    short_description: "",
     content: "",
-    fee: "",
     thumbnail: "",
-    featured: false,
+    price: "",
+    fee_currency: "CAD",
+    service_code: "",
+    tags: "",
+    duration: "",
     active: true,
-
-    // SEO Tab
-    meta_title: "",
-    meta_description: "",
-    keywords: "",
+    featured: false,
+    seo_title: "",
+    seo_description: "",
+    seo_keywords: "",
   });
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!activeClient?.id) {
+        setCategories([]);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("wehoware_service_categories")
+          .select("id, name")
+          .eq("client_id", activeClient.id)
+          .eq("active", true)
+          .order("name");
+
+        if (error) throw error;
+        setCategories(data || []);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        setErrorMessage("Failed to load service categories.");
+        setErrorDialogOpen(true);
+        setCategories([]);
+      }
+    };
+
+    fetchCategories();
+  }, [activeClient]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    // Simply update the specific field that changed
-    setFormData({
+    const previousTitle = formData.title;
+
+    let processedValue;
+    if (type === "checkbox" && (name === "featured" || name === "active")) {
+      processedValue = checked;
+    } else if (name === "price") {
+      processedValue = value === "" ? "" : parseFloat(value);
+    } else {
+      processedValue = value;
+    }
+
+    const newFormData = {
       ...formData,
-      [name]: type === "checkbox" ? checked : value,
-    });
+      [name]: processedValue,
+    };
+    if (name === "title") {
+      const currentSlug = formData.slug;
+      const previousSlug = slugify(previousTitle || "", {
+        lower: true,
+        strict: true,
+      });
+      const newSlug = slugify(value || "", { lower: true, strict: true });
+
+      if (currentSlug === "" || currentSlug === previousSlug) {
+        newFormData.slug = newSlug;
+      }
+    }
+
+    if (name === "slug") {
+      newFormData.slug = slugify(value || "", { lower: true, strict: true });
+    }
+
+    setFormData(newFormData);
   };
 
-  const handleSelectChange = (name, value) => {
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Basic validation (optional: add size/type checks)
+      if (!file.type.startsWith("image/")) {
+        toast.error("Invalid file type. Please select an image.");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB limit example
+        toast.error("File size exceeds 5MB limit.");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
+      setThumbnailFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+      setFormData((prev) => ({ ...prev, thumbnail: "" }));
+    } else {
+      setThumbnailFile(null);
+      setPreviewUrl(formData.thumbnail || originalThumbnailUrl || "");
+    }
+  };
+
+  const clearThumbnail = () => {
+    setThumbnailFile(null);
+    setPreviewUrl(""); // Clear preview
+    setFormData((prev) => ({ ...prev, thumbnail: "" })); // Clear URL in form
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Clear the actual file input element
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Check all required fields including dropdowns
+    if (!activeClient?.id) {
+      setErrorMessage(
+        "Please select an active client from the header dropdown before adding a service."
+      );
+      return;
+    }
     if (
       !formData.title ||
-      !formData.description ||
+      !formData.slug ||
+      !formData.short_description ||
       !formData.content ||
-      !formData.meta_title ||
-      !formData.meta_description ||
-      !formData.keywords ||
-      !formData.fee
+      !formData.seo_title ||
+      !formData.seo_description
     ) {
-      setErrorMessage("Please fill in all required fields");
-      setErrorDialogOpen(true);
+      toast.error("Please fill in all required fields.");
       return;
     }
 
+    let dataToSubmit = { ...formData };
+
     try {
-      setIsLoading(true);
 
-      // Generate slug from title
-      const slug = slugify(formData.title, { lower: true, strict: true });
-
-      // Get the current user ID for audit
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
-
-      const { data, error } = await supabase.from("services").insert([
-        {
-          title: formData.title,
-          slug: slug,
-          description: formData.description,
-          content: formData.content,
-          fee: formData.fee ? parseFloat(formData.fee) : null,
-          thumbnail: formData.thumbnail,
-          featured: formData.featured,
-          active: formData.active,
-          meta_title: formData.meta_title,
-          meta_description: formData.meta_description,
-          keywords: formData.keywords,
-          created_by: userId,
-          updated_by: userId,
-        },
-      ]);
-
-      if (error) {
-        throw error;
+      let thumbnailUrlToSave = originalThumbnailUrl;
+      if (thumbnailFile) {
+        setIsUploading(true);
+        toast.loading("Uploading thumbnail...");
+        if (originalThumbnailUrl) {
+          await deleteThumbnailByUrl(originalThumbnailUrl);
+        }
+        thumbnailUrlToSave = await uploadThumbnail(thumbnailFile, "services");
+        toast.dismiss();
+        toast.success("Thumbnail uploaded!");
+        setIsUploading(false);
+      } else {
+        const currentUrl = formData.thumbnail ? formData.thumbnail.trim() : "";
+        if (currentUrl !== originalThumbnailUrl) {
+          if (originalThumbnailUrl) {
+            await deleteThumbnailByUrl(originalThumbnailUrl);
+          }
+          thumbnailUrlToSave = currentUrl || null;
+        } else {
+          thumbnailUrlToSave = originalThumbnailUrl;
+        }
       }
 
+      const finalData = {
+        client_id: activeClient.id,
+        category_id: dataToSubmit.category_id,
+        title: dataToSubmit.title,
+        slug:
+          dataToSubmit.slug ||
+          slugify(dataToSubmit.title, { lower: true, strict: true }),
+        description: dataToSubmit.short_description,
+        content: dataToSubmit.content,
+        thumbnail: thumbnailUrlToSave || formData.thumbnail || null,
+        fee: dataToSubmit.price === "" ? null : parseFloat(dataToSubmit.price),
+        fee_currency: dataToSubmit.fee_currency || "CAD",
+        service_code: dataToSubmit.service_code || null,
+        tags: dataToSubmit.tags
+          ? dataToSubmit.tags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter((tag) => tag)
+          : [],
+        duration: dataToSubmit.duration || null,
+        active: dataToSubmit.active,
+        featured: dataToSubmit.featured,
+        meta_title: dataToSubmit.seo_title,
+        meta_description: dataToSubmit.seo_description,
+        meta_keywords: dataToSubmit.seo_keywords,
+        created_by: user?.id,
+        updated_by: user?.id,
+      };
+
+      const { data, error } = await supabase
+        .from("wehoware_services")
+        .insert([finalData])
+        .select();
+      if (error) {
+        console.error("Supabase insert error:", error);
+        // Check for specific Supabase errors if needed
+        if (error.code === "23505") {
+          // Example: unique constraint violation
+          throw new Error(
+            `Database Error: A service with this slug or another unique field might already exist. ${error.details}`
+          );
+        } else {
+          throw new Error(`Database Error: ${error.message}`);
+        }
+      }
+      setOriginalThumbnailUrl(thumbnailUrlToSave);
+      toast.success("Service added successfully!");
+      setIsLoading(false);
       setSuccessDialogOpen(true);
-      // Will redirect after user confirms success dialog
+      router.push("/admin/services");
     } catch (error) {
-      console.error("Error creating service:", error);
-      setErrorMessage(error.message || "Failed to create service");
+      console.error("Error in handleSubmit:", error);
+      if (!errorMessage) {
+        setErrorMessage(error.message || "An unexpected error occurred.");
+      }
+      toast.error(errorMessage || error.message || "Failed to add service.");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -141,24 +285,34 @@ export default function AddServicePage() {
           backLink="/admin/services"
           backIcon={<ArrowLeft size={16} />}
         />
-
-        <form
-          onSubmit={handleSubmit}
-        >
-          <Tabs defaultValue="content" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 h-10">
-              <TabsTrigger value="content">
-                <FileText className="h-6 w-6 mr-2" />
-                Content
+        <form onSubmit={handleSubmit}>
+          <Tabs defaultValue="basic" className="w-full">
+            <TabsList>
+              <TabsTrigger value="basic">
+                <FileText className="mr-2 h-4 w-4" /> Basic Info
+              </TabsTrigger>
+              <TabsTrigger value="details">
+                <Tag className="mr-2 h-4 w-4" /> Details & Settings
               </TabsTrigger>
               <TabsTrigger value="seo">
-                <Tag className="h-6 w-6 mr-2" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="mr-2 h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
                 SEO
               </TabsTrigger>
             </TabsList>
-
-            {/* Content Tab */}
-            <TabsContent value="content" className="space-y-4 pt-4">
+            <TabsContent value="basic" className="space-y-4 pt-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Service Information</CardTitle>
@@ -170,126 +324,271 @@ export default function AddServicePage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="title">
-                        Title <span className="text-red-500">*</span>
+                        Service Title
+                        <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="title"
                         name="title"
-                        placeholder="e.g. Business Visa Services"
+                        placeholder="e.g. Business Visa Application"
                         value={formData.title}
                         onChange={handleInputChange}
                         required
                       />
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="fee">Fee ($)</Label>
-                        <Input
-                          id="fee"
-                          name="fee"
-                          type="number"
-                          placeholder="e.g. 1500"
-                          min="0"
-                          step="0.01"
-                          value={formData.fee}
-                          onChange={handleInputChange}
+                        <Label htmlFor="category_id">
+                          Category <span className="text-destructive">*</span>
+                        </Label>
+                        <select
+                          id="category_id"
+                          name="category_id"
+                          value={formData.category_id}
+                          onChange={(e) => handleInputChange(e)}
                           required
+                          className="block w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        >
+                          <option value="" disabled>
+                            {categories.length === 0
+                              ? activeClient
+                                ? "No active categories found"
+                                : "Select a client first"
+                              : "Select Category"}
+                          </option>
+                          {categories.map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="price">Price/Fee</Label>
+                        <Input
+                          id="price"
+                          name="price"
+                          type="number"
+                          placeholder="e.g. 1500.00"
+                          value={formData.price}
+                          onChange={handleInputChange}
+                          step="0.01"
                         />
                       </div>
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="description">
-                      Short Description <span className="text-red-500">*</span>
+                    <Label htmlFor="short_description">
+                      Short Description
+                      <span className="text-destructive">*</span>
                     </Label>
                     <Textarea
-                      id="description"
-                      name="description"
-                      placeholder="Brief overview of the service"
-                      value={formData.description}
+                      id="short_description"
+                      name="short_description"
+                      placeholder="Brief summary of the service"
+                      value={formData.short_description}
                       onChange={handleInputChange}
                       required
                     />
                     <p className="text-sm text-muted-foreground">
-                      This will appear in service listings and cards (max 300
-                      characters)
+                      A short description displayed in list views.
                     </p>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="content">
-                      Full Content <span className="text-red-500">*</span>
-                    </Label>
+                    <Label htmlFor="content">Content *</Label>
                     <Textarea
                       id="content"
                       name="content"
-                      placeholder="Detailed information about the service"
-                      className="min-h-[200px]"
+                      placeholder="Detailed description of the service"
                       value={formData.content}
                       onChange={handleInputChange}
                       required
+                      rows={6}
                     />
                     <p className="text-sm text-muted-foreground">
-                      The full description of the service that will appear on
-                      the service detail page
+                      The main content/description for the service page
+                      (required).
                     </p>
                   </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="thumbnail">Thumbnail URL</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="thumbnail"
-                          name="thumbnail"
-                          placeholder="URL to image"
-                          value={formData.thumbnail}
-                          onChange={handleInputChange}
-                          required
-                        />
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="details" className="space-y-4 pt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Details & Settings</CardTitle>
+                  <CardDescription>
+                    Enter the details about this immigration service
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Label>Thumbnail</Label>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      {/* Preview */}
+                      <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
+                        {previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImagePlus className="w-10 h-10 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-grow space-y-2 w-full">
+                        {/* File Input Button */}
                         <Button
                           type="button"
                           variant="outline"
-                          className="shrink-0"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
                         >
-                          <ImagePlus className="h-4 w-4" />
+                          <UploadCloud className="mr-2 h-4 w-4" />
+                          {thumbnailFile ? "Change File" : "Upload File"}
                         </Button>
+                        <Input
+                          ref={fileInputRef}
+                          id="thumbnail-file"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          className="hidden" // Hide the actual input, trigger via button
+                          disabled={isUploading}
+                        />
+                        {thumbnailFile && (
+                          <div className="flex items-center justify-between text-xs">
+                            <p className="text-muted-foreground truncate flex-grow mr-2">
+                              Selected: {thumbnailFile.name}
+                            </p>
+                          </div>
+                        )}
+                        <div className="relative flex items-center">
+                          <span className="flex-shrink px-2 text-xs text-muted-foreground">
+                            OR
+                          </span>
+                          <div className="flex-grow border-t border-muted"></div>
+                        </div>
+                        {/* URL Input */}
+                        <Input
+                          id="thumbnail"
+                          name="thumbnail"
+                          type="url"
+                          placeholder="Enter Image URL"
+                          value={formData.thumbnail} // Controlled by formData
+                          onChange={handleInputChange}
+                          disabled={!!thumbnailFile || isUploading} // Disable if file is selected or uploading
+                        />
                       </div>
+                      {/* Clear Button */}
+                      {(thumbnailFile || formData.thumbnail) &&
+                        !isUploading && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={clearThumbnail}
+                            title="Clear Thumbnail"
+                            className="self-start sm:self-center"
+                          >
+                            <XIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload an image (max 5MB) or provide a URL. Uploads are
+                      stored in Supabase Storage.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="duration">
+                        Duration (e.g., hours, days)
+                      </Label>
+                      <Input
+                        id="duration"
+                        name="duration"
+                        placeholder="e.g., 3 months, 1 year, Varies"
+                        value={formData.duration}
+                        onChange={handleInputChange}
+                      />
                     </div>
                   </div>
-
-                  <div className="flex flex-col gap-4 pt-2 md:flex-row md:items-center">
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="featured"
-                        name="featured"
-                        checked={formData.featured}
-                        onCheckedChange={(checked) =>
-                          setFormData({ ...formData, featured: checked })
-                        }
-                      />
-                      <Label htmlFor="featured">Featured Service</Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="active"
-                        name="active"
-                        checked={formData.active}
-                        onCheckedChange={(checked) =>
-                          setFormData({ ...formData, active: checked })
-                        }
-                      />
-                      <Label htmlFor="active">Active</Label>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fee_currency">Fee Currency</Label>
+                    <Input
+                      id="fee_currency"
+                      name="fee_currency"
+                      placeholder="e.g., CAD"
+                      value={formData.fee_currency}
+                      onChange={handleInputChange}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Currency code for the price (default: CAD).
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="service_code">Service Code</Label>
+                    <Input
+                      id="service_code"
+                      name="service_code"
+                      placeholder="Internal code for the service"
+                      value={formData.service_code}
+                      onChange={handleInputChange}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Optional internal code for this service.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tags">Tags</Label>
+                    <Input
+                      id="tags"
+                      name="tags"
+                      placeholder="e.g. visa, application, consultation"
+                      value={formData.tags}
+                      onChange={handleInputChange}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Comma-separated list of tags.
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="active"
+                      name="active"
+                      checked={formData.active}
+                      onCheckedChange={(checked) =>
+                        handleInputChange({
+                          target: { name: "active", type: "checkbox", checked },
+                        })
+                      }
+                    />
+                    <Label htmlFor="active">Active</Label>
+                  </div>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="featured"
+                      name="featured"
+                      checked={formData.featured}
+                      onCheckedChange={(checked) =>
+                        handleInputChange({
+                          target: {
+                            name: "featured",
+                            type: "checkbox",
+                            checked,
+                          },
+                        })
+                      }
+                    />
+                    <Label htmlFor="featured">Featured</Label>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* SEO Tab */}
             <TabsContent value="seo" className="space-y-4 pt-4">
               <Card>
                 <CardHeader>
@@ -300,12 +599,12 @@ export default function AddServicePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="meta_title">Meta Title</Label>
+                    <Label htmlFor="seo_title">Meta Title</Label>
                     <Input
-                      id="meta_title"
-                      name="meta_title"
+                      id="seo_title"
+                      name="seo_title"
                       placeholder="Title for search engines"
-                      value={formData.meta_title}
+                      value={formData.seo_title}
                       onChange={handleInputChange}
                       required
                     />
@@ -313,14 +612,13 @@ export default function AddServicePage() {
                       SEO optimized title for search engines (required)
                     </p>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="meta_description">Meta Description</Label>
+                    <Label htmlFor="seo_description">Meta Description</Label>
                     <Textarea
-                      id="meta_description"
-                      name="meta_description"
+                      id="seo_description"
+                      name="seo_description"
                       placeholder="Brief description for search engines"
-                      value={formData.meta_description}
+                      value={formData.seo_description}
                       onChange={handleInputChange}
                       required
                     />
@@ -329,14 +627,13 @@ export default function AddServicePage() {
                       characters)
                     </p>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="keywords">Keywords</Label>
+                    <Label htmlFor="seo_keywords">Keywords</Label>
                     <Input
-                      id="keywords"
-                      name="keywords"
+                      id="seo_keywords"
+                      name="seo_keywords"
                       placeholder="e.g. business visa, work permit, immigration consultant"
-                      value={formData.keywords}
+                      value={formData.seo_keywords}
                       onChange={handleInputChange}
                       required
                     />
@@ -345,11 +642,24 @@ export default function AddServicePage() {
                       (required)
                     </p>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slug">Slug</Label>
+                    <Input
+                      id="slug"
+                      name="slug"
+                      placeholder="e.g. business-visa-application"
+                      value={formData.slug}
+                      onChange={handleInputChange}
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Unique identifier for the service URL (required)
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
-
           <div className="mt-6 flex justify-end space-x-4">
             <Button
               type="button"
@@ -373,8 +683,6 @@ export default function AddServicePage() {
             </Button>
           </div>
         </form>
-
-        {/* Error Dialog */}
         <AlertComponent
           open={errorDialogOpen}
           onOpenChange={setErrorDialogOpen}
@@ -382,8 +690,6 @@ export default function AddServicePage() {
           message={errorMessage}
           actionLabel="OK"
         />
-
-        {/* Success Dialog */}
         <AlertComponent
           open={successDialogOpen}
           onOpenChange={setSuccessDialogOpen}

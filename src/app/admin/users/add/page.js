@@ -12,17 +12,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import supabase from "@/lib/supabase";
 import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function AddUserPage() {
   const router = useRouter();
-  const { user, isEmployee } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [clients, setClients] = useState([]);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // New user form state
@@ -32,7 +35,7 @@ export default function AddUserPage() {
     first_name: "",
     last_name: "",
     role: "client",
-    client_id: "",
+    client_ids: [],
   });
 
   useEffect(() => {
@@ -42,7 +45,7 @@ export default function AddUserPage() {
           router.push("/login");
           return;
         }
-        if (!isEmployee) {
+        if (!isAdmin) {
           toast.error("Access Denied: Only employees can access this page");
           router.push("/admin");
           return;
@@ -56,7 +59,7 @@ export default function AddUserPage() {
     };
 
     checkUserRole();
-  }, [user, isEmployee, router]);
+  }, [user, isAdmin, router]);
 
   const fetchClients = async () => {
     try {
@@ -78,54 +81,80 @@ export default function AddUserPage() {
     setNewUser((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleClientCheckboxChange = (clientId, checked) => {
+    setNewUser((prev) => {
+      const currentClientIds = prev.client_ids || [];
+      if (checked) {
+        // Add client ID if checked and not already present
+        return { ...prev, client_ids: [...currentClientIds, clientId] };
+      } else {
+        // Remove client ID if unchecked
+        return {
+          ...prev,
+          client_ids: currentClientIds.filter((id) => id !== clientId),
+        };
+      }
+    });
+  };
+
   const handleAddUser = async (e) => {
     e.preventDefault();
 
     if (!newUser.email || !newUser.password) {
-      toast.error("Validation Error: Email and password are required");
+      toast.error("Email and password are required to create a user.");
+      return;
+    }
+
+    if (!isAdmin) {
+      toast.error("Access Denied: Only employees can add new users");
+      return;
+    }
+
+    if (
+      newUser.role === "client" &&
+      (!newUser.client_ids || newUser.client_ids.length === 0)
+    ) {
+      toast.error(
+        "Validation Error: At least one client must be selected for client role"
+      );
+      return;
+    }
+
+    if (
+      newUser.role === "employee" &&
+      newUser.client_ids &&
+      newUser.client_ids.length > 0
+    ) {
+      toast.error(
+        "Validation Error: Employees should not have client associations set during creation."
+      );
       return;
     }
 
     try {
       setIsSubmitting(true);
-      // 1. Create auth user
-      const { data: authData, error: authError } =
-        await supabase.auth.admin.createUser({
-          email: newUser.email,
-          password: newUser.password,
-          email_confirm: true,
-        });
-      if (authError) throw authError;
+      // Call the backend API route to handle user creation securely
+      const response = await fetch("/api/v1/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newUser),
+      });
 
-      // 2. Get the new user ID
-      const userId = authData.user.id;
+      const result = await response.json();
 
-      // 3. Create profile
-      const profileData = {
-        id: userId,
-        first_name: newUser.first_name,
-        last_name: newUser.last_name,
-        role: newUser.role,
-        client_id: newUser.role === "client" ? newUser.client_id : null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      const { error: profileError } = await supabase
-        .from("wehoware_profiles")
-        .insert(profileData);
-
-      if (profileError) {
-        // If profile creation fails, delete the auth user to avoid orphaned users
-        await supabase.auth.admin.deleteUser(userId);
-        throw profileError;
+      if (!response.ok) {
+        // Use the error message from the API response if available
+        throw new Error(result.error || `API Error: ${response.statusText}`);
       }
 
-      toast.success("User added successfully");
-      router.push("/users");
+      // If successful
+      toast.success(result.message || "User added successfully!");
+      router.push("/admin/users");
     } catch (error) {
       console.error("Error adding user:", error);
-      toast.error(error.message || "Failed to add user");
+      toast.error(`Error adding user: ${error.message || "Unknown error"}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -161,19 +190,30 @@ export default function AddUserPage() {
                 required
               />
             </div>
-            <div>
+            <div className="relative">
               <Label htmlFor="password">
                 Password <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={newUser.password}
                 onChange={handleInputChange}
                 required
               />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pt-5 pr-3 flex items-center"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                ) : (
+                  <Eye className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                )}
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -203,40 +243,63 @@ export default function AddUserPage() {
               </Label>
               <select
                 value={newUser.role}
-                onValueChange={(value) =>
-                  setNewUser((prev) => ({ ...prev, role: value }))
+                onChange={(e) =>
+                  setNewUser((prev) => ({ ...prev, role: e.target.value }))
                 }
+                className="block w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               >
-                <option value="admin">administrators</option>
-                <option value="employee">employees</option>
-                <option value="client">clients</option>
+                <option value="admin">Administrators</option>
+                <option value="employee">Employees</option>
+                <option value="client">Clients</option>
               </select>
             </div>
             {newUser.role === "client" && (
               <div className="my-4">
                 <Label htmlFor="client_id">
-                  Client Association <span className="text-destructive">*</span>
+                  Client Associations{" "}
+                  <span className="text-destructive">*</span>
                 </Label>
-                <select
-                  value={newUser.client_id}
-                  onValueChange={(value) =>
-                    setNewUser((prev) => ({ ...prev, client_id: value }))
-                  }
-                >
-                  <option value="">select client</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.company_name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md">
+                  {clients.length > 0 ? (
+                    clients.map((client) => (
+                      <div
+                        key={client.id}
+                        className="flex items-center space-x-2"
+                      >
+                        <Checkbox
+                          id={`client-${client.id}`}
+                          checked={newUser.client_ids?.includes(client.id)} // Added safe navigation
+                          onCheckedChange={(checked) =>
+                            handleClientCheckboxChange(client.id, checked)
+                          }
+                        />
+                        <Label
+                          htmlFor={`client-${client.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {client.company_name}
+                        </Label>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No active clients found.
+                    </p>
+                  )}
+                </div>
+                {newUser.role === "client" &&
+                  newUser.client_ids?.length === 0 && (
+                    <p className="text-xs text-destructive mt-1">
+                      At least one client must be selected for client role.
+                    </p>
+                  )}
               </div>
             )}
             <div className="flex space-x-4">
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => router.push("/users")}
+                onClick={() => router.push("/admin/users")}
                 disabled={isSubmitting}
               >
                 Cancel

@@ -36,9 +36,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/contexts/auth-context";
+import { deleteThumbnailByUrl } from "@/lib/storageUtils";
 
 export default function BlogsPage() {
   const router = useRouter();
+  const { activeClient, clientUrl } = useAuth();
   const [blogs, setBlogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -57,13 +60,9 @@ export default function BlogsPage() {
   // Fetch blogs when sort or filter changes
   useEffect(() => {
     fetchBlogs();
-  }, [showPublishedOnly, sortField, sortOrder]);
-
-  // Fetch on mount
-  useEffect(() => {
-    fetchBlogs();
     fetchCategories();
-  }, []);
+  }, [showPublishedOnly, activeClient, sortField, sortOrder]);
+
 
   const fetchBlogs = async () => {
     try {
@@ -78,6 +77,7 @@ export default function BlogsPage() {
           wehoware_blog_categories(name)
         `
         )
+        .eq("client_id", activeClient.id)
         .order(sortField, { ascending: sortOrder === "asc" });
 
       // Only filter by status if showPublishedOnly is true
@@ -115,8 +115,9 @@ export default function BlogsPage() {
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from("blog_categories")
+        .from("wehoware_blog_categories")
         .select("*")
+        .eq("client_id", activeClient.id)
         .order("name");
 
       if (error) {
@@ -165,10 +166,13 @@ export default function BlogsPage() {
       } = await supabase.auth.getUser();
       const userId = user?.id;
 
+
+
       const { error } = await supabase
         .from("wehoware_blogs")
         .delete()
-        .eq("id", blogToDelete.id);
+        .eq("id", blogToDelete.id)
+        .eq("client_id", activeClient.id);
 
       if (error) {
         throw error;
@@ -332,12 +336,19 @@ export default function BlogsPage() {
                     <table className="w-full">
                       <thead className="bg-muted/50">
                         <tr>
-                          <th className="text-left p-3 font-medium">Title</th>
-                          <th className="text-left p-3 font-medium hidden md:table-cell">
-                            Category
+                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[60px]">
+                            Thumb
+                          </th>
+                          <th
+                            className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort("title")}
+                          >
+                            Title{" "}
+                            {sortField === "title" &&
+                              (sortOrder === "asc" ? "↑" : "↓")}
                           </th>
                           <th className="text-left p-3 font-medium hidden md:table-cell">
-                            Author
+                            Category
                           </th>
                           <th className="text-left p-3 font-medium hidden md:table-cell">
                             Date
@@ -353,8 +364,15 @@ export default function BlogsPage() {
                             className="border-b border-gray-200 last:border-0"
                           >
                             <td className="p-3">
-                              <div className="font-medium">{blog.title}</div>
-                              <div className="text-sm text-muted-foreground truncate max-w-md">
+                              <img
+                                src={blog.thumbnail} // Use placeholder if no thumbnail
+                                alt={blog.title ? `Thumbnail for ${blog.title}` : 'Blog post thumbnail'}
+                                className="h-10 w-10 rounded-md object-cover border"
+                              />
+                            </td>
+                            <td className="p-3 max-w-[300px]">
+                              <div className="font-medium truncate">{blog.title}</div>
+                              <div className="text-sm text-muted-foreground truncate">
                                 {blog.excerpt}
                               </div>
                               {blog.thumbnail && (
@@ -398,7 +416,7 @@ export default function BlogsPage() {
                                   size="icon"
                                   title="View"
                                   onClick={() =>
-                                    window.open(`/blog/${blog.slug}`, "_blank")
+                                    window.open(`${clientUrl}/blogfdsavd/${blog.slug}`, "_blank")
                                   }
                                 >
                                   <Eye className="h-4 w-4" />

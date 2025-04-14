@@ -176,7 +176,7 @@ export default function ContactPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            Let's Work <span className="text-primary">Together</span>
+            Lets Work <span className="text-primary">Together</span>
           </motion.h1>
 
           <motion.p
@@ -259,7 +259,7 @@ export default function ContactPage() {
                   Send Us a Message
                 </CardTitle>
                 <CardDescription>
-                  Fill out the form below and we'll get back to you as soon as
+                  Fill out the form below and we will get back to you as soon as
                   possible.
                 </CardDescription>
               </CardHeader>
@@ -289,7 +289,7 @@ export default function ContactPage() {
                       </svg>
                       <p className="font-medium">
                         Thank you! Your message has been sent successfully.
-                        We'll be in touch soon.
+                        We will be in touch soon.
                       </p>
                     </div>
                   </motion.div>

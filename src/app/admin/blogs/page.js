@@ -416,7 +416,7 @@ export default function BlogsPage() {
                                   size="icon"
                                   title="View"
                                   onClick={() =>
-                                    window.open(`${clientUrl}/blogfdsavd/${blog.slug}`, "_blank")
+                                    window.open(`${clientUrl}/blog/${blog.slug}`, "_blank")
                                   }
                                 >
                                   <Eye className="h-4 w-4" />

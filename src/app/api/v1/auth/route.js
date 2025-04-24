@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import supabase from "@/lib/supabase";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 // Login endpoint
 export async function POST(request) {
+  const supabase = createRouteHandlerClient({ cookies });
   try {
     const body = await request.json();
     const { email, password } = body;
@@ -108,6 +109,7 @@ export async function POST(request) {
 
 // Logout endpoint
 export async function DELETE(request) {
+  const supabase = createRouteHandlerClient({ cookies });
   try {
     const { error } = await supabase.auth.signOut();
 
@@ -127,6 +129,7 @@ export async function DELETE(request) {
 
 // Get current user session
 export async function GET(request) {
+  const supabase = createRouteHandlerClient({ cookies });
   try {
     const { data, error } = await supabase.auth.getSession();
 

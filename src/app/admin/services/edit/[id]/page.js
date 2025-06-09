@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react"; // Added useRef
+import { useState, useEffect, useRef, useMemo } from "react"; // Added useRef
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import React from "react";
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RichTextEditor from "@/components/ui/rich-text-editor";
 import {
   Save,
   ImagePlus,
@@ -32,6 +33,7 @@ import supabase from "@/lib/supabase";
 import slugify from "slugify";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
+import SelectInput from "@/components/ui/select";
 
 export default function EditServicePage({ params }) {
   const router = useRouter();
@@ -71,6 +73,13 @@ export default function EditServicePage({ params }) {
     seo_keywords: "",
   });
 
+  const categoryOptions = useMemo(() => {
+    return categories.map((cat) => ({
+      value: cat.id,
+      label: cat.name,
+    }));
+  }, [categories]);
+
   useEffect(() => {
     const fetchService = async () => {
       try {
@@ -89,7 +98,7 @@ export default function EditServicePage({ params }) {
         if (data) {
           const initialThumbnailUrl = data.thumbnail || "";
           setFormData({
-            category_id: data.category_id || "",
+            category_id: data.category_id?.id || "",
             title: data.title || "",
             slug: data.slug || "",
             short_description: data.description || "",
@@ -153,18 +162,38 @@ export default function EditServicePage({ params }) {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" || type === "switch" ? checked : value,
-    }));
+    let updatedValue = type === "checkbox" ? checked : value;
 
-    // If user manually changes the thumbnail URL, clear the file input/preview
+    // If thumbnail URL is being changed manually
     if (name === "thumbnail") {
-      setThumbnailFile(null);
-      setPreviewUrl(value); // Show the URL they typed
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // Clear the file input visually
-      }
+      handleThumbnailUrlChange(value);
+    }
+
+    setFormData({ ...formData, [name]: updatedValue });
+  };
+
+  // Handler for rich text editor content changes
+  const handleContentChange = (html) => {
+    setFormData({
+      ...formData,
+      content: html,
+    });
+  };
+
+  // Handler for short description rich text editor changes
+  const handleShortDescriptionChange = (html) => {
+    setFormData({
+      ...formData,
+      short_description: html,
+    });
+  };
+
+  // If user manually changes the thumbnail URL
+  const handleThumbnailUrlChange = (value) => {
+    setThumbnailFile(null);
+    setPreviewUrl(value); // Show the URL they typed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Clear the file input visually
     }
   };
 
@@ -400,53 +429,46 @@ export default function EditServicePage({ params }) {
 
                   <div className="space-y-2">
                     <Label htmlFor="category_id">Category *</Label>
-                    <select
+                    <SelectInput
                       id="category_id"
                       name="category_id"
-                      value={
-                        typeof formData.category_id === "object" &&
-                        formData.category_id !== null
-                          ? formData.category_id.id
-                          : formData.category_id
-                      }
+                      options={categoryOptions}
+                      value={formData.category_id}
                       onChange={handleInputChange}
+                      placeholder="Select a category"
                       required
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="" disabled>
-                        Select a category
-                      </option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="short_description">Short Description</Label>
-                    <Textarea
-                      id="short_description"
-                      name="short_description"
-                      placeholder="A brief summary of the service"
+                    <RichTextEditor
                       value={formData.short_description}
-                      onChange={handleInputChange}
-                      rows={3}
+                      onChange={handleShortDescriptionChange}
+                      placeholder="A brief summary of the service"
+                      className="min-h-[150px]"
                     />
+                    <p className="text-sm text-muted-foreground">
+                      A short description displayed in list views.
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="content">Content *</Label>
-                    <Textarea
-                      id="content"
-                      name="content"
-                      placeholder="Detailed description of the service"
+                    <Label htmlFor="content">
+                      Content
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <RichTextEditor
                       value={formData.content}
-                      onChange={handleInputChange}
-                      rows={8}
-                      required
+                      onChange={handleContentChange}
+                      placeholder="Detailed description of the service"
+                      className="min-h-[150px]"
                     />
+                    <p className="text-sm text-muted-foreground">
+                      The main content/description for the service page
+                      (required). You can add images, videos, headings, and more
+                      using the toolbar.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -557,17 +579,19 @@ export default function EditServicePage({ params }) {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="fee_currency">Currency</Label>
-                      <select
+                      <SelectInput
                         id="fee_currency"
                         name="fee_currency"
+                        placeholder="Select a currency"
                         value={formData.fee_currency}
                         onChange={handleInputChange}
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      >
-                        <option value="CAD">CAD</option>
-                        <option value="USD">USD</option>
-                        {/* Add other currencies as needed */}
-                      </select>
+                        required
+                        options={[
+                          { value: "CAD", label: "CAD" },
+                          { value: "USD", label: "USD" },
+                          // Add other currencies as needed
+                        ]}
+                      />
                     </div>
                   </div>
 
@@ -678,7 +702,7 @@ export default function EditServicePage({ params }) {
                     <Input
                       id="seo_keywords"
                       name="seo_keywords"
-                      placeholder="e.g. business visa, work permit, immigration consultant"
+                      placeholder="e.g. business service keywords"
                       value={formData.seo_keywords}
                       onChange={handleInputChange}
                       required

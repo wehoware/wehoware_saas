@@ -20,7 +20,7 @@ const Footer = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Wehoware</h3>
             <p className="text-muted-foreground mb-4">
-              Wehoware is a leading provider of immigration services, helping individuals and businesses navigate the complexities of processes with ease and confidence.
+              Wehoware is a leading provider of services, helping individuals and businesses navigate the complexities of processes with ease and confidence.
             </p>
             <div className="flex space-x-4">
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
@@ -90,8 +90,8 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/services/business-immigration" className="text-muted-foreground hover:text-primary transition-colors">
-                  Business Immigration
+                <Link href="/services/business" className="text-muted-foreground hover:text-primary transition-colors">
+                  Business
                 </Link>
               </li>
               <li>
@@ -109,7 +109,7 @@ const Footer = () => {
               <li className="flex items-start">
                 <MapPin className="mr-2 h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <span className="text-muted-foreground">
-                  123 Immigration Blvd, Suite 500<br />
+                  123 Service Blvd, Suite 500<br />
                   New York, NY 10001
                 </span>
               </li>

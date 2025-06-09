@@ -25,7 +25,10 @@ import {
   BarChart,
   Users,
   Building,
-  NotebookPen,
+  Calendar,
+  ReceiptText,
+  CreditCard,
+  CheckCircle,
 } from "lucide-react";
 
 // Centralized sidebar configuration with allowed roles for each item.
@@ -49,6 +52,30 @@ const sidebarMenu = [
     roles: ["admin"],
   },
   {
+    title: "Invoices",
+    href: "/admin/invoices",
+    icon: <ReceiptText className="h-5 w-5" />,
+    roles: ["admin", "client"],
+  },
+  {
+    title: "Transactions",
+    href: "/admin/transactions",
+    icon: <CreditCard className="h-5 w-5" />,
+    roles: ["admin", "client"],
+  },
+  {
+    title: "Tasks",
+    href: "/admin/tasks",
+    icon: <CheckCircle className="h-5 w-5" />,
+    roles: ["admin", "employee", "client"],
+  },
+  {
+    title: "Appointments",
+    href: "/admin/appointments",
+    icon: <Calendar className="h-5 w-5" />,
+    roles: ["admin", "client"],
+  },
+  {
     title: "Services",
     href: "/admin/services",
     icon: <Briefcase className="h-5 w-5" />,
@@ -64,12 +91,6 @@ const sidebarMenu = [
     title: "SEO",
     href: "/admin/seo",
     icon: <Search className="h-5 w-5" />,
-    roles: ["admin", "employee", "client"],
-  },
-  {
-    title: "Keywords",
-    href: "/admin/keywords",
-    icon: <NotebookPen className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
@@ -90,6 +111,7 @@ const sidebarMenu = [
     icon: <FormInput className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
+
   {
     title: "Reports",
     href: "/admin/reports",
@@ -122,7 +144,9 @@ const AdminLayout = ({ children }) => {
 
   // Determine if the current route is allowed for the user's role.
   // Find the base menu item corresponding to the current pathname.
-  const currentMenuItem = sidebarMenu.find((item) => pathname.startsWith(item.href));
+  const currentMenuItem = sidebarMenu.find((item) =>
+    pathname.startsWith(item.href)
+  );
 
   // Check if the user's role is included in the allowed roles for this menu item.
   // Always allow the '/admin' dashboard itself.
@@ -135,8 +159,15 @@ const AdminLayout = ({ children }) => {
     // Add extra check: If isLoading is done, user exists, but role is somehow empty, treat as unauthorized.
     const effectivelyUnauthorized = !isLoading && user && !role;
 
-    if (!isLoading && user && (!isRouteAllowed || effectivelyUnauthorized) && pathname !== "/admin") {
-      toast.error("Access Denied: You don't have permission to view this page.");
+    if (
+      !isLoading &&
+      user &&
+      (!isRouteAllowed || effectivelyUnauthorized) &&
+      pathname !== "/admin"
+    ) {
+      toast.error(
+        "Access Denied: You don't have permission to view this page."
+      );
       router.push("/admin"); // Redirect to base admin dashboard
     }
   }, [isLoading, user, role, isRouteAllowed, pathname, router]); // Added role dependency
@@ -185,8 +216,7 @@ const AdminLayout = ({ children }) => {
             </svg>
           </div>
         </div>
-      ) : !user ? // When there is no user, the redirection is assumed to be handled elsewhere.
-      null : (
+      ) : !user ? null : ( // When there is no user, the redirection is assumed to be handled elsewhere.
         <div className="min-h-screen flex bg-background">
           {/* Sidebar */}
           <div
@@ -247,7 +277,7 @@ const AdminLayout = ({ children }) => {
               </nav>
             </ScrollArea>
             <div className="mt-auto p-4">
-              <ModeToggle />
+              {/* <ModeToggle /> */}
               <Button
                 variant="outline"
                 className={`mt-4 w-full ${

@@ -19,6 +19,7 @@ import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
+import SelectInput from "@/components/ui/select";
 
 export default function EditUserPage() {
   const router = useRouter();
@@ -34,7 +35,6 @@ export default function EditUserPage() {
     last_name: "",
     role: "client",
     client_ids: [], // This will store IDs from wehoware_user_clients
-    // Consider if you need the single client_id from wehoware_profiles as well
   });
 
   useEffect(() => {
@@ -84,17 +84,16 @@ export default function EditUserPage() {
       if (clientAssocError) throw clientAssocError;
 
       // Extract just the client IDs into an array
-      const associatedClientIds = clientAssocData?.map((assoc) => assoc.client_id) || [];
+      const associatedClientIds =
+        clientAssocData?.map((assoc) => assoc.client_id) || [];
 
       setEditUser({
-        id: profileData.id,
-        email: profileData.email, 
+        id: profileData.id || "",
+        email: profileData.email || "",
         first_name: profileData.first_name || "",
         last_name: profileData.last_name || "",
         role: profileData.role || "client",
-        client_ids: associatedClientIds,
-        // Add profileData.client_id here if you need the primary one from the profile
-        // primary_client_id: profileData.client_id,
+        client_ids: associatedClientIds || [],
       });
 
       // Fetch the user's email from auth.users if needed for display
@@ -130,7 +129,9 @@ export default function EditUserPage() {
 
   const handleClientCheckboxChange = (clientId, checked) => {
     setEditUser((prev) => {
-      const currentClientIds = prev.client_ids || [];
+      // Ensure we always have a valid array, even if prev.client_ids is undefined
+      const currentClientIds = Array.isArray(prev.client_ids) ? prev.client_ids : [];
+      
       if (checked) {
         // Add client ID if checked and not already present
         return { ...prev, client_ids: [...currentClientIds, clientId] };
@@ -147,18 +148,15 @@ export default function EditUserPage() {
   const handleUpdateUser = async (e) => {
     e.preventDefault();
 
-    // --- Validation --- 
+    // --- Validation ---
     const desiredClientIds = editUser.client_ids || [];
-    if (editUser.role === "client" && desiredClientIds.length !== 1) {
-      toast.error("Validation Error: Users with the 'Client' role must be assigned to exactly one client.");
-      return;
-    }
 
     try {
       setIsSubmitting(true);
 
       // Determine the primary client_id based on the role
-      const primaryClientId = editUser.role === 'client' ? desiredClientIds[0] : null;
+      const primaryClientId =
+        editUser.role === "client" ? desiredClientIds[0] : null;
 
       // 1. Update Profile Table
       const { error: profileUpdateError } = await supabase
@@ -183,8 +181,12 @@ export default function EditUserPage() {
       const currentDbClientIds = currentAssocs?.map((a) => a.client_id) || [];
 
       // Determine which associations to add and remove
-      const idsToAdd = desiredClientIds.filter((id) => !currentDbClientIds.includes(id));
-      const idsToRemove = currentDbClientIds.filter((id) => !desiredClientIds.includes(id));
+      const idsToAdd = desiredClientIds.filter(
+        (id) => !currentDbClientIds.includes(id)
+      );
+      const idsToRemove = currentDbClientIds.filter(
+        (id) => !desiredClientIds.includes(id)
+      );
 
       // Add new associations
       if (idsToAdd.length > 0) {
@@ -238,14 +240,8 @@ export default function EditUserPage() {
           <form onSubmit={handleUpdateUser} className="space-y-4">
             <div>
               <Label htmlFor="edit-email">Email</Label>
-              <Input
-                id="edit-email"
-                value={editUser.email}
-                disabled
-              />
-              <p className="text-sm ">
-                Email cannot be changed
-              </p>
+              <Input id="edit-email" value={editUser.email} disabled />
+              <p className="text-sm ">Email cannot be changed</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -271,28 +267,34 @@ export default function EditUserPage() {
             </div>
             <div>
               <Label htmlFor="edit-role">User Role</Label>
-              <select
+              <SelectInput
+                id="edit-role"
+                name="role"
+                options={[
+                  { value: "admin", label: "Administrator" },
+                  { value: "employee", label: "Employee" },
+                  { value: "client", label: "Client" },
+                ]}
                 value={editUser.role}
                 onChange={(e) =>
                   setEditUser((prev) => ({ ...prev, role: e.target.value }))
                 }
-                className="block w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              >
-                <option value="admin">Administrator</option>
-                <option value="employee">Employee</option>
-                <option value="client">Client</option>
-              </select>
+              />
             </div>
-            {(editUser.role === "admin" || editUser.role === "employee" || editUser.role === "client") && (
+            {(editUser.role === "admin" ||
+              editUser.role === "employee" ||
+              editUser.role === "client") && (
               <div>
                 <Label htmlFor="client_associations">
-                  Client Associations 
-                  {editUser.role === 'client' && <span className="text-destructive">* (Select exactly one)</span>} 
+                  Client Associations
                 </Label>
                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md">
                   {clients.length > 0 ? (
                     clients.map((client) => (
-                      <div key={client.id} className="flex items-center space-x-2">
+                      <div
+                        key={client.id}
+                        className="flex items-center space-x-2"
+                      >
                         <Checkbox
                           id={`client-${client.id}`}
                           // Ensure editUser.client_ids is checked before calling includes
@@ -315,12 +317,6 @@ export default function EditUserPage() {
                     </p>
                   )}
                 </div>
-                {/* Combined validation message logic */}
-                {editUser.role === 'client' && editUser.client_ids?.length !== 1 && (
-                  <p className="text-xs text-destructive mt-1">
-                    Client role requires exactly one client association.
-                  </p>
-                )}
               </div>
             )}
             <div className="flex space-x-4">

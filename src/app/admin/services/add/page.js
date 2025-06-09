@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import AlertComponent from "@/components/ui/alert-component";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RichTextEditor from "@/components/ui/rich-text-editor";
 import {
   ArrowLeft,
   Save,
@@ -31,6 +32,7 @@ import slugify from "slugify";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
+import SelectInput from "@/components/ui/select";
 
 export default function AddServicePage() {
   const router = useRouter();
@@ -45,6 +47,14 @@ export default function AddServicePage() {
   const [originalThumbnailUrl, setOriginalThumbnailUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [categories, setCategories] = useState([]);
+
+  const categoryOptions = useMemo(() => {
+    return categories.map((category) => ({
+      value: category.id,
+      label: category.name,
+    }));
+  }, [categories]);
+
   const [formData, setFormData] = useState({
     title: "",
     slug: "",
@@ -128,6 +138,22 @@ export default function AddServicePage() {
     setFormData(newFormData);
   };
 
+  // Handler for rich text editor content changes
+  const handleContentChange = (html) => {
+    setFormData({
+      ...formData,
+      content: html,
+    });
+  };
+
+  // Handler for short description rich text editor changes
+  const handleShortDescriptionChange = (html) => {
+    setFormData({
+      ...formData,
+      short_description: html,
+    });
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -190,7 +216,6 @@ export default function AddServicePage() {
     let dataToSubmit = { ...formData };
 
     try {
-
       let thumbnailUrlToSave = originalThumbnailUrl;
       if (thumbnailFile) {
         setIsUploading(true);
@@ -281,7 +306,7 @@ export default function AddServicePage() {
       <div className="flex-1 space-y-4">
         <AdminPageHeader
           title="Add New Service"
-          description="Create a new immigration service for your clients"
+          description="Create a new service for your clients"
           backLink="/admin/services"
           backIcon={<ArrowLeft size={16} />}
         />
@@ -317,7 +342,7 @@ export default function AddServicePage() {
                 <CardHeader>
                   <CardTitle>Service Information</CardTitle>
                   <CardDescription>
-                    Enter the details about this immigration service
+                    Enter the details about this service
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -341,27 +366,15 @@ export default function AddServicePage() {
                         <Label htmlFor="category_id">
                           Category <span className="text-destructive">*</span>
                         </Label>
-                        <select
+                        <SelectInput
                           id="category_id"
                           name="category_id"
+                          placeholder="Select a category"
                           value={formData.category_id}
-                          onChange={(e) => handleInputChange(e)}
+                          onChange={handleInputChange}
                           required
-                          className="block w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        >
-                          <option value="" disabled>
-                            {categories.length === 0
-                              ? activeClient
-                                ? "No active categories found"
-                                : "Select a client first"
-                              : "Select Category"}
-                          </option>
-                          {categories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.name}
-                            </option>
-                          ))}
-                        </select>
+                          options={categoryOptions}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="price">Price/Fee</Label>
@@ -382,32 +395,31 @@ export default function AddServicePage() {
                       Short Description
                       <span className="text-destructive">*</span>
                     </Label>
-                    <Textarea
-                      id="short_description"
-                      name="short_description"
-                      placeholder="Brief summary of the service"
+                    <RichTextEditor
                       value={formData.short_description}
-                      onChange={handleInputChange}
-                      required
+                      onChange={handleShortDescriptionChange}
+                      placeholder="Brief summary of the service"
+                      className="min-h-[150px]"
                     />
                     <p className="text-sm text-muted-foreground">
                       A short description displayed in list views.
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="content">Content *</Label>
-                    <Textarea
-                      id="content"
-                      name="content"
-                      placeholder="Detailed description of the service"
+                    <Label htmlFor="content">
+                      Content
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <RichTextEditor
                       value={formData.content}
-                      onChange={handleInputChange}
-                      required
-                      rows={6}
+                      onChange={handleContentChange}
+                      placeholder="Detailed description of the service"
+                      className="min-h-[150px]"
                     />
                     <p className="text-sm text-muted-foreground">
                       The main content/description for the service page
-                      (required).
+                      (required). You can add images, videos, headings, and more
+                      using the toolbar.
                     </p>
                   </div>
                 </CardContent>
@@ -418,7 +430,7 @@ export default function AddServicePage() {
                 <CardHeader>
                   <CardTitle>Details & Settings</CardTitle>
                   <CardDescription>
-                    Enter the details about this immigration service
+                    Enter the details about this service
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -632,7 +644,7 @@ export default function AddServicePage() {
                     <Input
                       id="seo_keywords"
                       name="seo_keywords"
-                      placeholder="e.g. business visa, work permit, immigration consultant"
+                      placeholder="e.g. business service"
                       value={formData.seo_keywords}
                       onChange={handleInputChange}
                       required

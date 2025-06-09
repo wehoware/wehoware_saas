@@ -31,6 +31,7 @@ import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import SelectInput from "@/components/ui/select";
 
 export default function UsersPage() {
   const router = useRouter();
@@ -74,7 +75,7 @@ export default function UsersPage() {
     try {
       setIsLoading(true);
       // Fetch users from the secure API endpoint
-      const response = await fetch('/api/v1/users');
+      const response = await fetch("/api/v1/users");
       const data = await response.json();
 
       if (!response.ok) {
@@ -87,16 +88,15 @@ export default function UsersPage() {
         const fieldB = b[sortField];
 
         if (fieldA < fieldB) {
-          return sortOrder === 'asc' ? -1 : 1;
+          return sortOrder === "asc" ? -1 : 1;
         }
         if (fieldA > fieldB) {
-          return sortOrder === 'asc' ? 1 : -1;
+          return sortOrder === "asc" ? 1 : -1;
         }
         return 0;
       });
 
       setUsers(sortedUsers || []);
-
     } catch (error) {
       console.error("Error fetching users via API:", error);
       toast.error(error.message || "Failed to fetch users");
@@ -145,19 +145,22 @@ export default function UsersPage() {
       setDeleteLoading(true);
       // Call the server-side API endpoint to delete the user
       const response = await fetch(`/api/v1/users/${userToDelete.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (!response.ok) {
-         // Attempt to parse error message from API response body
-         let errorData;
-         try {
-           errorData = await response.json();
-         } catch (e) {
-           // If no JSON body, use status text
-           errorData = { error: response.statusText };
-         }
-        throw new Error(errorData?.error || `Failed to delete user (Status: ${response.status})`);
+        // Attempt to parse error message from API response body
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          // If no JSON body, use status text
+          errorData = { error: response.statusText };
+        }
+        throw new Error(
+          errorData?.error ||
+            `Failed to delete user (Status: ${response.status})`
+        );
       }
 
       // If deletion was successful (e.g., 204 No Content or 200 OK)
@@ -165,7 +168,6 @@ export default function UsersPage() {
       setUsers(users.filter((u) => u.id !== userToDelete.id)); // Update UI state
       setDeleteDialogOpen(false); // Close the dialog
       setUserToDelete(null); // Reset user to delete
-
     } catch (error) {
       console.error("Error deleting user via API:", error);
       toast.error(error.message || "Failed to delete user");
@@ -198,25 +200,30 @@ export default function UsersPage() {
         title="User Management"
         description="Manage all user accounts and permissions"
         icon={<Users className="h-6 w-6 mr-2" />}
+        actionLabel="Add User"
+        actionIcon={<Plus size={16} />}
+        onAction={() => router.push("/admin/users/add")}
       />
 
       <div className="mt-8">
         <Card className="overflow-hidden">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle>Users</CardTitle>
-                <CardDescription>
-                  View and manage all user accounts and access permissions
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Navigate to the Add User page */}
-                <Button onClick={() => router.push("/admin/users/add")}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add User
-                </Button>
-              </div>
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-medium">
+                All Users ({users.length})
+              </CardTitle>
+              <CardDescription>
+                Browse and manage user accounts.
+              </CardDescription>
+            </div>
+            <div className="relative max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={handleSearch}
+              />
             </div>
           </CardHeader>
 
@@ -224,37 +231,20 @@ export default function UsersPage() {
 
           <CardContent>
             <div className="mt-4 space-y-6">
-              {/* Search and Filter Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div className="relative md:col-span-5">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-8"
-                    placeholder="Search users by name or email..."
-                    value={searchTerm}
-                    onChange={handleSearch}
-                  />
-                </div>
-
-                <div className="md:col-span-4">
-                  <select
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1">
+                  <SelectInput
                     id="role-filter"
+                    name="role_filter"
+                    options={[
+                      { value: "all", label: "All Roles" },
+                      { value: "admin", label: "Administrators" },
+                      { value: "employee", label: "Employees" },
+                      { value: "client", label: "Clients" },
+                    ]}
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="admin">Administrators</option>
-                    <option value="employee">Employees</option>
-                    <option value="client">Clients</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-3 text-right">
-                  <Button variant="outline" onClick={() => handleSort("created_at")}>
-                    Sort by Date
-                    <ArrowUpDown className="h-3.5 w-3.5 ml-1" />
-                  </Button>
+                  />
                 </div>
               </div>
 
@@ -268,20 +258,48 @@ export default function UsersPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-4">Name</th>
-                          <th className="text-left py-3 px-4">Email</th>
-                          <th className="text-left py-3 px-4">Role</th>
-                          <th className="text-left py-3 px-4">Client</th>
-                          <th className="text-left py-3 px-4">Created</th>
-                          <th className="text-right py-3 px-4">Actions</th>
+                      <thead className="[&_tr]:border-b">
+                        <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                          <th
+                            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                            onClick={() => handleSort("first_name")}
+                          >
+                            Name <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+                          </th>
+                          <th
+                            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                            onClick={() => handleSort("email")}
+                          >
+                            Email <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+                          </th>
+                          <th
+                            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                            onClick={() => handleSort("role")}
+                          >
+                            Role <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+                          </th>
+                          <th
+                            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                          >
+                            Client
+                          </th>
+                          <th
+                            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                            onClick={() => handleSort("created_at")}
+                          >
+                            Created <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+                          </th>
+                          <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredUsers.map((user) => {
                           // Find client details if available
-                          const client = clients.find((c) => c.id === user.client_id);
+                          const client = clients.find(
+                            (c) => c.id === user.client_id
+                          );
                           return (
                             <tr
                               key={user.id}
@@ -327,7 +345,9 @@ export default function UsersPage() {
                                     {client?.company_name || "Unknown"}
                                   </div>
                                 ) : (
-                                  <span className="text-muted-foreground">—</span>
+                                  <span className="text-muted-foreground">
+                                    —
+                                  </span>
                                 )}
                               </td>
                               <td className="py-3 px-4 text-muted-foreground">
@@ -339,7 +359,9 @@ export default function UsersPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
-                                      router.push(`/admin/users/edit?userId=${user.id}`)
+                                      router.push(
+                                        `/admin/users/edit?userId=${user.id}`
+                                      )
                                     }
                                   >
                                     <Edit className="h-3.5 w-3.5 mr-1" />

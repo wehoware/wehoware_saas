@@ -13,7 +13,7 @@ export function RecentSales() {
         <div className="space-y-1">
           <p className="text-sm font-medium leading-none">John Smith</p>
           <p className="text-sm text-muted-foreground">
-            Business Immigration
+            Business
           </p>
         </div>
         <div className="ml-auto font-medium">12m ago</div>

@@ -63,7 +63,6 @@ export default function BlogsPage() {
     fetchCategories();
   }, [showPublishedOnly, activeClient, sortField, sortOrder]);
 
-
   const fetchBlogs = async () => {
     try {
       setIsLoading(true);
@@ -77,8 +76,17 @@ export default function BlogsPage() {
           wehoware_blog_categories(name)
         `
         )
-        .eq("client_id", activeClient.id)
-        .order(sortField, { ascending: sortOrder === "asc" });
+        .eq("client_id", activeClient.id);
+
+      // Apply search if there is a search term
+      if (searchTerm) {
+        query = query.or(
+          `title.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%,excerpt.ilike.%${searchTerm}%`
+        );
+      }
+
+      // Apply sorting
+      query = query.order(sortField, { ascending: sortOrder === "asc" });
 
       // Only filter by status if showPublishedOnly is true
       if (showPublishedOnly) {
@@ -130,10 +138,16 @@ export default function BlogsPage() {
     }
   };
 
-  // Handle search (currently filtering locally)
+  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
-    // For a larger dataset, consider server-side search
+    fetchBlogs(); // Re-fetch with current filters
+  };
+
+  // Reset search
+  const resetSearch = () => {
+    setSearchTerm("");
+    fetchBlogs();
   };
 
   // Handle sort
@@ -160,38 +174,38 @@ export default function BlogsPage() {
     try {
       setDeleteLoading(true);
 
-      // Get the current user ID for audit
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      // If there's a thumbnail URL, delete it from storage first
+      if (
+        blogToDelete.thumbnail &&
+        blogToDelete.thumbnail.includes("supabase")
+      ) {
+        await deleteThumbnailByUrl(blogToDelete.thumbnail);
+      }
 
-
-
+      // Delete the blog
       const { error } = await supabase
         .from("wehoware_blogs")
         .delete()
-        .eq("id", blogToDelete.id)
-        .eq("client_id", activeClient.id);
+        .eq("id", blogToDelete.id);
 
       if (error) {
         throw error;
       }
 
-      // Update local state without refetching
-      setBlogs((prev) => prev.filter((blog) => blog.id !== blogToDelete.id));
+      // Refetch blogs
+      fetchBlogs();
 
       // Show success message
       setSuccessMessage("Blog post deleted successfully!");
       setSuccessDialogOpen(true);
     } catch (error) {
-      console.error("Error deleting blog post:", error);
+      console.error("Error deleting blog:", error);
       setErrorMessage(error.message || "Failed to delete blog post");
       setErrorDialogOpen(true);
     } finally {
+      setDeleteLoading(false);
       setDeleteDialogOpen(false);
       setBlogToDelete(null);
-      setDeleteLoading(false);
     }
   };
 
@@ -267,16 +281,39 @@ export default function BlogsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Search blogs..."
-                    className="pl-8"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-2">
+                  <form
+                    onSubmit={handleSearch}
+                    className="flex items-center space-x-2"
+                  >
+                    <Input
+                      type="text"
+                      placeholder="Search blogs..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-[300px]"
+                    />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="icon"
+                      title="Search"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                    {searchTerm && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetSearch}
+                        className="text-xs"
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </form>
                 </div>
                 <div className="flex gap-4 items-center">
                   <div className="flex items-center space-x-2">
@@ -334,7 +371,7 @@ export default function BlogsPage() {
                 <>
                   <div className="overflow-auto rounded-md border">
                     <table className="w-full">
-                      <thead className="bg-muted/50">
+                      <thead className="bg-gray-50">
                         <tr>
                           <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[60px]">
                             Thumb
@@ -343,18 +380,23 @@ export default function BlogsPage() {
                             className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort("title")}
                           >
-                            Title{" "}
+                            Title
                             {sortField === "title" &&
                               (sortOrder === "asc" ? "↑" : "↓")}
                           </th>
-                          <th className="text-left p-3 font-medium hidden md:table-cell">
+                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer">
                             Category
                           </th>
-                          <th className="text-left p-3 font-medium hidden md:table-cell">
+
+                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer">
                             Date
                           </th>
-                          <th className="text-left p-3 font-medium">Status</th>
-                          <th className="text-left p-3 font-medium">Actions</th>
+                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer">
+                            Status
+                          </th>
+                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -365,13 +407,19 @@ export default function BlogsPage() {
                           >
                             <td className="p-3">
                               <img
-                                src={blog.thumbnail} // Use placeholder if no thumbnail
-                                alt={blog.title ? `Thumbnail for ${blog.title}` : 'Blog post thumbnail'}
+                                src={blog.thumbnail || "../images/blank.jpg"}
+                                alt={
+                                  blog.title
+                                    ? `Thumbnail for ${blog.title}`
+                                    : "Blog post thumbnail"
+                                }
                                 className="h-10 w-10 rounded-md object-cover border"
                               />
                             </td>
                             <td className="p-3 max-w-[300px]">
-                              <div className="font-medium truncate">{blog.title}</div>
+                              <div className="font-medium truncate">
+                                {blog.title}
+                              </div>
                               <div className="text-sm text-muted-foreground truncate">
                                 {blog.excerpt}
                               </div>
@@ -385,12 +433,6 @@ export default function BlogsPage() {
                             </td>
                             <td className="p-3 hidden md:table-cell">
                               {blog.category}
-                            </td>
-                            <td className="p-3 hidden md:table-cell">
-                              <div className="flex items-center space-x-1">
-                                <User className="h-3 w-3 text-muted-foreground" />
-                                <span>{blog.author}</span>
-                              </div>
                             </td>
                             <td className="p-3 hidden md:table-cell">
                               <div className="flex items-center space-x-1">
@@ -416,7 +458,10 @@ export default function BlogsPage() {
                                   size="icon"
                                   title="View"
                                   onClick={() =>
-                                    window.open(`${clientUrl}/blog/${blog.slug}`, "_blank")
+                                    window.open(
+                                      `${clientUrl}/blog/${blog.slug}`,
+                                      "_blank"
+                                    )
                                   }
                                 >
                                   <Eye className="h-4 w-4" />

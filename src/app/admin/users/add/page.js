@@ -19,6 +19,7 @@ import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
+import SelectInput from "@/components/ui/select";
 
 export default function AddUserPage() {
   const router = useRouter();
@@ -241,17 +242,19 @@ export default function AddUserPage() {
               <Label htmlFor="role">
                 User Role <span className="text-destructive">*</span>
               </Label>
-              <select
+              <SelectInput
+                id="role"
+                name="role"
+                options={[
+                  { value: "admin", label: "Administrator" },
+                  { value: "employee", label: "Employee" },
+                  { value: "client", label: "Client" },
+                ]}
                 value={newUser.role}
                 onChange={(e) =>
                   setNewUser((prev) => ({ ...prev, role: e.target.value }))
                 }
-                className="block w-full mt-1 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              >
-                <option value="admin">Administrators</option>
-                <option value="employee">Employees</option>
-                <option value="client">Clients</option>
-              </select>
+              />
             </div>
             {newUser.role === "client" && (
               <div className="my-4">

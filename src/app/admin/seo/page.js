@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/auth-context";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StaticPagesTable from '@/components/seo/StaticPagesTable';
 import StaticPageDialog from '@/components/seo/StaticPageDialog';
+import { KeywordManager } from '@/components/seo/KeywordManager';
 
 const defaultGlobalSettings = {
   site_title: '',
@@ -273,6 +274,7 @@ export default function SEOPage() {
           <TabsTrigger value="global">Global Settings</TabsTrigger>
           <TabsTrigger value="pages">Static Pages</TabsTrigger>
           <TabsTrigger value="sitemap">Sitemap Config</TabsTrigger>
+          <TabsTrigger value="keywords">Keywords</TabsTrigger>
         </TabsList>
 
         <TabsContent value="global" className="space-y-4">
@@ -405,6 +407,9 @@ export default function SEOPage() {
               <div className="text-center text-muted-foreground py-8">Sitemap dynamic content settings coming soon...</div>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="keywords" className="space-y-4">
+          <KeywordManager />
         </TabsContent>
 
       </Tabs>

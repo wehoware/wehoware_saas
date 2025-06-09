@@ -45,7 +45,7 @@ export default function BlogCategoriesPage() {
   // Fetch categories on mount
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [activeClient]);
 
   const fetchCategories = async () => {
     try {
@@ -53,6 +53,7 @@ export default function BlogCategoriesPage() {
       const { data, error } = await supabase
         .from("wehoware_blog_categories")
         .select("*")
+        .eq("client_id", activeClient.id)
         .order("name");
 
       if (error) {

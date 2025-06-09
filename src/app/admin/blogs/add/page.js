@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import slugify from "slugify";
+import RichTextEditor from "@/components/ui/rich-text-editor";
 import {
   Card,
   CardContent,
@@ -31,6 +32,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { Save } from "lucide-react";
+import SelectInput from "@/components/ui/select";
 
 export default function AddBlogPage() {
   const router = useRouter();
@@ -333,45 +335,46 @@ export default function AddBlogPage() {
 
                     <div className="space-y-2">
                       <Label htmlFor="category_id">Category</Label>
-                      <select
+                      <SelectInput
                         id="category_id"
                         name="category_id"
+                        options={categories.map((category) => ({
+                          value: category.id,
+                          label: category.name,
+                        }))}
                         value={formData.category_id}
                         onChange={handleInputChange}
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="">Select a category...</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Select a category"
+                        required
+                      />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="excerpt">Excerpt *</Label>
-                      <Textarea
-                        id="excerpt"
-                        name="excerpt"
+                      <RichTextEditor
                         value={formData.excerpt}
-                        onChange={handleInputChange}
+                        onChange={(html) =>
+                          setFormData({ ...formData, excerpt: html })
+                        }
                         placeholder="Short summary of the post"
-                        required
+                        className="min-h-[150px]"
                       />
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="content">Content *</Label>
-                      <Textarea
-                        id="content"
-                        name="content"
+                      <RichTextEditor
                         value={formData.content}
-                        onChange={handleInputChange}
+                        onChange={(html) =>
+                          setFormData({ ...formData, content: html })
+                        }
                         placeholder="Write your blog post content here..."
-                        rows={10}
-                        required
+                        className="min-h-[150px]"
                       />
+                      <p className="text-sm text-muted-foreground">
+                        Use the toolbar to format your content with headings,
+                        lists, images, videos, and more.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -468,17 +471,17 @@ export default function AddBlogPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="status">Status</Label>
-                      <select
+                      <SelectInput
                         id="status"
                         name="status"
+                        options={[
+                          { value: "Draft", label: "Draft" },
+                          { value: "Published", label: "Published" },
+                          { value: "Archived", label: "Archived" },
+                        ]}
                         value={formData.status}
                         onChange={handleInputChange}
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="Draft">Draft</option>
-                        <option value="Published">Published</option>
-                        <option value="Archived">Archived</option>
-                      </select>
+                      />
                     </div>
 
                     <div className="space-y-2">

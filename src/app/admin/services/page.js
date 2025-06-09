@@ -69,8 +69,17 @@ export default function ServicesPage() {
       let query = supabase
         .from("wehoware_services")
         .select("*")
-        .eq("client_id", activeClient.id)
-        .order(sortField, { ascending: sortOrder === "asc" });
+        .eq("client_id", activeClient.id);
+
+      // Apply search if there is a search term
+      if (searchTerm) {
+        query = query.or(
+          `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+        );
+      }
+
+      // Apply sorting
+      query = query.order(sortField, { ascending: sortOrder === "asc" });
 
       if (showActiveOnly) {
         query = query.eq("active", true);
@@ -110,10 +119,16 @@ export default function ServicesPage() {
     }
   };
 
-  // Handle search (currently filtering locally)
+  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
-    // For a larger dataset, consider server-side search
+    fetchServices(); // Re-fetch with current filters
+  };
+
+  // Reset search
+  const resetSearch = () => {
+    setSearchTerm("");
+    fetchServices();
   };
 
   // Handle sort
@@ -174,22 +189,15 @@ export default function ServicesPage() {
     }
   };
 
-  // Filter services based on search term
-  const filteredServices = services.filter((service) => {
-    const matchesSearch =
-      searchTerm === "" ||
-      service.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.description?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesSearch;
-  });
+  // We're using server-side filtering now, so this is much simpler
+  const filteredServices = services;
 
   return (
     <div className="flex flex-col">
       <div className="flex-1 space-y-4">
         <AdminPageHeader
           title="Services"
-          description="Manage your services"
+          description="Manage your services and packages"
           actionLabel="Add New"
           actionIcon={<Plus size={16} />}
           onAction={() => router.push("/admin/services/add")}
@@ -246,27 +254,46 @@ export default function ServicesPage() {
           <CardHeader>
             <CardTitle>Services</CardTitle>
             <CardDescription>
-              Manage the immigration services offered on your website
+              Manage the services offered on your website
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex flex-col space-y-2 md:flex-row md:items-center md:justify-between md:space-y-0">
-                <form
-                  onSubmit={handleSearch}
-                  className="flex w-full max-w-sm items-center space-x-2"
-                >
-                  <Input
-                    type="text"
-                    placeholder="Search services..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  <Button type="submit">
-                    <Search className="h-4 w-4" />
-                  </Button>
-                </form>
-                <div className="flex items-center space-x-4">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-2">
+                  <form
+                    onSubmit={handleSearch}
+                    className="flex items-center space-x-2"
+                  >
+                    <Input
+                      type="text"
+                      placeholder="Search services..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-[300px]"
+                    />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="icon"
+                      title="Search"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                    {searchTerm && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={resetSearch}
+                        className="text-xs"
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </form>
+                </div>
+                <div className="flex gap-4 items-center">
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="active-only"
@@ -305,83 +332,167 @@ export default function ServicesPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredServices.map((service) => (
-                      <Card key={service.id} className="overflow-hidden">
-                        <CardContent className="p-0">
-                          <div className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-2">
-                                <h3 className="font-medium">{service.title}</h3>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                {service.featured && (
-                                  <Badge variant="secondary">Featured</Badge>
-                                )}
-                                <Badge
-                                  variant={
-                                    service.active ? "success" : "destructive"
-                                  }
-                                >
-                                  {service.active ? "Active" : "Inactive"}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="mb-4">
-                              <p className="text-sm text-muted-foreground">
-                                {service.description?.length > 180
-                                  ? `${service.description.substring(
-                                      0,
-                                      180
-                                    )}...`
-                                  : service.description}
-                              </p>
-                              {service.fee && (
-                                <p className="text-sm font-medium mt-2">
-                                  Fee: {service.fee_currency}{" "}
-                                  {service.fee.toFixed(2)}
-                                </p>
+                  <div className="w-full overflow-auto rounded-md border bg-white">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[60px]">
+                            Thumb
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort("title")}
+                          >
+                            <div className="flex items-center gap-1">
+                              Title
+                              {sortField === "title" && (
+                                <ArrowUpDown className="h-3 w-3" />
                               )}
                             </div>
-                            <div className="flex justify-end space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  window.open(
-                                    `${clientUrl}/services/${service.slug}`,
-                                    "_blank"
-                                  )
-                                }
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  router.push(
-                                    `/admin/services/edit/${service.id}`
-                                  )
-                                }
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openDeleteDialog(service)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Delete
-                              </Button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Description
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort("fee")}
+                          >
+                            <div className="flex items-center gap-1">
+                              Price
+                              {sortField === "fee" && (
+                                <ArrowUpDown className="h-3 w-3" />
+                              )}
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort("created_at")}
+                          >
+                            <div className="flex items-center gap-1">
+                              Status
+                              {sortField === "created_at" && (
+                                <ArrowUpDown className="h-3 w-3" />
+                              )}
+                            </div>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredServices.map((service) => (
+                          <tr
+                            key={service.id}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="p-3">
+                              <img
+                                src={service.thumbnail || "../images/blank.jpg"}
+                                alt={
+                                  service.title
+                                    ? `Thumbnail for ${service.title}`
+                                    : "Service thumbnail"
+                                }
+                                className="h-10 w-10 rounded-md object-cover border"
+                              />
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {service.title}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {service.service_code}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-900 max-w-xs truncate">
+                                {service.description}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {service.fee && (
+                                <div className="text-sm text-gray-900">
+                                  {service.fee_currency}{" "}
+                                  {service.fee.toFixed(2)}
+                                </div>
+                              )}
+                              {service.duration && (
+                                <div className="text-xs text-gray-500">
+                                  {service.duration} mins
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  service.active
+                                    ? "bg-green-50 text-green-700 border border-green-200"
+                                    : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                                }`}
+                              >
+                                {service.active ? "Active" : "Draft"}
+                              </span>
+                              {service.featured && (
+                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                  Featured
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                              <div className="flex space-x-2 justify-end">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="View"
+                                  onClick={() =>
+                                    window.open(
+                                      `${clientUrl}/services/${service.slug}`,
+                                      "_blank"
+                                    )
+                                  }
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Edit"
+                                  onClick={() =>
+                                    router.push(
+                                      `/admin/services/edit/${service.id}`
+                                    )
+                                  }
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Delete"
+                                  onClick={() => openDeleteDialog(service)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
 
                   {filteredServices.length === 0 && (

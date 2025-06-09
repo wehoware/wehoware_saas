@@ -25,19 +25,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/auth-context";
-import { useRouter } from "next/navigation";
 
 const AdminHeader = ({ className }) => {
   const {
     user,
     activeClient,
     switchClient,
-    logout,
     isEmployee,
-    isClient,
     isAdmin,
   } = useAuth();
-  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   // Compute user initials with memoization for performance.
@@ -63,7 +59,7 @@ const AdminHeader = ({ className }) => {
               <Input placeholder="Search..." className="pl-8" />
             </div>
             {/* Client Switcher: Visible for employees or admins with accessible clients */}
-            {(isEmployee || isAdmin) && user?.accessibleClients?.length > 0 && (
+            {user?.accessibleClients?.length > 0 && (
               <div className="hidden md:block ">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

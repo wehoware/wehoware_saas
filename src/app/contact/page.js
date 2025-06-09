@@ -25,6 +25,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import SelectInput from "@/components/ui/select";
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({
@@ -45,9 +46,38 @@ export default function ContactPage() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
+
+    try {
+      const clientId = process.env.NEXT_PUBLIC_CLIENT_ID;
+      const subject = formState.service || "General Inquiry";
+
+      const response = await fetch("/api/v1/inquiries", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          name: formState.name,
+          email: formState.email,
+          phone: formState.phone,
+          subject: subject,
+          message: formState.message,
+        }),
+      });
+
+      console.log("Response:", response);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit inquiry");
+      }
+    } catch (error) {
+      console.error("Form submission error:", error);
+    }
 
     // Reset form after submission
     setTimeout(() => {
@@ -67,10 +97,9 @@ export default function ContactPage() {
       icon: <MapPin className="h-6 w-6 text-primary" />,
       title: "Our Office",
       details: [
-        "WeHoWare Technologies",
-        "123 Tech Avenue",
-        "Suite 456",
-        "Toronto, Ontario",
+        "Wehoware Technologies",
+        "257 Wildwood Trail",
+        "Mississauga, Ontario",
         "Canada",
       ],
     },
@@ -146,7 +175,7 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden mt-24">
       {/* Background elements */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -288,8 +317,8 @@ export default function ContactPage() {
                         ></path>
                       </svg>
                       <p className="font-medium">
-                        Thank you! Your message has been sent successfully.
-                        We will be in touch soon.
+                        Thank you! Your message has been sent successfully. We
+                        will be in touch soon.
                       </p>
                     </div>
                   </motion.div>
@@ -298,7 +327,12 @@ export default function ContactPage() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
+                      <Label htmlFor="name">
+                        Full Name{" "}
+                        <span className="text-muted-foreground">
+                          (Required)
+                        </span>
+                      </Label>
                       <Input
                         type="text"
                         id="name"
@@ -311,7 +345,12 @@ export default function ContactPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
+                      <Label htmlFor="email">
+                        Email Address{" "}
+                        <span className="text-muted-foreground">
+                          (Required)
+                        </span>
+                      </Label>
                       <Input
                         type="email"
                         id="email"
@@ -327,7 +366,13 @@ export default function ContactPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
+                      <Label htmlFor="phone">
+                        Phone Number{" "}
+                        <span className="text-muted-foreground">
+                          (Optional)
+                        </span>
+                      </Label>
+
                       <Input
                         type="tel"
                         id="phone"
@@ -339,26 +384,28 @@ export default function ContactPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="service">Service of Interest</Label>
-                      <select
+                      <Label htmlFor="service">
+                        Service of Interest{" "}
+                        <span className="text-muted-foreground">
+                          (Required)
+                        </span>
+                      </Label>
+                      <SelectInput
                         id="service"
                         name="service"
+                        options={services} /* This works with strings too now */
                         value={formState.service}
                         onChange={handleChange}
-                        className="transition-all duration-300"
-                      >
-                        <option value="">Select a service</option>
-                        {services.map((service) => (
-                          <option key={service} value={service}>
-                            {service}
-                          </option>
-                        ))}
-                      </select>
+                        required
+                      />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="message">Your Message</Label>
+                    <Label htmlFor="message">
+                      Your Message{" "}
+                      <span className="text-muted-foreground">(Required)</span>
+                    </Label>
                     <Textarea
                       id="message"
                       name="message"

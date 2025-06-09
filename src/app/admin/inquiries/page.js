@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import SelectInput from "@/components/ui/select";
 
 export default function InquiriesPage() {
   const router = useRouter();
@@ -297,16 +298,18 @@ export default function InquiriesPage() {
                       />
                     </div>
                     <div className="flex gap-4 items-center">
-                      <select
-                        className="w-[180px]"
+                      <SelectInput
+                        id="statusFilter"
+                        name="statusFilter"
+                        options={[
+                          { value: "all", label: "All Statuses" },
+                          { value: "New", label: "New" },
+                          { value: "In Progress", label: "In Progress" },
+                          { value: "Resolved", label: "Resolved" },
+                        ]}
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                      >
-                        <option value="all">All Statuses</option>
-                        <option value="New">New</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                      </select>
+                      />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm">
@@ -400,7 +403,7 @@ export default function InquiriesPage() {
                                   </div>
                                 </td>
                                 <td className="p-3 hidden md:table-cell">
-                                  {inquiry.service}
+                                  {inquiry.subject}
                                 </td>
                                 <td className="p-3 hidden md:table-cell">
                                   <div className="flex items-center space-x-1">

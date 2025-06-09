@@ -1,61 +1,78 @@
 import { NextResponse } from 'next/server';
-import supabase from '@/lib/supabase';
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import { withAuth } from '../../utils/auth-middleware';
 
-// GET clients (employees can see all, clients only see their own)
+// GET clients (employees/admins see their active client, clients only see their own)
 async function getClients(request) {
   try {
-    // If user is client, they can only see their own client
-    if (request.user.role === 'client') {
+    const supabase = createRouteHandlerClient({ cookies });
+    const userRole = request.user.role;
+    const userClientId = request.user.clientId; // For client role
+    const activeClientId = request.user.activeClientId; // For employee/admin role
+
+    // If user is client, they can only see their own client record
+    if (userRole === 'client') {
+      if (!userClientId) {
+        // This case should ideally be caught by middleware, but double-check
+        return NextResponse.json({ error: 'Client association not found.' }, { status: 403 });
+      }
       const { data, error } = await supabase
         .from('wehoware_clients')
         .select('*')
-        .eq('id', request.user.clientId)
+        .eq('id', userClientId)
         .single();
         
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error(`Error fetching client record for client ${userClientId}:`, error);
+        if (error.code === 'PGRST116') { // Not found
+          return NextResponse.json({ error: 'Client record not found.' }, { status: 404 });
+        }
+        return NextResponse.json({ error: 'Failed to fetch client record.' }, { status: 500 });
       }
       
-      return NextResponse.json({ clients: [data] });
+      // Return single client in an array for consistency
+      return NextResponse.json({ clients: data ? [data] : [] });
     }
     
-    // For employees/admins, get all clients or filter by query params
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search');
-    const active = searchParams.get('active');
-    const sortBy = searchParams.get('sortBy') || 'company_name';
-    const sortOrder = searchParams.get('sortOrder') || 'asc';
-    
-    let query = supabase.from('wehoware_clients').select('*');
-    
-    // Apply filters if provided
-    if (active === 'true') {
-      query = query.eq('active', true);
+    // For employees/admins, fetch the specific client from their active context
+    if (userRole === 'employee' || userRole === 'admin') {
+      if (!activeClientId) {
+        return NextResponse.json({ error: 'Active client context required.' }, { status: 400 });
+      }
+
+      const { data, error } = await supabase
+        .from('wehoware_clients')
+        .select('*')
+        .eq('id', activeClientId)
+        .single();
+
+      if (error) {
+        console.error(`Error fetching active client record ${activeClientId} for user ${request.user.id}:`, error);
+        if (error.code === 'PGRST116') { // Not found
+          return NextResponse.json({ error: 'Active client record not found.' }, { status: 404 });
+        }
+        return NextResponse.json({ error: 'Failed to fetch active client record.' }, { status: 500 });
+      }
+
+      // Return single client in an array for consistency
+      return NextResponse.json({ clients: data ? [data] : [] });
     }
-    
-    if (search) {
-      query = query.or(`company_name.ilike.%${search}%,contact_person.ilike.%${search}%`);
-    }
-    
-    // Apply sorting
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    
-    return NextResponse.json({ clients: data });
+
+    // Fallback if role is somehow unexpected (should be caught by middleware)
+    return NextResponse.json({ error: 'Invalid user role for this operation.' }, { status: 403 });
+
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Unexpected error in GET /clients:', error);
+    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
   }
 }
 
 // POST create new client (employees only)
 async function createClient(request) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
+    
     const body = await request.json();
     
     const { data, error } = await supabase

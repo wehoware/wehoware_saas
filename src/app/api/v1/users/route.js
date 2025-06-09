@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-// Import the regular supabase client for profile fetching
-import supabase from '@/lib/supabase'; 
 // Import the dedicated admin client for auth operations
 import supabaseAdmin from '@/lib/supabaseAdmin';
 
 export async function GET(request) {
   try {
-    // 1. Fetch user profiles from the database (using regular client)
-    const { data: profiles, error: profilesError } = await supabase
+    // 1. Fetch user profiles from the database (using ADMIN client)
+    const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('wehoware_profiles')
       .select('*'); // You might want to add sorting here if needed later
 

@@ -6,6 +6,7 @@ import supabase from "@/lib/supabase";
 import Link from "next/link";
 import { ArrowLeft, InfoIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
+import SelectInput from "@/components/ui/select";
 
 export default function AddIntegrationPage() {
   const router = useRouter();
@@ -254,19 +255,16 @@ export default function AddIntegrationPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Integration Provider <span className="text-red-500">*</span>
               </label>
-              <select
+              <SelectInput
+                name="provider_id"
                 value={integration.provider_id}
                 onChange={handleProviderChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                options={providers.map((provider) => ({
+                  value: provider.id,
+                  label: `${provider.name} (${provider.category})`,
+                }))}
                 required
-              >
-                <option value="">Select a provider</option>
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name} ({provider.category})
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             {selectedProvider && (
@@ -322,35 +320,37 @@ export default function AddIntegrationPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Sync Frequency
                   </label>
-                  <select
+
+                  <SelectInput
                     name="sync_frequency"
                     value={integration.sync_frequency}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="hourly">Hourly</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="manual">Manual Only</option>
-                  </select>
+                    options={[
+                      { value: "hourly", label: "Hourly" },
+                      { value: "daily", label: "Daily" },
+                      { value: "weekly", label: "Weekly" },
+                      { value: "monthly", label: "Monthly" },
+                      { value: "manual", label: "Manual Only" },
+                    ]}
+                    required
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
-                  <select
+                  <SelectInput
                     name="status"
                     value={integration.status}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Paused">Paused</option>
-                  </select>
+                    options={[
+                      { value: "Active", label: "Active" },
+                      { value: "Paused", label: "Paused" },
+                    ]}
+                    required
+                  />
                 </div>
-
                 <div className="border-t border-gray-200 pt-4">
                   <h3 className="text-md font-medium mb-3">
                     Provider-Specific Configuration

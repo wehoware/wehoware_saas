@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
 import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
-import { withAuth } from '../../../../../utils/auth-middleware';
+import { withAuth } from '../../../../utils/auth-middleware';
 
 /**
  * GET handler for settings by group.

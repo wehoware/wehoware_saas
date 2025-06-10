@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '../../utils/auth-middleware';
+import { withAuth } from '../../../utils/auth-middleware';
 
 // Helper function to fetch report and authorize user
 async function getReportAndAuthorize(supabase, request, reportId) {

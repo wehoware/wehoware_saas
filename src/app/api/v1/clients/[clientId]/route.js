@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { withAuth } from '../../utils/auth-middleware';
+import { withAuth } from '../../../utils/auth-middleware';
 
 // GET client by ID (with proper authorization check)
 async function getClientById(request, { params }) {

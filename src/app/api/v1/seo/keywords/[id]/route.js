@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
+import { withAuth } from '../../../../utils/auth-middleware';
 
 /**
  * GET handler for client keywords by ID (Employee/Admin use).

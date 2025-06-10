@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAuth } from '../../../../../utils/auth-middleware';
+import { withAuth } from '../../../../utils/auth-middleware';
 
 // GET services by client ID (for employee/admin use) with pagination and filtering
 export const GET = withAuth(async (request, { params }) => {

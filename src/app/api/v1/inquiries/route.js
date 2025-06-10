@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; 
-import { cookies } from 'next/headers'; 
-import { withAuth } from '../../utils/auth-middleware'; 
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { withAuth } from '../../utils/auth-middleware';
 
-// Create a new inquiry (for contact form)
+// Create a new inquiry (for contact form) - Public Endpoint
 export async function POST(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); 
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          get(name) { return cookieStore.get(name)?.value; },
+          set(name, value, options) { try { cookieStore.set({ name, value, ...options }); } catch (error) {} },
+          remove(name, options) { try { cookieStore.set({ name, value: '', ...options }); } catch (error) {} },
+        },
+      }
+    );
+
     const body = await request.json();
     console.log("Inquiry POST request body:", body);
     const { name, email, phone, subject, message, client_id } = body;
@@ -59,8 +71,7 @@ export async function POST(request) {
 // Get inquiries with filtering and pagination
 export const GET = withAuth(async (request) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); 
-    // User context is now available in request.user
+    const { supabase } = request; // Use the Supabase client from middleware
 
     // Get query parameters
     const url = new URL(request.url);
@@ -153,7 +164,7 @@ export const GET = withAuth(async (request) => {
 // Update an inquiry (e.g., change status)
 export const PUT = withAuth(async (request) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); 
+    const { supabase } = request; // Use the Supabase client from middleware
     const body = await request.json();
     // Expecting ID in the body for PUT
     const { id, status } = body;
@@ -198,14 +209,11 @@ export const PUT = withAuth(async (request) => {
     // 3. Update the inquiry, ensuring we filter by id AND client_id
     const { data, error } = await supabase
       .from("wehoware_inquiries")
-      .update({
-        status,
-        updated_by: request.user.id, // Use authenticated user ID
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", id)
-      .eq("client_id", inquiryClientId) // Ensure update targets the correct client's inquiry
-      .select();
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('client_id', inquiryClientId) // Ensure we only update the record for the correct client
+      .select()
+      .single();
 
     if (error) {
       console.error("Error updating inquiry:", error);
@@ -215,13 +223,7 @@ export const PUT = withAuth(async (request) => {
       );
     }
 
-    // Check if update actually happened (might fail silently with RLS despite checks)
-    if (!data || data.length === 0) {
-        console.warn(`Update for inquiry ${id} returned no data despite prior checks.`);
-        return NextResponse.json({ error: 'Inquiry not found or update failed unexpectedly' }, { status: 404 });
-    }
-
-    return NextResponse.json(data[0]);
+    return NextResponse.json({ data });
   } catch (error) {
     console.error("Unexpected error updating inquiry:", error);
     return NextResponse.json(

@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { withAuth } from '../../utils/auth-middleware';
 
 // GET clients (employees/admins see their active client, clients only see their own)
 async function getClients(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const { supabase } = request;
     const userRole = request.user.role;
     const userClientId = request.user.clientId; // For client role
     const activeClientId = request.user.activeClientId; // For employee/admin role
@@ -71,7 +69,7 @@ async function getClients(request) {
 // POST create new client (employees only)
 async function createClient(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const { supabase } = request;
     
     const body = await request.json();
     

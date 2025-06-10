@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../../utils/auth-middleware';
 
 /**
@@ -10,7 +8,7 @@ import { withAuth } from '../../../utils/auth-middleware';
  */
 async function getStaticPages(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const { searchParams } = new URL(request.url);
     
     // Filters
@@ -91,7 +89,7 @@ async function getStaticPages(request) {
  */
 async function createStaticPage(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const body = await request.json();
     
     // 1. Validate required fields

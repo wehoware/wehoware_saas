@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../../../utils/auth-middleware';
 
 // Helper function to get page and check authorization
-// Accepts the supabase client instance as an argument
-async function getPageAndAuthorize(supabase, request, id) {
+// The Supabase client is retrieved from the request object.
+async function getPageAndAuthorize(request, id) {
+    const { supabase } = request; // Use the Supabase client from middleware
     if (!id) {
         return { error: NextResponse.json({ error: 'Static Page ID is required.' }, { status: 400 }), data: null };
     }
 
-    // Use the passed-in supabase client
+    // Use the supabase client from the request
     const { data: page, error: fetchError } = await supabase
         .from('wehoware_static_pages')
         .select('*')
@@ -47,11 +46,10 @@ async function getPageAndAuthorize(supabase, request, id) {
  */
 async function getStaticPageById(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Create client here
     const { id } = params;
     
-    // Pass the client instance to the helper
-    const { error, data } = await getPageAndAuthorize(supabase, request, id);
+    // The helper function now gets the client from the request
+    const { error, data } = await getPageAndAuthorize(request, id);
     if (error) return error; // Return error response from helper
 
     // Return standardized response
@@ -69,12 +67,12 @@ async function getStaticPageById(request, { params }) {
  */
 async function updateStaticPage(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Create client here
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id } = params;
     const body = await request.json();
     
-    // 1. Get page and authorize (pass client)
-    const { error: authError, data: existingPage } = await getPageAndAuthorize(supabase, request, id);
+    // 1. Get page and authorize
+    const { error: authError, data: existingPage } = await getPageAndAuthorize(request, id);
     if (authError) return authError;
     
     // 2. Build update object - DO NOT allow page_slug update
@@ -135,11 +133,11 @@ async function updateStaticPage(request, { params }) {
  */
 async function deleteStaticPage(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Create client here
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id } = params;
     
-    // 1. Get page and authorize (pass client)
-    const { error: authError, data: existingPage } = await getPageAndAuthorize(supabase, request, id);
+    // 1. Get page and authorize
+    const { error: authError, data: existingPage } = await getPageAndAuthorize(request, id);
     if (authError) return authError;
 
     // 2. Execute delete using the per-request client

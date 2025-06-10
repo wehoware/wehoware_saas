@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../utils/auth-middleware';
 
 // GET services list with filtering, sorting, and pagination
 async function getServices(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '10');
@@ -86,7 +84,7 @@ async function getServices(request) {
 // POST create new service
 async function createService(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const body = await request.json();
     
     // Determine client_id - require active context for employee/admin

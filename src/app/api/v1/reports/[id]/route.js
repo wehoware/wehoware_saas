@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { withAuth } from '../../utils/auth-middleware';
 
 // Helper function to fetch report and authorize user
@@ -39,7 +37,7 @@ async function getReportAndAuthorize(supabase, request, reportId) {
 // GET a specific report by ID
 export const GET = withAuth(async (request, { params }) => {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
+        const { supabase } = request; // Use the Supabase client from middleware
         const reportId = params.id;
 
         if (!reportId) {
@@ -76,7 +74,7 @@ export const GET = withAuth(async (request, { params }) => {
 // PUT update a specific report by ID
 export const PUT = withAuth(async (request, { params }) => {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
+        const { supabase } = request; // Use the Supabase client from middleware
         const reportId = params.id;
         const body = await request.json();
         const { title, content, type, report_date, status } = body;
@@ -149,7 +147,7 @@ export const PUT = withAuth(async (request, { params }) => {
 // DELETE a specific report by ID
 export const DELETE = withAuth(async (request, { params }) => {
     try {
-        const supabase = createRouteHandlerClient({ cookies });
+        const { supabase } = request; // Use the Supabase client from middleware
         const reportId = params.id;
 
         if (!reportId) {

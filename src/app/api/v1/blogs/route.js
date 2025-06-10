@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../utils/auth-middleware';
 
 // Helper function to generate a unique slug
@@ -49,7 +47,7 @@ async function generateUniqueSlug(supabase, title, clientId) {
 // GET all blogs with pagination and filtering
 export const GET = withAuth(async (request) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Create client here
+    const { supabase } = request; // Use the Supabase client from middleware
     const userRole = request.user.role;
     const userClientId = request.user.clientId; // For client role
     const activeClientId = request.user.activeClientId; // For employee/admin role
@@ -136,7 +134,7 @@ export const GET = withAuth(async (request) => {
 // POST create new blog
 export const POST = withAuth(async (request) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Create client here
+    const { supabase } = request; // Use the Supabase client from middleware
     const body = await request.json();
     
     // Validate required fields

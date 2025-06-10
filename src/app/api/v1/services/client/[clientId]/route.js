@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; 
-import { cookies } from 'next/headers'; 
 import { withAuth } from '../../../../../utils/auth-middleware';
 
 // GET services by client ID (for employee/admin use) with pagination and filtering
 export const GET = withAuth(async (request, { params }) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); 
+    const { supabase } = request; 
     const { clientId } = params;
     const { searchParams } = new URL(request.url);
     

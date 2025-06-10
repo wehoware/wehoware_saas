@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/auth-context";
 
 const AdminHeader = ({ className }) => {
@@ -159,8 +159,11 @@ const AdminHeader = ({ className }) => {
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-80">
-                <div className="flex h-full flex-col">
+              <SheetContent side="right" className="w-80 p-0">
+                <SheetHeader className="p-6 pb-0">
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                <div className="flex h-full flex-col p-6">
                   <div className="mb-4 flex flex-col gap-6">
                     {/* Mobile Search */}
                     <div className="relative">
@@ -192,7 +195,7 @@ const AdminHeader = ({ className }) => {
                     </div>
 
                     {/* Mobile Client Selector for Employees */}
-                    {isEmployee && user?.accessibleClients?.length > 0 && (
+                    {(isEmployee || user?.role === 'client') && user?.accessibleClients?.length > 1 && (
                       <div className="border-t pt-4">
                         <div className="mb-2 text-sm font-medium">Client</div>
                         <div className="grid gap-2">

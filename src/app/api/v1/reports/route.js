@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../utils/auth-middleware';
 
 // GET list of reports with filtering, sorting, and pagination
 export const GET = withAuth(async (request) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '10');
@@ -76,7 +74,7 @@ export const GET = withAuth(async (request) => {
 // POST create a new report
 export const POST = withAuth(async (request) => {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const body = await request.json();
     const { title, content, type, report_date, status } = body;
 

@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { withAuth } from '../../../utils/auth-middleware';
 
 /**
@@ -9,7 +7,7 @@ import { withAuth } from '../../../utils/auth-middleware';
  */
 async function getKeywordsById(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id } = params;
     const userId = request.user.id;
     const userRole = request.user.role;
@@ -75,7 +73,7 @@ async function getKeywordsById(request, { params }) {
  */
 async function deleteKeywords(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id } = params;
     const userId = request.user.id;
     const userRole = request.user.role;

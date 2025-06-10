@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../utils/auth-middleware';
 
 /**
@@ -10,7 +8,7 @@ import { withAuth } from '../../utils/auth-middleware';
  */
 async function getKeywords(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     // 1. Determine client ID from active context (employee/admin only)
     const clientId = request.user.activeClientId;
     if (!clientId) {
@@ -71,7 +69,7 @@ async function getKeywords(request) {
  */
 async function createOrUpdateKeywords(request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const body = await request.json();
     const userId = request.user.id;
     

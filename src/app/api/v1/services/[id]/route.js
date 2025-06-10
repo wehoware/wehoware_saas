@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
 import { withAuth } from '../../../utils/auth-middleware';
 
 // GET a single service by ID
 async function getServiceById(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id } = params;
     
     // 1. Determine required client context
@@ -53,7 +51,7 @@ async function getServiceById(request, { params }) {
 // PUT update service
 async function updateService(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id: serviceId } = params;
     const body = await request.json();
 
@@ -134,7 +132,7 @@ async function updateService(request, { params }) {
 // DELETE service
 async function deleteService(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
+    const { supabase } = request; // Use the Supabase client from middleware
     const { id: serviceId } = params;
 
     // 1. Ensure user is admin and has active client context

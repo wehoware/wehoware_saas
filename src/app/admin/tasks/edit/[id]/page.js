@@ -4,51 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/AdminPageHeader';
-import TaskForm from '@/components/tasks/TaskForm.js'; // Ensure .js extension if that's what you use
+import TaskForm from '@/components/tasks/TaskForm';
+import CommentForm from '@/components/tasks/CommentForm';
+import ActivityFeed from '@/components/tasks/ActivityFeed';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
-
-// Mock data - In a real app, this would come from an API or state management
-const MOCK_TASKS = [
-  {
-    id: 'task-001', 
-    title: 'Review Website Content',
-    description: 'Detailed review of all public-facing website content for accuracy and tone.',
-    clientName: 'Acme Corp', 
-    assignees: [{ id: 'user-1', name: 'Alice' }], 
-    dueDate: '2025-05-10',
-    status: 'In Progress',
-    priority: 'High',
-  },
-  {
-    id: 'task-002',
-    title: 'Prepare Marketing Report',
-    description: 'Compile Q2 marketing report including campaign performance and budget analysis.',
-    clientName: 'Beta Solutions',
-    assignees: [{ id: 'user-2', name: 'Bob' }],
-    dueDate: '2025-05-15',
-    status: 'To Do',
-    priority: 'Medium',
-  },
-  {
-    id: 'task-003',
-    title: 'Update SEO Keywords',
-    description: 'Research and update SEO keywords based on latest trends for Gamma Inc. blog.',
-    clientName: 'Gamma Inc.',
-    assignees: [{ id: 'user-1', name: 'Alice' }, { id: 'user-3', name: 'Charlie (Admin)' }], 
-    dueDate: '2025-05-20',
-    status: 'Done',
-    priority: 'Low',
-  },
-];
-
-const MOCK_USERS = [
-  { id: 'user-1', name: 'Alice' },
-  { id: 'user-2', name: 'Bob' },
-  { id: 'user-3', name: 'Charlie (Admin)' },
-  { id: 'user-4', name: 'David' },
-  { id: 'unassigned', name: 'Unassigned' }
-];
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'react-hot-toast';
 
 export default function EditTaskPage() {
   const router = useRouter();
@@ -56,46 +17,140 @@ export default function EditTaskPage() {
   const taskId = params.id;
 
   const [task, setTask] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
+  const [error, setError] = useState(null);
+  const [feed, setFeed] = useState([]);
 
   useEffect(() => {
-    if (taskId) {
+    if (!taskId) return;
+
+    const fetchData = async () => {
       setIsFetching(true);
-      // Simulate API call
-      setTimeout(() => {
-        const foundTask = MOCK_TASKS.find(t => t.id === taskId);
-        if (foundTask) {
-          setTask(foundTask);
-        } else {
-          // Handle task not found, e.g., redirect or show error
-          console.error('Task not found');
+      setError(null);
+      try {
+        const [taskResponse, usersResponse, feedResponse, clientsResponse] = await Promise.all([
+          fetch(`/api/v1/tasks/${taskId}`),
+          fetch('/api/v1/users'),
+          fetch(`/api/v1/tasks/${taskId}/activities`),
+          fetch('/api/v1/clients') // Fetch clients
+        ]);
+
+        if (!taskResponse.ok) {
+          throw new Error(`Failed to fetch task: ${taskResponse.statusText}`);
         }
+        const taskData = await taskResponse.json();
+        setTask(taskData);
+
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          setUsers(usersData.users || []); // Correctly extract the array
+        } else {
+          console.warn('Could not fetch users.');
+        }
+
+        if (feedResponse.ok) {
+          const feedData = await feedResponse.json();
+          setFeed(feedData);
+        } else {
+          console.warn('Could not fetch activity feed.');
+        }
+
+        if (clientsResponse.ok) {
+          const clientsData = await clientsResponse.json();
+          setClients(clientsData.clients); // Assuming API returns { clients: [...] }
+        } else {
+          console.warn('Could not fetch clients.');
+        }
+
+      } catch (err) {
+        setError(err.message);
+        toast.error(`Error: ${err.message}`);
+      } finally {
         setIsFetching(false);
-      }, 500);
-    }
+      }
+    };
+
+    fetchData();
   }, [taskId]);
 
-  const handleFormSubmit = async (formData) => {
+  const handleUpdateTask = async (formData) => {
     setIsLoading(true);
-    console.log('Updating task:', taskId, formData);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // In a real app, you would update the task in your backend/state
-    // For now, we'll just log and navigate
-    // TODO: Update the MOCK_TASKS array or use a state management solution for persistence across pages
-    setIsLoading(false);
-    router.push('/admin/tasks'); // Navigate back to tasks list
+    const promise = fetch(`/api/v1/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Update failed and error response was not valid JSON.'}));
+        throw new Error(errorData.error || `Request failed with status ${res.status}`);
+      }
+      return res.json();
+    });
+
+    toast.promise(promise, {
+      loading: 'Updating task...',
+      success: () => {
+        router.push('/admin/tasks');
+        return 'Task updated successfully!';
+      },
+      error: (err) => err.message || 'Failed to update task.',
+    });
+
+    try {
+      await promise;
+    } catch (e) {
+      // Error is handled by toast.promise, this catch prevents unhandled promise rejection
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCommentAdded = () => {
+    // Refetch the feed to show the new comment and activity
+    fetch(`/api/v1/tasks/${taskId}/activities`)
+      .then(res => res.json())
+      .then(setFeed)
+      .catch(err => console.warn('Could not refetch activity feed.', err));
   };
 
   if (isFetching) {
-    return <div className="container mx-auto p-6">Loading task details...</div>;
+    return (
+      <div className="container mx-auto py-6 px-4 md:px-6 space-y-6">
+        <Skeleton className="h-10 w-1/2" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/4" />
+            <Skeleton className="h-4 w-1/3 mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-6 text-center">
+        <p className="text-red-500">{error}</p>
+        <Link href="/admin/tasks" className="text-primary hover:underline mt-4 inline-block">
+          &larr; Back to Tasks
+        </Link>
+      </div>
+    );
   }
 
   if (!task) {
     return (
-      <div className="container mx-auto p-6">
-        <p className="text-red-500">Task not found.</p>
+      <div className="container mx-auto p-6 text-center">
+        <p>Task not found.</p>
         <Link href="/admin/tasks" className="text-primary hover:underline mt-4 inline-block">
           &larr; Back to Tasks
         </Link>
@@ -110,8 +165,7 @@ export default function EditTaskPage() {
         description={`Update details for task ID: ${task.id}`}
         showBackButton={true}
         backButtonHref="/admin/tasks"
-      />
-      
+      />      
       <Card>
         <CardHeader>
           <CardTitle>Task Details</CardTitle>
@@ -120,13 +174,23 @@ export default function EditTaskPage() {
         <CardContent>
           <TaskForm 
             initialData={task}
-            onSubmit={handleFormSubmit}
-            users={MOCK_USERS} // Pass the list of users for assignee dropdown
+            onSubmit={handleUpdateTask}
+            users={users}
+            clients={clients} // Pass clients to TaskForm
             isLoading={isLoading}
             submitButtonText="Save Changes"
           />
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+            <CardTitle>Comments</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <CommentForm taskId={taskId} onCommentAdded={handleCommentAdded} />
+        </CardContent>
+      </Card>
+      <ActivityFeed feed={feed} />
     </div>
   );
 }

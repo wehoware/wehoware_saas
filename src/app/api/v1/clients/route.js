@@ -33,28 +33,18 @@ async function getClients(request) {
       return NextResponse.json({ clients: data ? [data] : [] });
     }
     
-    // For employees/admins, fetch the specific client from their active context
+    // For employees/admins, fetch all clients
     if (userRole === 'employee' || userRole === 'admin') {
-      if (!activeClientId) {
-        return NextResponse.json({ error: 'Active client context required.' }, { status: 400 });
-      }
-
       const { data, error } = await supabase
         .from('wehoware_clients')
-        .select('*')
-        .eq('id', activeClientId)
-        .single();
+        .select('*');
 
       if (error) {
-        console.error(`Error fetching active client record ${activeClientId} for user ${request.user.id}:`, error);
-        if (error.code === 'PGRST116') { // Not found
-          return NextResponse.json({ error: 'Active client record not found.' }, { status: 404 });
-        }
-        return NextResponse.json({ error: 'Failed to fetch active client record.' }, { status: 500 });
+        console.error(`Error fetching all clients for user ${request.user.id}:`, error);
+        return NextResponse.json({ error: 'Failed to fetch clients.' }, { status: 500 });
       }
 
-      // Return single client in an array for consistency
-      return NextResponse.json({ clients: data ? [data] : [] });
+      return NextResponse.json({ clients: data || [] });
     }
 
     // Fallback if role is somehow unexpected (should be caught by middleware)

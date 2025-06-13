@@ -179,7 +179,7 @@ export function AuthProvider({ children }) {
 
   // Switch active client (for employees)
   const switchClient = (clientId) => {
-    if (!user || !["employee", "admin"].includes(user.role)) {
+    if (!user || !["employee", "admin", "client"].includes(user.role)) {
       toast.error("Only employees can switch clients");
       return;
     }

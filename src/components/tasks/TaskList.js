@@ -1,19 +1,13 @@
-// Placeholder for Task List Component
-// Displays tasks in a table or card list
-// Uses Shadcn Table component: https://ui.shadcn.com/docs/components/table
-
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -25,360 +19,408 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import AlertComponent from "@/components/ui/alert-component";
 import {
   Edit,
-  UserPlus,
-  Circle,
+  Trash2,
   ArrowUpDown,
   MoreHorizontal,
-} from "lucide-react"; // Added icons for sorting and actions
+  AlertCircle,
+} from "lucide-react";
 
-// Helper function for date formatting (can be replaced with date-fns if available)
+// Helper function for date formatting
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
-    const date = new Date(dateString + "T00:00:00"); // Ensure parsing as local date
+    const date = new Date(dateString); // API provides full ISO string
     return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
   } catch (e) {
-    return dateString; // Fallback to original string if formatting fails
+    return dateString;
   }
 };
 
 // Helper to get initials
-const getInitials = (name) => {
-  if (!name) return "?";
-  const names = name.split(" ");
-  const initials = names.map((n) => n[0]).join("");
-  return initials.toUpperCase().slice(0, 2);
+const getInitials = (firstName, lastName) => {
+  if (!firstName && !lastName) return "?";
+  const first = firstName?.charAt(0) || "";
+  const last = lastName?.charAt(0) || "";
+  return (first + last).toUpperCase();
 };
 
-// Receive users, onTaskUpdate, and sorting props
 const TaskList = ({
   tasks = [],
-  users = [],
-  onTaskUpdate,
+  isLoading,
+  error,
+  onUpdateTask,
+  onDeleteTask,
   sortField,
-  sortOrder,
-  handleSort,
+  onSort,
+  pagination,
+  setPagination,
 }) => {
   const router = useRouter();
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Set time to start of day for comparison
+  today.setHours(0, 0, 0, 0);
 
-  if (!tasks.length) {
-    return <p className="text-center text-gray-500 mt-10">No tasks found.</p>;
-  }
+  const [errorAlertOpen, setErrorAlertOpen] = useState(false);
 
-  // Keep variant functions for potential future use or styling SelectTrigger
-  const getStatusVariant = (status) => {
-    switch (status) {
-      case "To Do":
-        return "secondary";
-      case "In Progress":
-        return "default";
-      case "Done":
-        return "outline";
-      default:
-        return "secondary";
+  useEffect(() => {
+    if (error) {
+      setErrorAlertOpen(true);
+    }
+  }, [error]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage > 0 && newPage <= Math.ceil(pagination.total / pagination.limit)) {
+      setPagination((prev) => ({ ...prev, page: newPage }));
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="border rounded-md">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {[...Array(8)].map((_, i) => (
+                <TableHead key={i}>
+                  <Skeleton className="h-5 w-full" />
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {[...Array(pagination.limit)].map((_, i) => (
+              <TableRow key={i}>
+                {[...Array(8)].map((_, j) => (
+                  <TableCell key={j}>
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
+  if (!isLoading && error) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-red-500">Could not load tasks. An error occurred.</p>
+      </div>
+    );
+  }
+
+  if (!tasks.length) {
+    return (
+      <div className="text-center text-gray-500 mt-10 p-4 border rounded-md">
+        <p>No tasks found.</p>
+        <p className="text-sm text-muted-foreground">
+          Try adjusting your filters or creating a new task.
+        </p>
+      </div>
+    );
+  }
 
   const getPriorityProps = (priority) => {
     switch (priority) {
       case "High":
-        return { variant: "destructive", color: "text-red-500", label: "High" };
+        return { color: "text-red-500" };
       case "Medium":
-        return {
-          variant: "warning",
-          color: "text-orange-500",
-          label: "Medium",
-        }; // Use warning variant if defined, else maybe default
+        return { color: "text-orange-500" };
       case "Low":
-        return { variant: "secondary", color: "text-gray-500", label: "Low" };
+        return { color: "text-gray-500" };
       default:
-        return {
-          variant: "secondary",
-          color: "text-gray-500",
-          label: priority || "None",
-        };
+        return { color: "text-gray-500" };
     }
   };
 
-  // Helper to prevent navigation when clicking dropdown
+
+
   const stopPropagation = (e) => e.stopPropagation();
 
   return (
     <TooltipProvider delayDuration={100}>
-      <Table>
-        <TableCaption>A list of tasks. Click row to view details.</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[25%]">
-              <Button
-                variant="ghost"
-                onClick={() => handleSort("title")}
-                className="px-1"
-              >
-                Title
-                {sortField === "title" && (
-                  <ArrowUpDown className="ml-2 h-4 w-4" />
-                )}
-              </Button>
-            </TableHead>
-            <TableHead className="w-[15%]">
-              <Button
-                variant="ghost"
-                onClick={() => handleSort("clientName")}
-                className="px-1"
-              >
-                Client Name
-                {sortField === "clientName" && (
-                  <ArrowUpDown className="ml-2 h-4 w-4" />
-                )}
-              </Button>
-            </TableHead>
-            <TableHead className="w-[10%]">Task Id</TableHead>
-            {/* Task ID usually not sortable by click, but can be if needed */}
-            <TableHead className="w-[15%]">Assignee</TableHead>
-            {/* Assignee sorting might be complex if based on name vs ID */}
-            <TableHead className="w-[10%]">
-              <Button
-                variant="ghost"
-                onClick={() => handleSort("dueDate")}
-                className="px-1"
-              >
-                Due Date
-                {sortField === "dueDate" && (
-                  <ArrowUpDown className="ml-2 h-4 w-4" />
-                )}
-              </Button>
-            </TableHead>
-            <TableHead className="w-[10%]">
-              <Button
-                variant="ghost"
-                onClick={() => handleSort("status")}
-                className="px-1"
-              >
-                Status
-                {sortField === "status" && (
-                  <ArrowUpDown className="ml-2 h-4 w-4" />
-                )}
-              </Button>
-            </TableHead>
-            <TableHead className="w-[10%]">
-              <Button
-                variant="ghost"
-                onClick={() => handleSort("priority")}
-                className="px-1"
-              >
-                Priority
-                {sortField === "priority" && (
-                  <ArrowUpDown className="ml-2 h-4 w-4" />
-                )}
-              </Button>
-            </TableHead>
-            <TableHead className="w-[5%] text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {tasks.map((task) => {
-            // Check if task is overdue
-            const dueDate = task.dueDate
-              ? new Date(task.dueDate + "T00:00:00")
-              : null;
-            const isOverdue =
-              dueDate && dueDate < today && task.status !== "Done";
-
-            return (
-              <TableRow
-                key={task.id}
-                className="hover:bg-muted/50 cursor-pointer"
-                onClick={() => router.push(`/admin/tasks/${task.id}`)}
-              >
-                <TableCell className="font-medium">{task.title}</TableCell>
-                <TableCell className="whitespace-nowrap">
-                  {task.clientName || "N/A"}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                  {task.id}
-                </TableCell>
-                {/* Assignee Select Dropdown */}
-                <TableCell onClick={stopPropagation}>
-                  {" "}
-                  {/* Stop propagation */}
-                  <div className="flex items-center space-x-1">
-                    {task.assignees?.slice(0, 3).map((assignee) => (
-                      <Tooltip key={assignee.id || assignee.name}>
-                        {" "}
-                        {/* Use id if available */}
-                        <TooltipTrigger asChild>
-                          <Avatar className="h-6 w-6 text-xs border">
-                            {/* <AvatarImage src={assignee.avatarUrl} alt={assignee.name} /> Optional Image */}
-                            <AvatarFallback className="bg-muted">
-                              {getInitials(assignee.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{assignee.name}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
-                    {task.assignees?.length > 3 && (
-                      <span className="text-xs text-muted-foreground pl-1">
-                        +{task.assignees.length - 3}
-                      </span>
-                    )}
-                    {task.assignees?.length === 0 && (
-                      <span className="text-xs text-muted-foreground italic">
-                        Unassigned
-                      </span>
-                    )}
-
-                    {/* Assignee Edit Dropdown Trigger */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" className="ml-1">
-                          <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuLabel>Assign To</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuRadioGroup
-                          value={task.assignees?.[0]?.id || "unassigned"} // Simple single select value
-                          onValueChange={(newAssigneeId) => {
-                            onTaskUpdate(task.id, {
-                              assigneeId: newAssigneeId,
-                            });
-                          }}
-                        >
-                          {users.map((user) => (
-                            <DropdownMenuRadioItem
-                              key={user.id}
-                              value={user.id}
-                            >
-                              {user.name}
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableCell>
-                {/* Format Due Date and highlight if overdue */}
-                <TableCell
-                  className={`${
-                    isOverdue ? "text-red-600 font-medium" : ""
-                  } whitespace-nowrap`}
-                >
-                  {formatDate(task.dueDate)}
-                </TableCell>
-                {/* Status Select Dropdown */}
-                <TableCell onClick={stopPropagation}>
-                  {" "}
-                  {/* Stop propagation */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="xs"
-                        className="w-[100px] justify-start"
-                      >
-                        {task.status || "Select..."}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuRadioGroup
-                        value={task.status}
-                        onValueChange={(newStatus) => {
-                          onTaskUpdate(task.id, { status: newStatus });
-                        }}
-                      >
-                        <DropdownMenuRadioItem value="To Do">
-                          To Do
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="In Progress">
-                          In Progress
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="Done">
-                          Done
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-                {/* Priority Select Dropdown */}
-                <TableCell onClick={stopPropagation} className="text-center">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        className="flex items-center gap-1 px-1"
-                      >
-                        <Circle
-                          className={`h-3 w-3 ${
-                            getPriorityProps(task.priority).color
-                          } fill-current`}
-                        />
-                        <span className="text-xs">
-                          {getPriorityProps(task.priority).label}
-                        </span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Set Priority</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuRadioGroup
-                        value={task.priority}
-                        onValueChange={(newPriority) => {
-                          onTaskUpdate(task.id, { priority: newPriority });
-                        }}
-                      >
-                        <DropdownMenuRadioItem value="Low">
-                          Low
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="Medium">
-                          Medium
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="High">
-                          High
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-
-                {/* Actions Dropdown */}
-                <TableCell onClick={stopPropagation} className="text-right">
+      <>
+        <div className="border rounded-md">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[25%]">
                   <Button
                     variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      router.push(`/admin/tasks/edit?taskId=${task.id}`)
-                    }
+                    onClick={() => onSort("title")}
+                    className="px-1"
                   >
-                    <Edit className="h-3.5 w-3.5 mr-1" />
-                    Edit
+                    Title
+                    {sortField === "title" && (
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    )}
                   </Button>
-                </TableCell>
+                </TableHead>
+                <TableHead className="w-[15%]">
+                  <Button
+                    variant="ghost"
+                    onClick={() => onSort("client_id")}
+                    className="px-1"
+                  >
+                    Client Name
+                    {sortField === "client_id" && (
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="w-[10%]">Task Id</TableHead>
+                <TableHead className="w-[15%]">Assignee</TableHead>
+                <TableHead className="w-[10%]">
+                  <Button
+                    variant="ghost"
+                    onClick={() => onSort("due_date")}
+                    className="px-1"
+                  >
+                    Due Date
+                    {sortField === "due_date" && (
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="w-[10%]">
+                  <Button
+                    variant="ghost"
+                    onClick={() => onSort("status")}
+                    className="px-1"
+                  >
+                    Status
+                    {sortField === "status" && (
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="w-[10%]">
+                  <Button
+                    variant="ghost"
+                    onClick={() => onSort("priority")}
+                    className="px-1"
+                  >
+                    Priority
+                    {sortField === "priority" && (
+                      <ArrowUpDown className="ml-2 h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="w-[5%] text-right">Actions</TableHead>
               </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+            </TableHeader>
+            <TableBody>
+              {tasks.map((task) => {
+                const dueDate = task.due_date ? new Date(task.due_date) : null;
+                const isOverdue = dueDate && dueDate < today && task.status !== "Done";
+                const assignee = task.assignee;
+
+                return (
+                  <TableRow
+                    key={task.id}
+                    onClick={() => router.push(`/admin/tasks/edit/${task.id}`)}
+                    className="cursor-pointer hover:bg-muted/50"
+                  >
+                    <TableCell className="font-medium">{task.title}</TableCell>
+                    <TableCell>
+                      {task.client?.company_name || "N/A"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {task.id}
+                    </TableCell>
+                    <TableCell>
+                      {assignee ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6">
+                                <AvatarImage
+                                  src={assignee.avatar_url}
+                                  alt={assignee.first_name}
+                                />
+                                <AvatarFallback>
+                                  {getInitials(
+                                    assignee.first_name,
+                                    assignee.last_name
+                                  )}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span>
+                                {`${assignee.first_name || ""} ${
+                                  assignee.last_name || ""
+                                }`.trim()}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{assignee.email || "No email"}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Unassigned
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className={isOverdue ? "text-destructive" : ""}>
+                      {formatDate(task.due_date)}
+                    </TableCell>
+                    <TableCell onClick={stopPropagation}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-start text-left"
+                          >
+                            {task.status || "Select"}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuRadioGroup
+                            value={task.status}
+                            onValueChange={(status) =>
+                              onUpdateTask(task.id, { status })
+                            }
+                          >
+                            <DropdownMenuRadioItem value="To Do">
+                              To Do
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="In Progress">
+                              In Progress
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="Done">
+                              Done
+                            </DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                    <TableCell onClick={stopPropagation}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`w-full justify-start text-left font-semibold ${getPriorityProps(
+                              task.priority
+                            ).color}`}
+                          >
+                            {task.priority || "Select"}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuRadioGroup
+                            value={task.priority}
+                            onValueChange={(priority) =>
+                              onUpdateTask(task.id, { priority })
+                            }
+                          >
+                            <DropdownMenuRadioItem value="Low">
+                              Low
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="Medium">
+                              Medium
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="High">
+                              High
+                            </DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={stopPropagation}
+                    >
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(`/admin/tasks/edit/${task.id}`)
+                            }
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => onDeleteTask(task.id)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-center justify-between py-4">
+          <div className="text-sm text-muted-foreground">
+            Showing{" "}
+            {pagination.page * pagination.limit - pagination.limit + 1}-
+            {(pagination.page * pagination.limit) > pagination.total
+              ? pagination.total
+              : pagination.page * pagination.limit}{" "}
+            of {pagination.total} tasks.
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {pagination.page} of{" "}
+              {Math.ceil(pagination.total / pagination.limit) || 1}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+        <AlertComponent
+          open={errorAlertOpen}
+          onOpenChange={setErrorAlertOpen}
+          title="Error Fetching Tasks"
+          message={error || "An unexpected error occurred."}
+          actionLabel="Close"
+          onAction={() => setErrorAlertOpen(false)}
+        />
+      </>
     </TooltipProvider>
   );
 };

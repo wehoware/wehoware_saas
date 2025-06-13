@@ -67,7 +67,7 @@ const sidebarMenu = [
     title: "Tasks",
     href: "/admin/tasks",
     icon: <CheckCircle className="h-5 w-5" />,
-    roles: ["admin", "employee", "client"],
+    roles: ["admin", "employee"],
   },
   {
     title: "Appointments",

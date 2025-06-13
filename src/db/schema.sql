@@ -458,9 +458,78 @@ CREATE INDEX IF NOT EXISTS idx_client_keywords_employee_id
 
 
 
+-- =============================================
+-- 25. Create wehoware_tasks table
+-- =============================================
+CREATE TABLE IF NOT EXISTS public.wehoware_tasks (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    title text NOT NULL,
+    description text NULL,
+    due_date timestamp with time zone NULL,
+    priority text NULL CHECK (priority IN ('Low', 'Medium', 'High')),
+    status text NULL CHECK (status IN ('To Do', 'In Progress', 'Done', 'Backlog')),
+    client_id uuid NULL,
+    assignee_id uuid NULL,
+    created_by uuid NULL,
+    CONSTRAINT wehoware_tasks_pkey PRIMARY KEY (id),
+    CONSTRAINT wehoware_tasks_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES public.wehoware_profiles(id) ON DELETE SET NULL,
+    CONSTRAINT wehoware_tasks_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.wehoware_clients(id) ON DELETE CASCADE,
+    CONSTRAINT wehoware_tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+-- Disable Row Level Security as requested
+ALTER TABLE public.wehoware_tasks DISABLE ROW LEVEL SECURITY;
+
+-- Add comments on columns for clarity
+COMMENT ON COLUMN public.wehoware_tasks.priority IS 'Task priority: Low, Medium, High';
+COMMENT ON COLUMN public.wehoware_tasks.status IS 'Task status: To Do, In Progress, Done, Backlog';
+
+
+-- =============================================
+-- 27. Create Task Activity and Comment Tables
+-- =============================================
+
+-- Table for logging all changes to a task
+CREATE TABLE IF NOT EXISTS public.wehoware_task_activities (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    task_id uuid NOT NULL,
+    user_id uuid NULL,
+    activity_type text NOT NULL,
+    details jsonb NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT wehoware_task_activities_pkey PRIMARY KEY (id),
+    CONSTRAINT wehoware_task_activities_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.wehoware_tasks(id) ON DELETE CASCADE,
+    CONSTRAINT wehoware_task_activities_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.wehoware_profiles(id) ON DELETE SET NULL
+);
+
+COMMENT ON TABLE public.wehoware_task_activities IS 'Logs all activities related to tasks, like creation, status changes, and comments.';
+COMMENT ON COLUMN public.wehoware_task_activities.details IS 'JSON object containing details of the change, e.g., {"from": "To Do", "to": "In Progress"}.';
+
+-- Table for storing comments on a task
+CREATE TABLE IF NOT EXISTS public.wehoware_task_comments (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    task_id uuid NOT NULL,
+    user_id uuid NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT wehoware_task_comments_pkey PRIMARY KEY (id),
+    CONSTRAINT wehoware_task_comments_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.wehoware_tasks(id) ON DELETE CASCADE,
+    CONSTRAINT wehoware_task_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.wehoware_profiles(id) ON DELETE SET NULL
+);
+
+COMMENT ON TABLE public.wehoware_task_comments IS 'Stores user comments for each task.';
+
+-- ========================================================
+-- 28. Disable Row Level Security on New Task-Related Tables
+-- ========================================================
+ALTER TABLE public.wehoware_task_activities DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wehoware_task_comments DISABLE ROW LEVEL SECURITY;
+
+
 
 -- ====================================================
--- 25. Enable Row Level Security on all wehoware_ tables
+-- Enable Row Level Security on all wehoware_ tables
 -- ====================================================
 ALTER TABLE wehoware_clients DISABLE ROW LEVEL SECURITY;
 ALTER TABLE wehoware_profiles DISABLE ROW LEVEL SECURITY;

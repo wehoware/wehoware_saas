@@ -78,10 +78,9 @@ export function withAuth(handler, options = {}) {
         }
       }
 
-      const requestWithAuth = new Request(request);
       // Attach the per-request Supabase client and user info to the request object
-      requestWithAuth.supabase = supabase;
-      requestWithAuth.user = {
+      request.supabase = supabase;
+      request.user = {
         id: session.user.id,
         email: session.user.email,
         role: profileData.role,
@@ -110,14 +109,14 @@ export function withAuth(handler, options = {}) {
                 user_agent: request.headers.get('user-agent') || 'unknown'
               });
             
-            requestWithAuth.user.activeClientId = activeClientId;
+            request.user.activeClientId = activeClientId;
           }
         }
       }
 
       try {
-        if (requestWithAuth.user.activeClientId) { // Prioritize activeClientId if set (applies to all roles that can switch)
-          await supabase.rpc('set_client_context', { client_id: requestWithAuth.user.activeClientId });
+        if (request.user.activeClientId) { // Prioritize activeClientId if set (applies to all roles that can switch)
+          await supabase.rpc('set_client_context', { client_id: request.user.activeClientId });
         } else if (profileData.role === 'client' && profileData.client_id) { // Fallback for client role to their primary client_id
           await supabase.rpc('set_client_context', { client_id: profileData.client_id });
         }
@@ -125,7 +124,7 @@ export function withAuth(handler, options = {}) {
         console.error('Error setting client context:', contextError);
       }
 
-      return await handler(requestWithAuth, context);
+      return await handler(request, context);
     } catch (error) {
       console.error('Auth middleware error:', error);
       return NextResponse.json(

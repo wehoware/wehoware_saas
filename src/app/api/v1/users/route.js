@@ -4,10 +4,19 @@ import supabaseAdmin from '@/lib/supabaseAdmin';
 
 export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const roles = searchParams.getAll('role'); // Allows for multiple role parameters, e.g., ?role=admin&role=employee
+
     // 1. Fetch user profiles from the database (using ADMIN client)
-    const { data: profiles, error: profilesError } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('wehoware_profiles')
-      .select('*'); // You might want to add sorting here if needed later
+      .select('*');
+
+    if (roles.length > 0) {
+      query = query.in('role', roles);
+    }
+    
+    const { data: profiles, error: profilesError } = await query;
 
     if (profilesError) {
       console.error('Error fetching profiles:', profilesError);

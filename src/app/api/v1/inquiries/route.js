@@ -20,7 +20,6 @@ export async function POST(request) {
     );
 
     const body = await request.json();
-    console.log("Inquiry POST request body:", body);
     const { name, email, phone, subject, message, client_id } = body;
 
     // Validate required fields

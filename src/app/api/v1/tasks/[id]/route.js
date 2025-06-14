@@ -132,7 +132,7 @@ export const DELETE = withAuth(async (request, { params }) => {
 
   // Log deletion
   await supabase.from('wehoware_task_activities').insert({
-    task_id: taskId,
+    task_id: id, // Use 'id' from params, which is the actual task ID
     user_id: user.id,
     activity_type: 'deleted',
     details: { title: existingTask.title }

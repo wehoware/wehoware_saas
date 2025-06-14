@@ -1,49 +1,44 @@
-// components/ui/select.jsx
 import React from "react";
 import * as Select from "@radix-ui/react-select";
 import { ChevronDown, Check } from "lucide-react";
 
-/**
- * SelectInput: Reusable select component using Radix UI and Lucide icons
- *
- * Props:
- * - id: string
- * - name: string
- * - label: string
- * - options: string[]
- * - value: string
- * - onChange: (e: { target: { name: string; value: string } }) => void
- */
-export default function SelectInput({
+const EMPTY_VALUE_INTERNAL = "__EMPTY_VALUE_PLACEHOLDER__"; // Internal placeholder for empty string values
+
+export default function FilterableSelectInput({
   id,
   name,
   options,
-  value,
+  value, // This can be an empty string for 'all' or 'none'
   onChange,
   required,
   placeholder: customPlaceholder,
   className,
   ...props
 }) {
-  // Normalize options to always handle [{value, label}] format
+  // Normalize options: map empty string values to the internal placeholder
   const normalizedOptions = options.map(opt => {
-    if (typeof opt === 'string') {
-      return { value: opt, label: opt };
+    let currentOpt = typeof opt === 'string' ? { value: opt, label: opt } : opt;
+    if (currentOpt.value === "") {
+      return { ...currentOpt, value: EMPTY_VALUE_INTERNAL };
     }
-    return opt;
+    return currentOpt;
   });
 
-  // Handle value change without causing an infinite update loop
-  const handleValueChange = (newValue) => {
-    if (newValue !== value) {
-      onChange({ target: { name, value: newValue } });
+  const handleValueChange = (newValueFromRadix) => {
+    // If Radix gives back the internal placeholder, convert it back to an empty string for the parent
+    const actualNewValue = newValueFromRadix === EMPTY_VALUE_INTERNAL ? "" : newValueFromRadix;
+    if (actualNewValue !== value) {
+      onChange({ target: { name, value: actualNewValue } });
     }
   };
-  
+
+  // Determine the value to pass to Select.Root: if parent's value is empty string, use internal placeholder
+  const valueForRadix = value === "" ? EMPTY_VALUE_INTERNAL : value;
+
   return (
     <div className="space-y-2">
       <Select.Root
-        value={value}
+        value={valueForRadix}
         onValueChange={handleValueChange}
         required={required}
       >
@@ -53,7 +48,6 @@ export default function SelectInput({
           className={`inline-flex items-center justify-between w-full px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
           {...props}
         >
-          {/* Use custom placeholder if provided, otherwise generate one if name exists, else use a generic default */}
           <Select.Value placeholder={customPlaceholder || (name ? `Select a ${name.toLowerCase()}` : 'Select an option')} />
           <Select.Icon>
             <ChevronDown className="text-gray-500" size={20} />
@@ -68,8 +62,8 @@ export default function SelectInput({
             <Select.Viewport>
               {normalizedOptions.map((opt) => (
                 <Select.Item
-                  key={opt.value}
-                  value={opt.value}
+                  key={opt.value} // This will now be EMPTY_VALUE_INTERNAL for the 'all' option
+                  value={opt.value} // Radix Item value is never an empty string
                   className="px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-100"
                 >
                   <Select.ItemText>{opt.label}</Select.ItemText>

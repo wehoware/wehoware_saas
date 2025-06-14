@@ -1,38 +1,58 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-// GET task statistics
-export const GET = withAuth(async (request) => {
-  const { supabase, user } = request;
+export const GET = withAuth(
+  async (request) => {
+    const { supabase, user } = request;
 
-  // Only admins and employees can see stats
-  if (!['admin', 'employee'].includes(user.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+    try {
+      // Build a count-only query for a given status
+      const buildCountQuery = (status) => {
+        // 1) start with select(..., { head: true, count: 'exact' })
+        let q = supabase
+          .from("wehoware_tasks")
+          .select("*", { count: "exact", head: true });
 
-  try {
-    const commonQuery = supabase.from('wehoware_tasks');
+        // 2) now you can safely chain .eq() filters
+        if (user.role === "employee") {
+          q = q.eq("assignee_id", user.id);
+        }
+        if (status) {
+          q = q.eq("status", status);
+        }
 
-    const queries = [
-      commonQuery.select('*', { count: 'exact', head: true }),
-      commonQuery.select('*', { count: 'exact', head: true }).eq('status', 'To Do'),
-      commonQuery.select('*', { count: 'exact', head: true }).eq('status', 'In Progress'),
-      commonQuery.select('*', { count: 'exact', head: true }).eq('status', 'Done'),
-    ];
+        return q;
+      };
 
-    const [total, todo, inProgress, done] = await Promise.all(queries);
+      // fire off all four counts in parallel
+      const countQueries = [
+        buildCountQuery(null),
+        buildCountQuery("To Do"),
+        buildCountQuery("In Progress"),
+        buildCountQuery("Done"),
+      ];
 
-    const stats = {
-      total: total.count || 0,
-      todo: todo.count || 0,
-      inProgress: inProgress.count || 0,
-      done: done.count || 0,
-    };
+      const [totalRes, todoRes, inProgressRes, doneRes] = await Promise.all(countQueries);
 
-    return NextResponse.json(stats);
+      // check for errors
+      for (const res of [totalRes, todoRes, inProgressRes, doneRes]) {
+        if (res.error) throw res.error;
+      }
 
-  } catch (error) {
-    console.error('Error fetching task stats:', error);
-    return NextResponse.json({ error: 'Failed to fetch task statistics' }, { status: 500 });
-  }
-}, { allowedRoles: ['admin', 'employee'] });
+      // return the counts (defaulting to 0)
+      return NextResponse.json({
+        total: totalRes.count ?? 0,
+        todo: todoRes.count ?? 0,
+        inProgress: inProgressRes.count ?? 0,
+        done: doneRes.count ?? 0,
+      });
+    } catch (error) {
+      console.error("Error fetching task stats:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch task statistics" },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["admin", "employee"] }
+);

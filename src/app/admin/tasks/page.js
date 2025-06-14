@@ -52,9 +52,11 @@ export default function TasksPage() {
     status: "",
     priority: "",
     search: "",
+    assignee_id: "", // Added assignee_id to filters
   });
   const [sort, setSort] = useState({ field: "created_at", order: "desc" });
   const [isAssignSheetOpen, setIsAssignSheetOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
@@ -92,15 +94,21 @@ export default function TasksPage() {
         );
         const usersData = await usersResponse.json();
         if (usersData.users) setAssignableUsers(usersData.users);
-
         const clientsResponse = await fetch("/api/v1/clients");
         const clientsData = await clientsResponse.json();
         if (clientsData.clients) setClients(clientsData.clients);
-
         const statsResponse = await fetch("/api/v1/tasks/stats");
         const statsData = await statsResponse.json();
         if (statsData && typeof statsData.total !== 'undefined') {
           setStats(statsData);
+        }
+
+        const meResponse = await fetch('/api/v1/auth'); // Fetch current user (endpoint changed from /me)
+        if (meResponse.ok) {
+          const meData = await meResponse.json();
+          if (meData.user) {
+            setCurrentUser(meData.user);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch initial data for form dropdowns", err);
@@ -220,7 +228,11 @@ export default function TasksPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <TaskFilters onFilterChange={handleFilterChange} />
+          <TaskFilters 
+            onFilterChange={handleFilterChange} 
+            assignableUsers={assignableUsers} 
+            currentFilters={filters} // Pass all current filters
+          />
           <TaskList
             tasks={tasks}
             users={assignableUsers}
@@ -232,6 +244,7 @@ export default function TasksPage() {
             onTaskDelete={handleTaskDelete}
             sort={sort}
             handleSort={handleSort}
+            userRole={currentUser?.role} // Pass userRole
           />
         </CardContent>
       </Card>

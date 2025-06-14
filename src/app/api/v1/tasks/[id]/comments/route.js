@@ -5,7 +5,7 @@ import { withAuth } from '../../../../utils/auth-middleware';
 export const POST = withAuth(async (request, { params }) => {
   const { supabase, user } = request;
   const { content } = await request.json();
-  const taskId = params.id;
+  const { id: taskId } = params;
 
   if (!content) {
     return NextResponse.json({ error: 'Comment content is required' }, { status: 400 });

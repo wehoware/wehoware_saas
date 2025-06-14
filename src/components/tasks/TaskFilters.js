@@ -2,7 +2,7 @@
 import React from "react";
 import { Input } from "@/components/ui/input";
 // Ensure only SelectInput is imported
-import SelectInput from "@/components/ui/select";
+import FilterableSelectInput from "@/components/ui/FilterableSelectInput.jsx"; // Changed import
 import { Button } from "@/components/ui/button";
 
 // Define options arrays within the component
@@ -20,35 +20,23 @@ const priorityOptions = [
   { value: "Low", label: "Low" },
 ];
 
-// Mock Assignees for filters - replace with actual data later
-const MOCK_ASSIGNEES_FILTER = [
-  { value: "all", label: "All Assignees" },
-  { value: "emp1", label: "Alice" },
-  { value: "emp2", label: "Bob" },
-  { value: "admin1", label: "Charlie (Admin)" },
-];
-
-const TaskFilters = ({ onFilterChange }) => {
-  const [filters, setFilters] = React.useState({
-    search: "",
-    status: "",
-    priority: "",
-    assignee: "", // Add assignee filter later
-  });
+// TaskFilters now receives currentFilters and assignableUsers as props
+const TaskFilters = ({ onFilterChange, assignableUsers = [], currentFilters }) => {
+  // Internal state is removed. We use currentFilters prop directly.
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    const newFilters = { ...filters, [name]: value };
-    setFilters(newFilters);
+    // Construct new filters based on currentFilters prop and the changed value
+    const newFilters = { ...currentFilters, [name]: value };
     onFilterChange(newFilters);
   };
 
   // Updated handler: SelectInput provides { target: { name, value } }
   const handleSelectChange = (e) => {
     const { name, value } = e.target;
-    const selectedValue = value === "all" ? "" : value;
-    const newFilters = { ...filters, [name]: selectedValue };
-    setFilters(newFilters);
+    // If 'all' or an empty string is selected for a dropdown, represent it as an empty string for the filter value.
+    const selectedValue = value === "all" || value === "" ? "" : value;
+    const newFilters = { ...currentFilters, [name]: selectedValue };
     onFilterChange(newFilters);
   };
 
@@ -60,14 +48,13 @@ const TaskFilters = ({ onFilterChange }) => {
   // };
 
   const clearFilters = () => {
-    const clearedFilters = {
+    // Call onFilterChange with all filter values reset to empty strings
+    onFilterChange({
       search: "",
       status: "",
       priority: "",
-      assignee: "",
-    };
-    setFilters(clearedFilters);
-    onFilterChange(clearedFilters);
+      assignee_id: "", // Ensure this matches the key in TasksPage state
+    });
   };
 
   return (
@@ -82,8 +69,8 @@ const TaskFilters = ({ onFilterChange }) => {
         <Input
           id="search"
           name="search"
-          placeholder="Search by title..."
-          value={filters.search}
+          placeholder="Search by title/description..."
+          value={currentFilters.search}
           onChange={handleInputChange}
         />
       </div>
@@ -96,12 +83,12 @@ const TaskFilters = ({ onFilterChange }) => {
           Status
         </label>
 
-        <SelectInput
+        <FilterableSelectInput
           id="status"
           name="status"
           options={statusOptions}
-          value={filters.status || "all"} // Ensure 'all' is selected if filter is empty
-          onChange={handleSelectChange} // Pass the handler directly
+          value={currentFilters.status || "all"} 
+          onChange={handleSelectChange}
         />
       </div>
 
@@ -113,24 +100,35 @@ const TaskFilters = ({ onFilterChange }) => {
           Priority
         </label>
         {/* Use SelectInput for Priority */}
-        <SelectInput
+        <FilterableSelectInput
           id="priority"
           name="priority"
           options={priorityOptions}
-          value={filters.priority || "all"}
-          onChange={handleSelectChange} // Pass the handler directly
+          value={currentFilters.priority || "all"}
+          onChange={handleSelectChange}
         />
 
         {/* TODO: Add Assignee Select - needs dynamic population */}
         {/* Replace the temporary one below with logic to fetch actual assignees */}
       </div>
-      <SelectInput
-        id="assignee"
-        name="assignee"
-        options={MOCK_ASSIGNEES_FILTER} // Use mock filter options for now
-        value={filters.assignee || "all"}
-        onChange={handleSelectChange} // Pass the handler directly
-      />
+      <div>
+        <label 
+          htmlFor="assignee_id" 
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          Assignee
+        </label>
+        <FilterableSelectInput
+          id="assignee_id" // Changed id
+          name="assignee_id" // Changed name
+          options={[
+            { value: "", label: "All Assignees" }, // Default 'All' option
+            ...assignableUsers.map(user => ({ value: user.id, label: `${user.first_name} ${user.last_name}` }))
+          ]}
+          value={currentFilters.assignee_id || ""} // Use empty string for 'all'
+          onChange={handleSelectChange}
+        />
+      </div>
       <Button variant="outline" onClick={clearFilters}>
         Clear Filters
       </Button>

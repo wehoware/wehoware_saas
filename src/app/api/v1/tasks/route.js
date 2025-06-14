@@ -19,7 +19,8 @@ export const GET = withAuth(async (request) => {
   // Filtering
   const status = searchParams.get('status');
   const priority = searchParams.get('priority');
-  const searchQuery = searchParams.get('q');
+  const searchQuery = searchParams.get('q'); // 'q' is used by some conventions for general search
+  const assigneeFilter = searchParams.get('assignee_id'); // For assignee filter
 
   let query = supabase
     .from('wehoware_tasks')
@@ -36,8 +37,19 @@ export const GET = withAuth(async (request) => {
   if (priority) {
     query = query.eq('priority', priority);
   }
+  // Apply role-based filtering and assignee filter
+  if (user.role === 'employee') {
+    // Employees ONLY see tasks assigned to them. Ignore any assigneeFilter from query params.
+    query = query.eq('assignee_id', user.id);
+  } else if (user.role === 'admin' && assigneeFilter) {
+    // Admins can filter by a specific assignee_id if provided
+    query = query.eq('assignee_id', assigneeFilter);
+  }
+  // If user is admin and no assigneeFilter is provided, all tasks (matching other filters) are returned.
+
   if (searchQuery) {
-    query = query.ilike('title', `%${searchQuery}%`);
+    // Example: searching in title OR description. Adjust as needed.
+    query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
   }
 
   // Apply sorting

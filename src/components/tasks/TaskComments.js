@@ -44,15 +44,15 @@ const TaskComments = ({ comments = [], onAddComment }) => {
         {/* Existing Comments */} 
         <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
           {comments.length > 0 ? (
-            [...comments].reverse().map((comment) => ( // Show newest first
+            comments.map((comment) => (
               <div key={comment.id} className="flex items-start gap-3">
                 <Avatar className="h-8 w-8 mt-1">
-                  <AvatarImage src={comment.user?.avatarUrl || ''} alt={comment.user?.name || '?'} />
-                  <AvatarFallback>{comment.user?.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+                  <AvatarImage src={comment.user?.avatar_url || ''} alt={(comment.user?.first_name || '') + ' ' + (comment.user?.last_name || '') || '?'} />
+                  <AvatarFallback>{comment.user?.first_name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex justify-between items-center mb-0.5">
-                    <span className="text-sm font-medium">{comment.user?.name || 'Unknown User'}</span>
+                    <span className="text-sm font-medium">{(comment.user?.first_name || '') + ' ' + (comment.user?.last_name || '') || 'Unknown User'}</span>
                     <span className="text-xs text-muted-foreground">
                       {comment.timestamp ? new Date(comment.timestamp).toLocaleString() : ''}
                     </span>

@@ -21,7 +21,7 @@ const TaskForm = ({
     client_id: "", // Initialize client_id
     assignee_id: "",
     due_date: "",
-    priority: "Medium",
+    priority: "High",
     status: "To Do",
   });
   const [error, setError] = useState("");
@@ -54,7 +54,7 @@ const TaskForm = ({
         due_date: initialData.due_date
           ? new Date(initialData.due_date).toISOString().split("T")[0]
           : "",
-        priority: initialData.priority || "Medium", // Already string or default
+        priority: initialData.priority || "High", // Already string or default
         status: initialData.status || "To Do", // Already string or default
       });
     }

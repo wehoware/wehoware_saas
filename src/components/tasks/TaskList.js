@@ -63,9 +63,10 @@ const TaskList = ({
   isLoading,
   error,
   onUpdateTask,
-  onDeleteTask,
-  sortField,
-  onSort,
+  onTaskDelete, // Changed from onDeleteTask
+  userRole, // Added userRole prop
+  sort, // Changed from sortField and onSort
+  handleSort, // Changed from sortField and onSort
   pagination,
   setPagination,
 }) => {
@@ -162,63 +163,52 @@ const TaskList = ({
                 <TableHead className="w-[25%]">
                   <Button
                     variant="ghost"
-                    onClick={() => onSort("title")}
+                    onClick={() => handleSort("title")}
                     className="px-1"
                   >
                     Title
-                    {sortField === "title" && (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
+                    {sort.field === "title" && (sort.order === "asc" ? "🔼" : "🔽")}
                   </Button>
                 </TableHead>
                 <TableHead className="w-[15%]">
                   <Button
                     variant="ghost"
-                    onClick={() => onSort("client_id")}
+                    onClick={() => handleSort("assignee_id")}
                     className="px-1"
                   >
                     Client Name
-                    {sortField === "client_id" && (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
+                    {sort.field === "client_id" && (sort.order === "asc" ? "🔼" : "🔽")}
                   </Button>
                 </TableHead>
-                <TableHead className="w-[10%]">Task Id</TableHead>
                 <TableHead className="w-[15%]">Assignee</TableHead>
                 <TableHead className="w-[10%]">
                   <Button
                     variant="ghost"
-                    onClick={() => onSort("due_date")}
+                    onClick={() => handleSort("due_date")}
                     className="px-1"
                   >
                     Due Date
-                    {sortField === "due_date" && (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
+                    {sort.field === "due_date" && (sort.order === "asc" ? "🔼" : "🔽")}
                   </Button>
                 </TableHead>
                 <TableHead className="w-[10%]">
                   <Button
                     variant="ghost"
-                    onClick={() => onSort("status")}
+                    onClick={() => handleSort("status")}
                     className="px-1"
                   >
                     Status
-                    {sortField === "status" && (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
+                    {sort.field === "status" && (sort.order === "asc" ? "🔼" : "🔽")}
                   </Button>
                 </TableHead>
                 <TableHead className="w-[10%]">
                   <Button
                     variant="ghost"
-                    onClick={() => onSort("priority")}
+                    onClick={() => handleSort("priority")}
                     className="px-1"
                   >
                     Priority
-                    {sortField === "priority" && (
-                      <ArrowUpDown className="ml-2 h-4 w-4" />
-                    )}
+                    {sort.field === "priority" && (sort.order === "asc" ? "🔼" : "🔽")}
                   </Button>
                 </TableHead>
                 <TableHead className="w-[5%] text-right">Actions</TableHead>
@@ -239,9 +229,6 @@ const TaskList = ({
                     <TableCell className="font-medium">{task.title}</TableCell>
                     <TableCell>
                       {task.client?.company_name || "N/A"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {task.id}
                     </TableCell>
                     <TableCell>
                       {assignee ? (
@@ -364,13 +351,15 @@ const TaskList = ({
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => onDeleteTask(task.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                          {userRole === 'admin' && (
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => onTaskDelete(task.id)} // Changed to onTaskDelete
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

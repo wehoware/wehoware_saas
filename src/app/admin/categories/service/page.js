@@ -158,9 +158,7 @@ export default function ServiceCategoriesPage() {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Get the current user ID for audit (from NextAuth session via useAuth)
     const userId = user?.id;
 
     const slug = slugify(editingCategory.name, { lower: true, strict: true });

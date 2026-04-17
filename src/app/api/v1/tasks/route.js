@@ -1,120 +1,230 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../utils/auth-middleware';
+/**
+ * /api/v1/tasks
+ *
+ * Prisma/MySQL-backed replacement for the old Supabase handler.
+ *
+ * GET  — paginated list of tasks (role-filtered)
+ * POST — create a task + log "created" activity
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../utils/auth-middleware";
 
-// GET a list of tasks with sorting, filtering, and pagination
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+
+const SORTABLE_FIELDS = new Set([
+  "created_at",
+  "title",
+  "status",
+  "priority",
+  "due_date",
+]);
+const FIELD_MAP = {
+  created_at: "createdAt",
+  title: "title",
+  status: "status",
+  priority: "priority",
+  due_date: "dueDate",
+};
+
+// Standard include used across GET endpoints to preserve response shape
+// expected by the admin UI (client.company_name / assignee.first_name …).
+const TASK_INCLUDE = {
+  client: { select: { id: true, companyName: true } },
+  assignee: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      avatarUrl: true,
+    },
+  },
+};
+
+/**
+ * Decorates a Prisma task row with snake_case-friendly relation aliases
+ * (`client.company_name`, `assignee.first_name`, …) so existing admin
+ * pages that consumed the Supabase response keep working.
+ */
+function shapeTask(task) {
+  if (!task) return task;
+  const out = { ...task };
+  if (task.client) {
+    out.client = {
+      id: task.client.id,
+      company_name: task.client.companyName,
+    };
+  }
+  if (task.assignee) {
+    out.assignee = {
+      id: task.assignee.id,
+      first_name: task.assignee.firstName,
+      last_name: task.assignee.lastName,
+      avatar_url: task.assignee.avatarUrl,
+    };
+  }
+  return out;
+}
+
+// -------------------------------------------------------------------
+// GET /api/v1/tasks
+// -------------------------------------------------------------------
 export const GET = withAuth(async (request) => {
-  const { supabase, user } = request;
-  const { searchParams } = new URL(request.url);
+  try {
+    const { prisma, user } = request;
+    const { searchParams } = new URL(request.url);
 
-  // Pagination
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const limit = parseInt(searchParams.get('limit') || '10', 10);
-  const rangeFrom = (page - 1) * limit;
-  const rangeTo = rangeFrom + limit - 1;
+    const page = Math.max(
+      1,
+      parseInt(searchParams.get("page") || "1", 10)
+    );
+    const limit = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(
+        1,
+        parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10)
+      )
+    );
 
-  // Sorting
-  const sortField = searchParams.get('sortField') || 'created_at';
-  const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const sortFieldRaw = searchParams.get("sortField") || "created_at";
+    const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-  // Filtering
-  const status = searchParams.get('status');
-  const priority = searchParams.get('priority');
-  const searchQuery = searchParams.get('q'); // 'q' is used by some conventions for general search
-  const assigneeFilter = searchParams.get('assignee_id'); // For assignee filter
+    const status = searchParams.get("status");
+    const priority = searchParams.get("priority");
+    const searchQuery = searchParams.get("q");
+    const assigneeFilter = searchParams.get("assignee_id");
 
-  let query = supabase
-    .from('wehoware_tasks')
-    .select(`
-      *,
-      client:wehoware_clients(id, company_name),
-      assignee:wehoware_profiles(id, first_name, last_name, avatar_url)
-    `, { count: 'exact' });
+    const where = {};
+    if (status) where.status = status;
+    if (priority) where.priority = priority;
 
-  // Apply filters
-  if (status) {
-    query = query.eq('status', status);
+    // Role-based scoping
+    if (user.role === "employee") {
+      // Employees ONLY see tasks assigned to them
+      where.assigneeId = user.id;
+    } else if (user.role === "client") {
+      // Clients see tasks for their own client(s)
+      where.clientId = user.clientId;
+    } else if (user.role === "admin") {
+      // Admin scoped to active client context (if any); optional assignee filter
+      if (user.activeClientId) {
+        where.clientId = user.activeClientId;
+      }
+      if (assigneeFilter) where.assigneeId = assigneeFilter;
+    }
+
+    if (searchQuery) {
+      where.OR = [
+        { title: { contains: searchQuery } },
+        { description: { contains: searchQuery } },
+      ];
+    }
+
+    // Sort — "clientName" sorts by the related client's companyName
+    let orderBy;
+    if (sortFieldRaw === "clientName") {
+      orderBy = { client: { companyName: sortOrder } };
+    } else {
+      const sortField = SORTABLE_FIELDS.has(sortFieldRaw)
+        ? FIELD_MAP[sortFieldRaw]
+        : "createdAt";
+      orderBy = { [sortField]: sortOrder };
+    }
+
+    const [items, total] = await Promise.all([
+      prisma.wehowareTask.findMany({
+        where,
+        include: TASK_INCLUDE,
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.wehowareTask.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      tasks: items.map(shapeTask),
+      total,
+      page,
+      limit,
+    });
+  } catch (err) {
+    console.error("[GET /api/v1/tasks] error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch tasks" },
+      { status: 500 }
+    );
   }
-  if (priority) {
-    query = query.eq('priority', priority);
-  }
-  // Apply role-based filtering and assignee filter
-  if (user.role === 'employee') {
-    // Employees ONLY see tasks assigned to them. Ignore any assigneeFilter from query params.
-    query = query.eq('assignee_id', user.id);
-  } else if (user.role === 'admin' && assigneeFilter) {
-    // Admins can filter by a specific assignee_id if provided
-    query = query.eq('assignee_id', assigneeFilter);
-  }
-  // If user is admin and no assigneeFilter is provided, all tasks (matching other filters) are returned.
-
-  if (searchQuery) {
-    // Example: searching in title OR description. Adjust as needed.
-    query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
-  }
-
-  // Apply sorting
-  if (sortField === 'clientName') {
-    query = query.order('company_name', { referencedTable: 'wehoware_clients', ascending: sortOrder === 'asc' });
-  } else {
-    query = query.order(sortField, { ascending: sortOrder === 'asc' });
-  }
-
-  // Apply pagination
-  query = query.range(rangeFrom, rangeTo);
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    console.error('Error fetching tasks:', error);
-    return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
-  }
-
-  return NextResponse.json({ 
-    tasks: data,
-    total: count,
-    page,
-    limit
-  });
 });
 
-// POST to create a new task
-export const POST = withAuth(async (request) => {
-  const { supabase, user } = request;
-  const body = await request.json();
+// -------------------------------------------------------------------
+// POST /api/v1/tasks
+// -------------------------------------------------------------------
+export const POST = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const body = await request.json();
+      const {
+        title,
+        description,
+        due_date,
+        priority,
+        status,
+        client_id,
+        assignee_id,
+      } = body ?? {};
 
-  const { title, description, due_date, priority, status, client_id, assignee_id } = body;
+      if (!title || !client_id) {
+        return NextResponse.json(
+          { error: "Title and Client are required" },
+          { status: 400 }
+        );
+      }
 
-  if (!title || !client_id) {
-    return NextResponse.json({ error: 'Title and Client are required' }, { status: 400 });
-  }
+      const task = await prisma.wehowareTask.create({
+        data: {
+          title,
+          description: description ?? null,
+          dueDate: due_date ? new Date(due_date) : null,
+          priority: priority ?? null,
+          status: status ?? null,
+          clientId: client_id,
+          assigneeId: assignee_id ?? null,
+          createdBy: user.id,
+        },
+        include: TASK_INCLUDE,
+      });
 
-  const { data, error } = await supabase
-    .from('wehoware_tasks')
-    .insert({
-      title,
-      description,
-      due_date,
-      priority,
-      status,
-      client_id,
-      assignee_id,
-      created_by: user.id,
-    })
-    .select()
-    .single();
+      // Log "created" activity (fire-and-forget semantics — don't fail
+      // the request if the audit insert fails).
+      prisma.wehowareTaskActivity
+        .create({
+          data: {
+            taskId: task.id,
+            userId: user.id,
+            activityType: "created",
+            details: { title: task.title },
+          },
+        })
+        .catch((err) =>
+          console.warn("[POST /api/v1/tasks] activity log failed:", err)
+        );
 
-  if (error) {
-    console.error('Error creating task:', error);
-    return NextResponse.json({ error: 'Failed to create task' }, { status: 500 });
-  }
-
-  // Log the creation activity
-  await supabase.from('wehoware_task_activities').insert({
-    task_id: data.id,
-    user_id: user.id,
-    activity_type: 'created',
-    details: { title: data.title }
-  });
-
-  return NextResponse.json(data, { status: 201 });
-}, { allowedRoles: ['admin', 'employee'] });
+      return NextResponse.json(shapeTask(task), { status: 201 });
+    } catch (err) {
+      console.error("[POST /api/v1/tasks] error:", err);
+      if (err?.code === "P2003") {
+        return NextResponse.json(
+          { error: "Invalid client_id or assignee_id" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to create task" },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["admin", "employee"] }
+);

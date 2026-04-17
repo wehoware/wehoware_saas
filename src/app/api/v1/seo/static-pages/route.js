@@ -1,173 +1,210 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
-
 /**
- * GET handler for static pages.
- * Fetches static pages based on user role and active client context.
- * Supports filtering, pagination, and sorting.
+ * /api/v1/seo/static-pages
+ *
+ * Prisma/MySQL-backed replacement for the old Supabase handler.
+ *
+ * GET  — list static pages (paginated + filtered) for the caller's client
+ * POST — create a new static page
  */
-async function getStaticPages(request) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const { searchParams } = new URL(request.url);
-    
-    // Filters
-    const slug = searchParams.get('slug');
-    const isActive = searchParams.get('is_active');
-    
-    // Pagination
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const offset = (page - 1) * limit;
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-    // Sorting
-    const sortBy = searchParams.get('sortBy') || 'page_slug';
-    const sortOrder = searchParams.get('sortOrder') || 'asc';
-    
-    // 1. Determine Client ID based on role
-    let clientId;
-    if (request.user.role === 'client') {
-        clientId = request.user.clientId;
-    } else { // 'employee' or 'admin'
-        clientId = request.user.activeClientId;
-        if (!clientId) {
-            return NextResponse.json({ error: 'Active client context required for employee/admin.' }, { status: 400 });
-        }
-    }
-    
-    // 2. Build query with count using the user-scoped client
-    let query = supabase
-      .from('wehoware_static_pages')
-      .select('*', { count: 'exact' })
-      .eq('client_id', clientId);
-    
-    // Apply filters if provided
-    if (slug) {
-      query = query.eq('page_slug', slug);
-    }
-    if (isActive !== null && isActive !== undefined) {
-      query = query.eq('is_active', isActive === 'true');
-    }
-    
-    // Apply sorting and pagination
-    query = query
-      .order(sortBy, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + limit - 1);
-    
-    // 3. Execute query
-    const { data, error, count } = await query;
-    
-    if (error) {
-      console.error("Database error fetching static pages:", error);
-      return NextResponse.json({ error: `Database error: ${error.message}` }, { status: 500 });
-    }
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
 
-    // 4. Calculate pagination details
-    const totalItems = count || 0;
-    const totalPages = Math.ceil(totalItems / limit);
-    
-    // 5. Standardized response
-    return NextResponse.json({
-      data,
-      pagination: {
-        page,
-        limit,
-        totalItems,
-        totalPages,
+const SORTABLE_FIELDS = new Set([
+  "page_slug",
+  "title",
+  "created_at",
+  "updated_at",
+  "is_active",
+]);
+const FIELD_MAP = {
+  page_slug: "pageSlug",
+  title: "title",
+  created_at: "createdAt",
+  updated_at: "updatedAt",
+  is_active: "isActive",
+};
+
+function serialize(p) {
+  return {
+    id: p.id,
+    client_id: p.clientId,
+    page_slug: p.pageSlug,
+    title: p.title,
+    content: p.content,
+    template_name: p.templateName,
+    layout: p.layout,
+    meta_title: p.metaTitle,
+    meta_description: p.metaDescription,
+    meta_keywords: p.metaKeywords,
+    open_graph_title: p.openGraphTitle,
+    open_graph_description: p.openGraphDescription,
+    open_graph_image: p.openGraphImage,
+    is_active: p.isActive,
+    created_at: p.createdAt,
+    updated_at: p.updatedAt,
+  };
+}
+
+function resolveClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
+  }
+  return null;
+}
+
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required for employee/admin." },
+          { status: 400 }
+        );
       }
-    });
 
-  } catch (error) {
-    // Catch unexpected errors
-    console.error('Unexpected error fetching static pages:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
-  }
-}
+      const url = new URL(request.url);
+      const slug = url.searchParams.get("slug");
+      const isActiveRaw = url.searchParams.get("is_active");
+      const page = Math.max(
+        1,
+        parseInt(url.searchParams.get("page") || "1", 10)
+      );
+      const limit = Math.min(
+        MAX_PAGE_SIZE,
+        Math.max(
+          1,
+          parseInt(
+            url.searchParams.get("limit") || String(DEFAULT_PAGE_SIZE),
+            10
+          )
+        )
+      );
+      const sortByRaw = url.searchParams.get("sortBy") || "page_slug";
+      const sortOrder =
+        url.searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
+      const sortBy = SORTABLE_FIELDS.has(sortByRaw)
+        ? FIELD_MAP[sortByRaw]
+        : "pageSlug";
 
-/**
- * POST handler to create a new static page.
- */
-async function createStaticPage(request) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const body = await request.json();
-    
-    // 1. Validate required fields
-    if (!body.page_slug) {
-      return NextResponse.json({ error: 'Page slug (page_slug) is required.' }, { status: 400 });
-    }
-    
-    // 2. Determine Client ID based on role
-    let clientId;
-    if (request.user.role === 'client') {
-        clientId = request.user.clientId;
-    } else { // 'employee' or 'admin'
-        clientId = request.user.activeClientId;
-        if (!clientId) {
-            return NextResponse.json({ error: 'Active client context required for employee/admin.' }, { status: 400 });
-        }
-    }
-    
-    // 3. Check if page slug already exists using the user-scoped client
-    const { data: existingPage, error: checkError } = await supabase
-      .from('wehoware_static_pages')
-      .select('id')
-      .eq('client_id', clientId)
-      .eq('page_slug', body.page_slug)
-      .maybeSingle();
-    
-    if (checkError) {
-      console.error("Database error checking existing page slug:", checkError);
-      return NextResponse.json({ error: `Database error during validation: ${checkError.message}` }, { status: 500 });
-    }
-    
-    if (existingPage) {
-      return NextResponse.json({ 
-        error: `Conflict: A page with slug "${body.page_slug}" already exists for this client.` 
-      }, { status: 409 }); // Use 409 Conflict status code
-    }
-    
-    // 4. Prepare new page data
-    const newPageData = {
-      client_id: clientId,
-      page_slug: body.page_slug,
-      title: body.title || '',
-      content: body.content || '',
-      template_name: body.template_name || null,
-      layout: body.layout || null,
-      meta_title: body.meta_title || '',
-      meta_description: body.meta_description || '',
-      meta_keywords: body.meta_keywords || '', // Consider if this is still relevant for modern SEO
-      open_graph_title: body.open_graph_title || '',
-      open_graph_description: body.open_graph_description || '',
-      open_graph_image: body.open_graph_image || '',
-      is_active: body.is_active !== undefined ? body.is_active : true,
-      // created_at and updated_at are handled by the database
-    };
-    
-    // 5. Insert the new page using the user-scoped client
-    const { data, error: insertError } = await supabase
-      .from('wehoware_static_pages')
-      .insert(newPageData) // Insert object directly
-      .select() // Select the newly created row
-      .single(); // Expecting a single row back
-    
-    if (insertError) {
-        console.error("Database error inserting static page:", insertError);
-        // Handle potential constraint violations etc.
-        return NextResponse.json({ error: `Database error: ${insertError.message}` }, { status: 500 });
-    }
-    
-    // 6. Return standardized success response
-    return NextResponse.json({ data }, { status: 201 });
+      const where = { clientId };
+      if (slug) where.pageSlug = slug;
+      if (isActiveRaw === "true") where.isActive = true;
+      else if (isActiveRaw === "false") where.isActive = false;
 
-  } catch (error) {
-    // Catch unexpected errors (e.g., JSON parsing issues)
-    console.error('Unexpected error creating static page:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
-  }
-}
+      const [items, totalItems] = await Promise.all([
+        prisma.wehowareStaticPage.findMany({
+          where,
+          orderBy: { [sortBy]: sortOrder },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.wehowareStaticPage.count({ where }),
+      ]);
 
-// Export handlers with auth middleware
-export const GET = withAuth(getStaticPages, { allowedRoles: ['client', 'employee', 'admin'] });
-export const POST = withAuth(createStaticPage, { allowedRoles: ['client', 'employee', 'admin'] });
+      return NextResponse.json({
+        data: items.map(serialize),
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+        },
+      });
+    } catch (err) {
+      console.error("[GET /api/v1/seo/static-pages] error:", err);
+      return NextResponse.json(
+        { error: "An unexpected error occurred." },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
+
+// -------------------------------------------------------------------
+// POST
+// -------------------------------------------------------------------
+export const POST = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const body = await request.json();
+
+      if (!body?.page_slug) {
+        return NextResponse.json(
+          { error: "Page slug (page_slug) is required." },
+          { status: 400 }
+        );
+      }
+
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required for employee/admin." },
+          { status: 400 }
+        );
+      }
+
+      const duplicate = await prisma.wehowareStaticPage.findFirst({
+        where: { clientId, pageSlug: body.page_slug },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return NextResponse.json(
+          {
+            error: `Conflict: A page with slug "${body.page_slug}" already exists for this client.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const created = await prisma.wehowareStaticPage.create({
+        data: {
+          clientId,
+          pageSlug: body.page_slug,
+          title: body.title ?? "",
+          content: body.content ?? "",
+          templateName: body.template_name ?? null,
+          layout: body.layout ?? null,
+          metaTitle: body.meta_title ?? "",
+          metaDescription: body.meta_description ?? "",
+          metaKeywords: body.meta_keywords ?? "",
+          openGraphTitle: body.open_graph_title ?? "",
+          openGraphDescription: body.open_graph_description ?? "",
+          openGraphImage: body.open_graph_image ?? "",
+          isActive: body.is_active !== undefined ? Boolean(body.is_active) : true,
+        },
+      });
+
+      return NextResponse.json({ data: serialize(created) }, { status: 201 });
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Invalid JSON body" },
+          { status: 400 }
+        );
+      }
+      if (err?.code === "P2002") {
+        return NextResponse.json(
+          { error: "A page with this slug already exists for this client." },
+          { status: 409 }
+        );
+      }
+      console.error("[POST /api/v1/seo/static-pages] error:", err);
+      return NextResponse.json(
+        { error: "An unexpected error occurred." },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);

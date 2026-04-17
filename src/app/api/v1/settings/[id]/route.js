@@ -1,150 +1,157 @@
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'; // Use per-request client
-import { cookies } from 'next/headers'; // Needed for createRouteHandlerClient
-// import supabase from '@/lib/supabase'; // Do not use shared client here
-import { withAuth } from '../../../utils/auth-middleware';
+/**
+ * /api/v1/settings/[id]
+ *
+ * Prisma/MySQL-backed handlers for a single setting row.
+ *
+ * Note: `id` is a UUID (VARCHAR 36) in the migrated schema — the old
+ * handler's `isNaN(parseInt(id))` guard was a leftover from an integer
+ * schema and is intentionally dropped here.
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-// Helper function now accepts supabase client instance
-async function getSettingAndAuthorize(supabase, request, id) {
-    if (!id || isNaN(parseInt(id))) { // Basic validation for ID
-        return { error: NextResponse.json({ error: 'Valid Setting ID is required.' }, { status: 400 }), data: null };
-    }
-
-    const { data: setting, error: fetchError } = await supabase
-        .from('wehoware_settings')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-    if (fetchError) {
-        if (fetchError.code === 'PGRST116') { // Not found
-            return { error: NextResponse.json({ error: 'Setting not found.' }, { status: 404 }), data: null };
-        }
-        console.error(`Database error fetching setting ID ${id}:`, fetchError);
-        return { error: NextResponse.json({ error: `Database error: ${fetchError.message}` }, { status: 500 }), data: null };
-    }
-
-    // Authorization check (remains the same, relies on request.user)
-    const isClient = request.user.role === 'client';
-    const isEmployeeOrAdmin = ['employee', 'admin'].includes(request.user.role);
-    const userClientId = request.user.clientId;
-    const activeClientId = request.user.activeClientId;
-
-    const authorized = 
-        (isClient && setting.client_id === userClientId) || 
-        (isEmployeeOrAdmin && setting.client_id === activeClientId);
-
-    if (!authorized) {
-        return { error: NextResponse.json({ error: 'Forbidden: You do not have permission to access this setting.' }, { status: 403 }), data: null };
-    }
-
-    return { error: null, data: setting };
+function toLegacy(row) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    client_id: row.clientId,
+    setting_key: row.settingKey,
+    setting_value: row.settingValue,
+    setting_group: row.settingGroup,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
 }
 
-
-/**
- * GET handler for a specific setting by ID.
- */
-async function getSettingById(request, { params }) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
-    const { id } = params;
-    
-    // Use helper to fetch and authorize, passing the client instance
-    const { error, data } = await getSettingAndAuthorize(supabase, request, id);
-    
-    if (error) return error; // Return error response from helper
-
-    // Return standardized response
-    return NextResponse.json({ data });
-
-  } catch (error) {
-    console.error(`Unexpected error in GET /settings/${params.id}:`, error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
+function resolveAllowedClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
   }
+  return null;
 }
 
 /**
- * PUT handler to update a specific setting by ID.
+ * Fetch the setting and authorize it against the caller's tenant.
+ * Returns { status, body, data } where `status` is 2xx on success.
  */
-async function updateSettingById(request, { params }) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
-    const { id } = params;
-    const body = await request.json();
-    
-    // 1. Validate required body field
-    if (body.setting_value === undefined || body.setting_value === null) {
-      return NextResponse.json({ error: 'Setting value (setting_value) is required.' }, { status: 400 });
-    }
-    
-    // 2. Get setting and authorize using helper, passing the client instance
-    const { error: authError, data: existingSetting } = await getSettingAndAuthorize(supabase, request, id);
-    if (authError) return authError;
-    
-    // 3. Prepare update data
-    const updateData = {
-      setting_value: String(body.setting_value),
+async function loadAndAuthorize(prisma, user, id) {
+  if (!id) {
+    return { status: 400, body: { error: "Setting ID is required." } };
+  }
+  const row = await prisma.wehowareSetting.findUnique({ where: { id } });
+  if (!row) {
+    return { status: 404, body: { error: "Setting not found." } };
+  }
+  const allowedClient = resolveAllowedClientId(user);
+  if (!allowedClient || row.clientId !== allowedClient) {
+    return {
+      status: 403,
+      body: {
+        error: "Forbidden: You do not have permission to access this setting.",
+      },
     };
-    if (body.setting_group !== undefined) {
-      updateData.setting_group = body.setting_group;
-    }
-    
-    // 4. Execute the update
-    const { data, error: updateError } = await supabase
-      .from('wehoware_settings')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (updateError) {
-      console.error(`Database error updating setting ID ${id}:`, updateError);
-      return NextResponse.json({ error: `Database error: ${updateError.message}` }, { status: 500 });
-    }
-    
-    // 5. Return standardized success response
-    return NextResponse.json({ data });
-
-  } catch (error) {
-    console.error(`Unexpected error in PUT /settings/${params.id}:`, error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
   }
+  return { status: 200, data: row };
 }
 
-/**
- * DELETE handler to remove a specific setting by ID.
- */
-async function deleteSettingById(request, { params }) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies }); // Use per-request client
-    const { id } = params;
-    
-    // 1. Get setting and authorize using helper, passing the client instance
-    const { error: authError, data: existingSetting } = await getSettingAndAuthorize(supabase, request, id);
-    if (authError) return authError;
-
-    // 2. Execute delete
-    const { error: deleteError } = await supabase
-      .from('wehoware_settings')
-      .delete()
-      .eq('id', id);
-    
-    if (deleteError) {
-      console.error(`Database error deleting setting ID ${id}:`, deleteError);
-      return NextResponse.json({ error: `Database error: ${deleteError.message}` }, { status: 500 });
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id } = await params;
+      const { status, body, data } = await loadAndAuthorize(prisma, user, id);
+      if (status !== 200) return NextResponse.json(body, { status });
+      return NextResponse.json({ data: toLegacy(data) });
+    } catch (err) {
+      console.error("[GET /api/v1/settings/[id]] error:", err);
+      return NextResponse.json(
+        { error: "An unexpected error occurred." },
+        { status: 500 }
+      );
     }
-    
-    // 3. Return standard success response
-    return NextResponse.json({ message: 'Setting deleted successfully.' }, { status: 200 });
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
 
-  } catch (error) {
-    console.error(`Unexpected error in DELETE /settings/${params.id}:`, error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
-  }
-}
+// -------------------------------------------------------------------
+// PUT
+// -------------------------------------------------------------------
+export const PUT = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id } = await params;
+      const body = await request.json();
 
-// Export handlers with auth middleware
-export const GET = withAuth(getSettingById, { allowedRoles: ['client', 'employee', 'admin'] });
-export const PUT = withAuth(updateSettingById, { allowedRoles: ['client', 'employee', 'admin'] });
-export const DELETE = withAuth(deleteSettingById, { allowedRoles: ['client', 'employee', 'admin'] });
+      if (body?.setting_value === undefined || body.setting_value === null) {
+        return NextResponse.json(
+          { error: "Setting value (setting_value) is required." },
+          { status: 400 }
+        );
+      }
+
+      const auth = await loadAndAuthorize(prisma, user, id);
+      if (auth.status !== 200) {
+        return NextResponse.json(auth.body, { status: auth.status });
+      }
+
+      const data = {
+        settingValue: String(body.setting_value),
+      };
+      if (body.setting_group !== undefined) {
+        data.settingGroup = body.setting_group;
+      }
+
+      const updated = await prisma.wehowareSetting.update({
+        where: { id },
+        data,
+      });
+
+      return NextResponse.json({ data: toLegacy(updated) });
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Invalid JSON body" },
+          { status: 400 }
+        );
+      }
+      console.error("[PUT /api/v1/settings/[id]] error:", err);
+      return NextResponse.json(
+        { error: "An unexpected error occurred." },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
+
+// -------------------------------------------------------------------
+// DELETE
+// -------------------------------------------------------------------
+export const DELETE = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id } = await params;
+
+      const auth = await loadAndAuthorize(prisma, user, id);
+      if (auth.status !== 200) {
+        return NextResponse.json(auth.body, { status: auth.status });
+      }
+
+      await prisma.wehowareSetting.delete({ where: { id } });
+      return NextResponse.json({ message: "Setting deleted successfully." });
+    } catch (err) {
+      console.error("[DELETE /api/v1/settings/[id]] error:", err);
+      return NextResponse.json(
+        { error: "An unexpected error occurred." },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);

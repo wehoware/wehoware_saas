@@ -1,192 +1,307 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
+/**
+ * /api/v1/services/[id]
+ *
+ * Prisma/MySQL-backed handlers for a single service.
+ * GET    — fetch
+ * PUT    — update (employee/admin)
+ * DELETE — delete (admin only)
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-// GET a single service by ID
-async function getServiceById(request, { params }) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const { id } = params;
-    
-    // 1. Determine required client context
-    let requiredClientId = null;
-    if (request.user.role === 'client') {
-        requiredClientId = request.user.clientId;
-    } else if (['employee', 'admin'].includes(request.user.role)) {
-        if (!request.user.activeClientId) {
-            return NextResponse.json({ error: 'Active client context required.' }, { status: 400 });
-        }
-        requiredClientId = request.user.activeClientId;
-    } else {
-         return NextResponse.json({ error: 'Unauthorized role.' }, { status: 403 });
-    }
+function resolveClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
+  }
+  return null;
+}
 
-    // 2. Build query using the user-scoped client (RLS applies)
-    let query = supabase
-      .from('wehoware_services')
-      .select(`
-        *,
-        wehoware_service_categories(id, name, slug)
-      `)
-      .eq('id', id)
-      .eq('client_id', requiredClientId) // Enforce client context
-      .single();
-    
-    const { data, error } = await query;
-    
-    if (error) {
-      if (error.code === 'PGRST116') { // PostgREST code for no rows found
-        return NextResponse.json({ error: 'Service not found or not accessible within your current context.' }, { status: 404 });
+async function generateUniqueSlug(prisma, title, currentSlug = null) {
+  const base = String(title)
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "")
+    .replace(/--+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (base && base === currentSlug) return base;
+
+  let candidate = base || "service";
+  let counter = 1;
+  while (counter < 100) {
+    const hit = await prisma.wehowareService.findFirst({
+      where: {
+        slug: candidate,
+        NOT: currentSlug ? { slug: currentSlug } : undefined,
+      },
+      select: { id: true },
+    });
+    if (!hit) return candidate;
+    candidate = `${base || "service"}-${counter}`;
+    counter += 1;
+  }
+  return `${base || "service"}-${Date.now()}`;
+}
+
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id } = await params;
+
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required" },
+          { status: 400 }
+        );
       }
-      console.error("Error fetching service:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+
+      const service = await prisma.wehowareService.findFirst({
+        where: { id, clientId },
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+        },
+      });
+
+      if (!service) {
+        return NextResponse.json(
+          {
+            error:
+              "Service not found or not accessible within your current context",
+          },
+          { status: 404 }
+        );
+      }
+
+      const response = {
+        ...service,
+        wehoware_service_categories: service.category
+          ? {
+              id: service.category.id,
+              name: service.category.name,
+              slug: service.category.slug,
+            }
+          : null,
+      };
+
+      return NextResponse.json({ service: response });
+    } catch (err) {
+      console.error("[GET /api/v1/services/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to fetch service" },
+        { status: 500 }
+      );
     }
-    
-    return NextResponse.json({ service: data });
-  } catch (error) {
-    console.error('Error fetching service:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
 
-// PUT update service
-async function updateService(request, { params }) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const { id: serviceId } = params;
-    const body = await request.json();
+// -------------------------------------------------------------------
+// PUT
+// -------------------------------------------------------------------
+export const PUT = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id: serviceId } = await params;
 
-    // 1. Ensure user has active client context (employee/admin only)
-    if (!request.user.activeClientId) {
-        return NextResponse.json({ error: 'Active client context required to update a service.' }, { status: 400 });
+      if (!user.activeClientId) {
+        return NextResponse.json(
+          { error: "Active client context required to update a service" },
+          { status: 400 }
+        );
+      }
+      const activeClientId = user.activeClientId;
+
+      const body = await request.json();
+
+      // Fetch existing for ownership + slug diffing
+      const existing = await prisma.wehowareService.findUnique({
+        where: { id: serviceId },
+        select: { id: true, clientId: true, title: true, slug: true },
+      });
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Service not found" },
+          { status: 404 }
+        );
+      }
+      if (String(existing.clientId) !== String(activeClientId)) {
+        return NextResponse.json(
+          {
+            error:
+              "Unauthorized: Service does not belong to your active client context",
+          },
+          { status: 403 }
+        );
+      }
+
+      const {
+        title,
+        description,
+        content,
+        category_id: categoryId,
+        price,
+        fee,
+        currency,
+        fee_currency: feeCurrencyInput,
+        duration,
+        active,
+        featured,
+        image_url: imageUrl,
+        thumbnail,
+        service_code: serviceCode,
+        tags,
+        meta_title: metaTitle,
+        meta_description: metaDescription,
+        meta_keywords: metaKeywords,
+      } = body ?? {};
+
+      const updateData = {};
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (content !== undefined) updateData.content = content;
+      if (categoryId !== undefined) updateData.categoryId = categoryId;
+      if (fee !== undefined) updateData.fee = fee;
+      else if (price !== undefined) updateData.fee = price;
+      if (feeCurrencyInput !== undefined)
+        updateData.feeCurrency = feeCurrencyInput;
+      else if (currency !== undefined) updateData.feeCurrency = currency;
+      if (duration !== undefined) updateData.duration = duration;
+      if (active !== undefined) updateData.active = Boolean(active);
+      if (featured !== undefined) updateData.featured = Boolean(featured);
+      if (thumbnail !== undefined) updateData.thumbnail = thumbnail;
+      else if (imageUrl !== undefined) updateData.thumbnail = imageUrl;
+      if (serviceCode !== undefined) updateData.serviceCode = serviceCode;
+      if (tags !== undefined) updateData.tags = tags;
+      if (metaTitle !== undefined) updateData.metaTitle = metaTitle;
+      if (metaDescription !== undefined)
+        updateData.metaDescription = metaDescription;
+      if (metaKeywords !== undefined) updateData.metaKeywords = metaKeywords;
+
+      if (Object.keys(updateData).length === 0) {
+        return NextResponse.json(
+          { error: "No updatable fields provided" },
+          { status: 400 }
+        );
+      }
+
+      updateData.updatedBy = user.id;
+
+      if (title !== undefined && title !== existing.title) {
+        updateData.slug = await generateUniqueSlug(
+          prisma,
+          title,
+          existing.slug
+        );
+      }
+
+      const service = await prisma.wehowareService.update({
+        where: { id: serviceId },
+        data: updateData,
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+        },
+      });
+
+      const response = {
+        ...service,
+        wehoware_service_categories: service.category
+          ? {
+              id: service.category.id,
+              name: service.category.name,
+              slug: service.category.slug,
+            }
+          : null,
+      };
+
+      return NextResponse.json({ service: response });
+    } catch (err) {
+      console.error("[PUT /api/v1/services/[id]] error:", err);
+      if (err?.code === "P2003") {
+        return NextResponse.json(
+          { error: "Invalid category_id" },
+          { status: 400 }
+        );
+      }
+      if (err?.code === "P2002") {
+        return NextResponse.json(
+          { error: "A service with this slug already exists" },
+          { status: 409 }
+        );
+      }
+      if (err?.code === "P2025") {
+        return NextResponse.json(
+          { error: "Service not found" },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to update service" },
+        { status: 500 }
+      );
     }
-    const activeClientId = request.user.activeClientId;
-    const userId = request.user.id;
+  },
+  { allowedRoles: ["employee", "admin"] }
+);
 
-    // 2. Fetch the existing service using the user-scoped client
-    const { data: existingService, error: fetchError } = await supabase
-        .from('wehoware_services')
-        .select('id, client_id')
-        .eq('id', serviceId)
-        .single();
+// -------------------------------------------------------------------
+// DELETE (admin only)
+// -------------------------------------------------------------------
+export const DELETE = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id: serviceId } = await params;
 
-    if (fetchError || !existingService) {
-        if (fetchError?.code === 'PGRST116') {
-            return NextResponse.json({ error: "Service not found" }, { status: 404 });
-        }
-        console.error("Error fetching service for update:", fetchError);
-        return NextResponse.json({ error: "Failed to fetch service for update." }, { status: 500 });
+      if (!user.activeClientId) {
+        return NextResponse.json(
+          { error: "Active client context required to delete a service" },
+          { status: 400 }
+        );
+      }
+      const activeClientId = user.activeClientId;
+
+      const existing = await prisma.wehowareService.findUnique({
+        where: { id: serviceId },
+        select: { id: true, clientId: true },
+      });
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Service not found" },
+          { status: 404 }
+        );
+      }
+      if (String(existing.clientId) !== String(activeClientId)) {
+        return NextResponse.json(
+          {
+            error:
+              "Unauthorized: Service does not belong to the admin's active client context",
+          },
+          { status: 403 }
+        );
+      }
+
+      await prisma.wehowareService.delete({ where: { id: serviceId } });
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      console.error("[DELETE /api/v1/services/[id]] error:", err);
+      if (err?.code === "P2025") {
+        return NextResponse.json(
+          { error: "Service not found" },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to delete service" },
+        { status: 500 }
+      );
     }
-
-    // 3. Authorization check
-    if (String(existingService.client_id) !== String(activeClientId)) {
-         return NextResponse.json({ error: "Unauthorized: Service does not belong to your active client context." }, { status: 403 });
-    }
-
-    // 4. Prepare update data (only allowed fields)
-    const { title, description, category_id, price, currency, duration, active, featured, image_url, metadata } = body;
-    const updateData = {};
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (category_id !== undefined) updateData.category_id = category_id;
-    if (price !== undefined) updateData.price = price;
-    if (currency !== undefined) updateData.currency = currency;
-    if (duration !== undefined) updateData.duration = duration;
-    if (active !== undefined) updateData.active = active;
-    if (featured !== undefined) updateData.featured = featured;
-    if (image_url !== undefined) updateData.image_url = image_url;
-    if (metadata !== undefined) updateData.metadata = metadata;
-
-    // Check if there's anything to update
-    if (Object.keys(updateData).length === 0) {
-        return NextResponse.json({ error: 'No updatable fields provided.' }, { status: 400 });
-    }
-
-    updateData.updated_by = userId;
-    updateData.updated_at = new Date().toISOString();
-
-    // 5. Execute update using the user-scoped client (RLS applies)
-    const { data, error } = await supabase
-      .from('wehoware_services')
-      .update(updateData)
-      .eq('id', serviceId)
-      .eq('client_id', activeClientId) // Redundant check, but safe
-      .select();
-    
-    if (error) {
-        console.error('Error updating service:', error);
-        return NextResponse.json({ error: 'Failed to update service.' }, { status: 500 });
-    }
-    
-    if (!data || data.length === 0) {
-        // This shouldn't happen if fetch/auth checks passed, but handle defensively
-        return NextResponse.json({ error: 'Service not found or update failed unexpectedly.' }, { status: 404 });
-    }
-    
-    return NextResponse.json({ service: data[0] });
-  } catch (error) {
-    console.error('Error updating service:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// DELETE service
-async function deleteService(request, { params }) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const { id: serviceId } = params;
-
-    // 1. Ensure user is admin and has active client context
-     if (!request.user.activeClientId) {
-        return NextResponse.json({ error: 'Active client context required to delete a service.' }, { status: 400 });
-    }
-    const activeClientId = request.user.activeClientId;
-
-    // 2. Fetch the existing service using the user-scoped client
-    const { data: existingService, error: fetchError } = await supabase
-        .from('wehoware_services')
-        .select('id, client_id')
-        .eq('id', serviceId)
-        .single();
-
-    if (fetchError || !existingService) {
-        if (fetchError?.code === 'PGRST116') {
-            return NextResponse.json({ error: "Service not found" }, { status: 404 });
-        }
-        console.error("Error fetching service for delete:", fetchError);
-        return NextResponse.json({ error: "Failed to fetch service for delete." }, { status: 500 });
-    }
-
-    // 3. Authorization check
-    if (String(existingService.client_id) !== String(activeClientId)) {
-         return NextResponse.json({ error: "Unauthorized: Service does not belong to the admin's active client context." }, { status: 403 });
-    }
-
-    // 4. Execute delete using the user-scoped client (RLS applies)
-    const { error, count } = await supabase
-      .from('wehoware_services')
-      .delete()
-      .eq('id', serviceId)
-      .eq('client_id', activeClientId);
-    
-    if (error) {
-        console.error("Error deleting service:", error);
-        return NextResponse.json({ error: 'Failed to delete service.' }, { status: 500 });
-    }
-
-    if (count === 0) {
-        // This shouldn't happen if fetch/auth checks passed, but handle defensively
-        console.warn(`Delete operation for service ${serviceId} affected 0 rows unexpectedly.`);
-        return NextResponse.json({ error: 'Service not found or delete failed unexpectedly.' }, { status: 404 });
-    }
-    
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting service:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// Export the handlers with auth middleware
-export const GET = withAuth(getServiceById, { allowedRoles: ['client', 'employee', 'admin'] });
-export const PUT = withAuth(updateService, { allowedRoles: ['employee', 'admin'] }); // Restricted PUT
-export const DELETE = withAuth(deleteService, { allowedRoles: ['admin'] }); // Restricted DELETE
+  },
+  { allowedRoles: ["admin"] }
+);

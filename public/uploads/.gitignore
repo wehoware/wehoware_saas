@@ -1,0 +1,4 @@
+# Keep the directory in git but ignore its contents (local dev uploads)
+*
+!.gitignore
+!.gitkeep

@@ -1,21 +1,10 @@
 // src/app/api/utils/auth-middleware.js
-// Route-level auth middleware — replaces Supabase SSR session check
-// with NextAuth v5 JWT session verification.
-//
-// TRANSITIONAL NOTE:
-//   This middleware attaches BOTH:
-//     request.prisma  — Prisma client (for migrated routes)
-//     request.supabase — Supabase service-role client (for routes not yet
-//                        migrated from Supabase; RLS is disabled on all
-//                        tables so the service role key gives full access)
-//   As each API route is migrated to Prisma, remove the request.supabase
-//   usage from that route. Once all routes are migrated, remove the
-//   supabaseAdmin import and request.supabase assignment here.
+// Route-level auth middleware — NextAuth v5 JWT session verification +
+// Prisma client attachment. Supabase has been fully removed.
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import supabaseAdmin from "@/lib/supabaseAdmin";
 
 /**
  * withAuth — higher-order function that wraps a Route Handler with:
@@ -145,12 +134,7 @@ export function withAuth(handler, options = {}) {
       }
     }
 
-    // --- Transitional: attach Supabase service-role client ---
-    // Allows routes not yet migrated to Prisma to continue working.
-    // The service role key bypasses RLS (already disabled on all tables).
-    request.supabase = supabaseAdmin;
-
-    // Attach Prisma client for migrated routes
+    // Attach Prisma client for route handlers.
     request.prisma = prisma;
 
     try {

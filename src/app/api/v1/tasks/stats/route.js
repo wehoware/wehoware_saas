@@ -1,53 +1,49 @@
+/**
+ * /api/v1/tasks/stats
+ *
+ * Prisma/MySQL-backed task count summary. Employees see only the counts for
+ * tasks assigned to them; admins see counts for their active client context
+ * (or all tasks when no active client is set).
+ */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 
+const STATUSES = {
+  todo: "To Do",
+  inProgress: "In Progress",
+  done: "Done",
+};
+
+function baseWhere(user) {
+  const where = {};
+  if (user.role === "employee") {
+    where.assigneeId = user.id;
+  } else if (user.role === "client") {
+    where.clientId = user.clientId ?? "__none__";
+  } else if (user.role === "admin" && user.activeClientId) {
+    where.clientId = user.activeClientId;
+  }
+  return where;
+}
+
 export const GET = withAuth(
   async (request) => {
-    const { supabase, user } = request;
-
     try {
-      // Build a count-only query for a given status
-      const buildCountQuery = (status) => {
-        // 1) start with select(..., { head: true, count: 'exact' })
-        let q = supabase
-          .from("wehoware_tasks")
-          .select("*", { count: "exact", head: true });
+      const { prisma, user } = request;
+      const where = baseWhere(user);
 
-        // 2) now you can safely chain .eq() filters
-        if (user.role === "employee") {
-          q = q.eq("assignee_id", user.id);
-        }
-        if (status) {
-          q = q.eq("status", status);
-        }
+      const [total, todo, inProgress, done] = await Promise.all([
+        prisma.wehowareTask.count({ where }),
+        prisma.wehowareTask.count({ where: { ...where, status: STATUSES.todo } }),
+        prisma.wehowareTask.count({
+          where: { ...where, status: STATUSES.inProgress },
+        }),
+        prisma.wehowareTask.count({ where: { ...where, status: STATUSES.done } }),
+      ]);
 
-        return q;
-      };
-
-      // fire off all four counts in parallel
-      const countQueries = [
-        buildCountQuery(null),
-        buildCountQuery("To Do"),
-        buildCountQuery("In Progress"),
-        buildCountQuery("Done"),
-      ];
-
-      const [totalRes, todoRes, inProgressRes, doneRes] = await Promise.all(countQueries);
-
-      // check for errors
-      for (const res of [totalRes, todoRes, inProgressRes, doneRes]) {
-        if (res.error) throw res.error;
-      }
-
-      // return the counts (defaulting to 0)
-      return NextResponse.json({
-        total: totalRes.count ?? 0,
-        todo: todoRes.count ?? 0,
-        inProgress: inProgressRes.count ?? 0,
-        done: doneRes.count ?? 0,
-      });
-    } catch (error) {
-      console.error("Error fetching task stats:", error);
+      return NextResponse.json({ total, todo, inProgress, done });
+    } catch (err) {
+      console.error("[GET /api/v1/tasks/stats] error:", err);
       return NextResponse.json(
         { error: "Failed to fetch task statistics" },
         { status: 500 }

@@ -1,122 +1,152 @@
-import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-import { withAuth } from '../../../utils/auth-middleware';
+/**
+ * /api/v1/clients/[clientId]
+ *
+ * Prisma/MySQL-backed handlers for a single client record.
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-// GET client by ID (with proper authorization check)
+function serializeClient(c) {
+  return {
+    id: c.id,
+    company_name: c.companyName,
+    contact_person: c.contactPerson,
+    contact_number: c.contactNumber,
+    email: c.email,
+    address: c.address,
+    website: c.website,
+    industry: c.industry,
+    domain: c.domain,
+    active: c.active,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+    companyName: c.companyName,
+    contactPerson: c.contactPerson,
+    contactNumber: c.contactNumber,
+  };
+}
+
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
 async function getClientById(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const clientId = params.clientId;
+    const { prisma, user } = request;
+    const { clientId } = await params;
 
-    // Authorization check: Clients can only see their own data
-    if (request.user.role === 'client' && String(request.user.clientId) !== String(clientId)) {
-      return NextResponse.json({ error: 'Unauthorized access' }, { status: 403 });
+    if (user.role === "client" && String(user.clientId) !== String(clientId)) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 403 }
+      );
     }
 
-    const { data, error } = await supabase
-      .from('wehoware_clients')
-      .select('*')
-      .eq('id', clientId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const client = await prisma.wehowareClient.findUnique({
+      where: { id: clientId },
+    });
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ client: data });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ client: serializeClient(client) });
+  } catch (err) {
+    console.error("[GET /api/v1/clients/[clientId]] error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch client" },
+      { status: 500 }
+    );
   }
 }
 
-// PUT update existing client
+// -------------------------------------------------------------------
+// PUT
+// -------------------------------------------------------------------
 async function updateClient(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const clientId = params.clientId;
+    const { prisma } = request;
+    const { clientId } = await params;
     const body = await request.json();
 
-    // Validation check
-    if (!body) {
-      return NextResponse.json({ error: 'No data provided' }, { status: 400 });
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { error: "No data provided" },
+        { status: 400 }
+      );
     }
 
-    // Check if the client exists
-    const { data: existingClient, error: checkError } = await supabase
-      .from('wehoware_clients')
-      .select('id')
-      .eq('id', clientId)
-      .single();
-
-    if (checkError || !existingClient) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    const existing = await prisma.wehowareClient.findUnique({
+      where: { id: clientId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    // Update the client
-    const updateData = {
-      ...body,
-      updated_at: new Date(), 
+    // Build update data; accept both snake_case and camelCase keys
+    const data = {};
+    const mapField = (out, snake, camel) => {
+      if (body[snake] !== undefined) data[out] = body[snake];
+      else if (body[camel] !== undefined) data[out] = body[camel];
     };
+    mapField("companyName", "company_name", "companyName");
+    mapField("contactPerson", "contact_person", "contactPerson");
+    mapField("contactNumber", "contact_number", "contactNumber");
+    if (body.email !== undefined) data.email = body.email;
+    if (body.address !== undefined) data.address = body.address;
+    if (body.website !== undefined) data.website = body.website;
+    if (body.industry !== undefined) data.industry = body.industry;
+    if (body.domain !== undefined) data.domain = body.domain;
+    if (body.active !== undefined) data.active = body.active;
 
-    const { data, error } = await supabase
-      .from('wehoware_clients')
-      .update(updateData)
-      .eq('id', clientId)
-      .select();
+    const client = await prisma.wehowareClient.update({
+      where: { id: clientId },
+      data,
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ client: data[0] });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ client: serializeClient(client) });
+  } catch (err) {
+    console.error("[PUT /api/v1/clients/[clientId]] error:", err);
+    return NextResponse.json(
+      { error: "Failed to update client" },
+      { status: 500 }
+    );
   }
 }
 
-// DELETE client
+// -------------------------------------------------------------------
+// DELETE (admin only)
+// -------------------------------------------------------------------
 async function deleteClient(request, { params }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const clientId = params.clientId;
+    const { prisma } = request;
+    const { clientId } = await params;
 
-    // Verify admin role for deletion
-    if (request.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Only administrators can delete clients' }, { status: 403 });
+    const existing = await prisma.wehowareClient.findUnique({
+      where: { id: clientId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    // Check if the client exists
-    const { data: existingClient, error: checkError } = await supabase
-      .from('wehoware_clients')
-      .select('id')
-      .eq('id', clientId)
-      .single();
-
-    if (checkError || !existingClient) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-    }
-
-    // Delete client
-    const { error } = await supabase
-      .from('wehoware_clients')
-      .delete()
-      .eq('id', clientId);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, message: 'Client deleted successfully' });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    await prisma.wehowareClient.delete({ where: { id: clientId } });
+    return NextResponse.json({
+      success: true,
+      message: "Client deleted successfully",
+    });
+  } catch (err) {
+    console.error("[DELETE /api/v1/clients/[clientId]] error:", err);
+    return NextResponse.json(
+      { error: "Failed to delete client" },
+      { status: 500 }
+    );
   }
 }
 
-// Export the handlers with auth middleware
-export const GET = withAuth(getClientById, { allowedRoles: ['client', 'employee', 'admin'] });
-export const PUT = withAuth(updateClient, { allowedRoles: ['employee', 'admin'] });
-export const DELETE = withAuth(deleteClient, { allowedRoles: ['admin'] });
+export const GET = withAuth(getClientById, {
+  allowedRoles: ["client", "employee", "admin"],
+});
+export const PUT = withAuth(updateClient, {
+  allowedRoles: ["employee", "admin"],
+});
+export const DELETE = withAuth(deleteClient, { allowedRoles: ["admin"] });

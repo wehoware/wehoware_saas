@@ -1,162 +1,285 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../utils/auth-middleware';
+/**
+ * /api/v1/services
+ *
+ * Prisma/MySQL-backed replacement for the old Supabase handler.
+ *
+ * GET  — list services (paginated, filtered) for the caller's active client
+ * POST — create a new service (employee/admin only)
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../utils/auth-middleware";
 
-// GET services list with filtering, sorting, and pagination
-async function getServices(request) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = parseInt(url.searchParams.get('limit') || '10');
-    const featured = url.searchParams.get('featured');
-    const active = url.searchParams.get('active');
-    const search = url.searchParams.get('search');
-    const categoryId = url.searchParams.get('categoryId');
-    const sortBy = url.searchParams.get('sortBy') || 'created_at';
-    const sortOrder = url.searchParams.get('sortOrder') || 'desc';
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+const SORTABLE_FIELDS = new Set([
+  "created_at",
+  "updated_at",
+  "title",
+  "fee",
+  "price",
+  "active",
+  "featured",
+]);
+// Map snake_case query values → camelCase Prisma field names
+const FIELD_MAP = {
+  created_at: "createdAt",
+  updated_at: "updatedAt",
+  title: "title",
+  fee: "fee",
+  price: "fee", // legacy alias — price maps to fee
+  active: "active",
+  featured: "featured",
+};
 
-    const offset = (page - 1) * limit;
-    
-    // Determine client ID based on user role and context
-    let queryClientId = null;
-    if (request.user.role === 'client') {
-      queryClientId = request.user.clientId;
-    } else if (['employee', 'admin'].includes(request.user.role) && request.user.activeClientId) {
-      queryClientId = request.user.activeClientId;
-    } else {
-        // If employee/admin has no active client, they shouldn't see services via this general route
-        return NextResponse.json({ error: 'Unable to determine client context.' }, { status: 400 });
-    }
+/**
+ * Resolve which client context (tenant) applies for the current request.
+ * Returns null if the user has no valid context.
+ */
+function resolveClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
+  }
+  return null;
+}
 
-    // Build query with base select and count for pagination
-    let query = supabase
-      .from('wehoware_services')
-      .select(`
-        *,
-        wehoware_service_categories(id, name, slug)
-      `, { count: 'exact' })
-      .eq('client_id', queryClientId);
-    
-    // Apply additional filters
-    if (featured === 'true') {
-      query = query.eq('featured', true);
-    }
-    if (active === 'true') {
-      query = query.eq('active', true);
-    }
-    if (categoryId) {
-      query = query.eq('category_id', categoryId);
-    }
-    if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-    
-    // Apply sorting and pagination
-    query = query
-        .order(sortBy, { ascending: sortOrder === 'asc' })
-        .range(offset, offset + limit - 1);
-    
-    const { data, error, count } = await query;
-    
-    if (error) {
-      console.error("Error fetching services:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+async function generateUniqueSlug(prisma, title, currentSlug = null) {
+  const base = String(title)
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "")
+    .replace(/--+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-    const totalItems = count || 0;
-    const totalPages = Math.ceil(totalItems / limit);
-    
-    return NextResponse.json({
+  if (base && base === currentSlug) return base;
+
+  let candidate = base || "service";
+  let counter = 1;
+  // Bounded loop guard — stop after 100 attempts to avoid runaway
+  while (counter < 100) {
+    const hit = await prisma.wehowareService.findFirst({
+      where: { slug: candidate },
+      select: { id: true },
+    });
+    if (!hit) return candidate;
+    candidate = `${base || "service"}-${counter}`;
+    counter += 1;
+  }
+  // Fallback — add a timestamp suffix
+  return `${base || "service"}-${Date.now()}`;
+}
+
+// -------------------------------------------------------------------
+// GET /api/v1/services
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required" },
+          { status: 400 }
+        );
+      }
+
+      const url = new URL(request.url);
+      const page = Math.max(
+        1,
+        parseInt(url.searchParams.get("page") || "1", 10)
+      );
+      const limit = Math.min(
+        MAX_PAGE_SIZE,
+        Math.max(
+          1,
+          parseInt(
+            url.searchParams.get("limit") || String(DEFAULT_PAGE_SIZE),
+            10
+          )
+        )
+      );
+      const search = (url.searchParams.get("search") || "").trim();
+      const categoryId = url.searchParams.get("categoryId") || "";
+      const featured = url.searchParams.get("featured");
+      const active = url.searchParams.get("active");
+      const sortByRaw = url.searchParams.get("sortBy") || "created_at";
+      const sortOrder =
+        url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+      const sortBy = SORTABLE_FIELDS.has(sortByRaw)
+        ? FIELD_MAP[sortByRaw]
+        : "createdAt";
+
+      const where = { clientId };
+      if (categoryId) where.categoryId = categoryId;
+      if (featured === "true") where.featured = true;
+      if (active === "true") where.active = true;
+      if (search) {
+        where.OR = [
+          { title: { contains: search } },
+          { description: { contains: search } },
+        ];
+      }
+
+      const [items, totalItems] = await Promise.all([
+        prisma.wehowareService.findMany({
+          where,
+          include: {
+            category: { select: { id: true, name: true, slug: true } },
+          },
+          orderBy: { [sortBy]: sortOrder },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.wehowareService.count({ where }),
+      ]);
+
+      // Preserve the old response shape for the admin UI
+      const data = items.map((s) => ({
+        ...s,
+        wehoware_service_categories: s.category
+          ? {
+              id: s.category.id,
+              name: s.category.name,
+              slug: s.category.slug,
+            }
+          : null,
+      }));
+
+      return NextResponse.json({
         data,
         pagination: {
-            totalItems,
-            page,
-            limit,
-            totalPages,
+          totalItems,
+          page,
+          limit,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit)),
         },
-    });
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// POST create new service
-async function createService(request) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const body = await request.json();
-    
-    // Determine client_id - require active context for employee/admin
-    let clientId = null;
-    // Note: Role check already done by withAuth allowedRoles below
-    if (['employee', 'admin'].includes(request.user.role)) {
-        if (!request.user.activeClientId) {
-            return NextResponse.json({ error: 'Active client context required to create a service.' }, { status: 400 });
-        }
-        clientId = request.user.activeClientId;
-    } else {
-        // This case should not be hit if allowedRoles is set correctly, but as safeguard:
-         return NextResponse.json({ error: 'Unauthorized role for creating service.' }, { status: 403 });
+      });
+    } catch (err) {
+      console.error("[GET /api/v1/services] error:", err);
+      return NextResponse.json(
+        { error: "Failed to fetch services" },
+        { status: 500 }
+      );
     }
-    
-    // Basic validation (can be expanded)
-    const { title, description, category_id, price, currency, duration, active, featured, image_url, metadata } = body;
-    if (!title || !category_id || !price) {
-        return NextResponse.json({ error: 'Missing required fields: title, category_id, price' }, { status: 400 });
-    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
 
-    const { data, error } = await supabase
-      .from('wehoware_services')
-      .insert([
-        {
-          client_id: clientId,
-          title,
-          description,
-          category_id,
-          price,
-          currency: currency || 'USD', // Default currency?
-          duration,
-          active: active === undefined ? true : active, // Default active to true?
-          featured: featured === undefined ? false : featured, // Default featured to false?
-          image_url,
-          metadata,
-          created_by: request.user.id,
-          updated_by: request.user.id
-        }
-      ])
-      .select()
-      .single(); // Expecting one record back
-    
-    if (error) {
-      console.error("Error creating service:", error);
-      // Handle specific errors like foreign key violation (e.g., invalid category_id)
-      if (error.code === '23503') {
-          return NextResponse.json({ error: `Invalid reference provided (e.g., category_id): ${error.details}` }, { status: 400 });
+// -------------------------------------------------------------------
+// POST /api/v1/services
+// -------------------------------------------------------------------
+export const POST = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+
+      // Only employee/admin can create; they must have active client context
+      if (!user.activeClientId) {
+        return NextResponse.json(
+          { error: "Active client context required to create a service" },
+          { status: 400 }
+        );
       }
-      return NextResponse.json({ error: `Failed to create service: ${error.message}` }, { status: 500 });
+      const clientId = user.activeClientId;
+
+      const body = await request.json();
+      const {
+        title,
+        description,
+        content,
+        category_id: categoryId,
+        price,
+        fee,
+        currency,
+        fee_currency: feeCurrencyInput,
+        duration,
+        active,
+        featured,
+        image_url: imageUrl,
+        thumbnail,
+        service_code: serviceCode,
+        tags,
+        meta_title: metaTitle,
+        meta_description: metaDescription,
+        meta_keywords: metaKeywords,
+      } = body ?? {};
+
+      const feeValue = fee !== undefined ? fee : price;
+
+      if (!title || !categoryId || feeValue === undefined || feeValue === null) {
+        return NextResponse.json(
+          { error: "Missing required fields: title, category_id, price" },
+          { status: 400 }
+        );
+      }
+
+      const slug = await generateUniqueSlug(prisma, title);
+
+      const service = await prisma.wehowareService.create({
+        data: {
+          clientId,
+          title,
+          slug,
+          description: description ?? null,
+          content: content ?? null,
+          thumbnail: thumbnail ?? imageUrl ?? null,
+          categoryId,
+          fee: feeValue,
+          feeCurrency: feeCurrencyInput ?? currency ?? "CAD",
+          serviceCode: serviceCode ?? null,
+          duration: duration ?? null,
+          active: active === undefined ? true : Boolean(active),
+          featured: featured === undefined ? false : Boolean(featured),
+          tags: tags ?? [],
+          metaTitle: metaTitle ?? null,
+          metaDescription: metaDescription ?? null,
+          metaKeywords: metaKeywords ?? null,
+          createdBy: user.id,
+          updatedBy: user.id,
+        },
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+        },
+      });
+
+      const response = {
+        ...service,
+        wehoware_service_categories: service.category
+          ? {
+              id: service.category.id,
+              name: service.category.name,
+              slug: service.category.slug,
+            }
+          : null,
+      };
+
+      return NextResponse.json({ service: response }, { status: 201 });
+    } catch (err) {
+      console.error("[POST /api/v1/services] error:", err);
+      if (err?.code === "P2003") {
+        return NextResponse.json(
+          { error: "Invalid category_id" },
+          { status: 400 }
+        );
+      }
+      if (err?.code === "P2002") {
+        return NextResponse.json(
+          { error: "A service with this slug already exists" },
+          { status: 409 }
+        );
+      }
+      if (err instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Invalid JSON format in request body" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to create service" },
+        { status: 500 }
+      );
     }
-    
-    // Check if insert succeeded
-    if (!data) {
-        console.warn(`Insert for service for client ${clientId} returned no data unexpectedly.`);
-        return NextResponse.json({ error: 'Service creation failed unexpectedly (check permissions/RLS).' }, { status: 500 });
-    }
-
-    return NextResponse.json({ service: data }, { status: 201 }); // Return the created service
-
-  } catch (error) {
-    console.error('Error creating service:', error);
-    // Handle potential JSON parsing errors
-    if (error instanceof SyntaxError) {
-        return NextResponse.json({ error: 'Invalid JSON format in request body.' }, { status: 400 });
-    }
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
-  }
-}
-
-// Export the collection-level handlers
-export const GET = withAuth(getServices, { allowedRoles: ['client', 'employee', 'admin'] });
-export const POST = withAuth(createService, { allowedRoles: ['employee', 'admin'] }); // Restricted POST
-
-// Handlers requiring dynamic ID (GET by ID, PUT, DELETE) are in [id]/route.js
+  },
+  { allowedRoles: ["employee", "admin"] }
+);

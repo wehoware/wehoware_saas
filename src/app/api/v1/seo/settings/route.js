@@ -1,153 +1,174 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
-
 /**
- * GET handler for client settings (including SEO).
- * Fetches settings based on user role and active client context.
+ * /api/v1/seo/settings
+ *
+ * Prisma/MySQL-backed handler. Thin wrapper over wehoware_settings with a
+ * default group of `seo_global`. Use /api/v1/settings for the generic API.
  */
-async function getSettings(request) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const { searchParams } = new URL(request.url);
-    const settingGroup = searchParams.get('group');
-    const settingKey = searchParams.get('key');
-    const format = searchParams.get('format');
-    
-    // 1. Determine Client ID based on role
-    let clientId;
-    if (request.user.role === 'client') {
-        clientId = request.user.clientId;
-    } else { // 'employee' or 'admin'
-        clientId = request.user.activeClientId;
-        if (!clientId) {
-            return NextResponse.json({ error: 'Active client context required for employee/admin.' }, { status: 400 });
-        }
-    }
-    
-    // 2. Build query using the user-scoped client (RLS applies)
-    let query = supabase
-      .from('wehoware_settings')
-      .select('*')
-      .eq('client_id', clientId);
-    
-    // Apply additional filters if provided
-    if (settingGroup) {
-      query = query.eq('setting_group', settingGroup);
-    }
-    if (settingKey) {
-      query = query.eq('setting_key', settingKey);
-    }
-    
-    // 3. Execute query
-    const { data, error } = await query;
-    
-    if (error) {
-      console.error("Database error fetching settings:", error);
-      return NextResponse.json({ error: `Database error: ${error.message}` }, { status: 500 });
-    }
-    
-    // 4. Format response
-    if (format === 'keyValue') {
-      const keyValueFormat = {};
-      data.forEach(setting => {
-        keyValueFormat[setting.setting_key] = setting.setting_value;
-      });
-      return NextResponse.json({ data: keyValueFormat });
-    }
-    
-    // Default: return array of setting objects
-    return NextResponse.json({ data });
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-  } catch (error) {
-    // Catch unexpected errors
-    console.error('Unexpected error fetching settings:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
-  }
+const DEFAULT_GROUP = "seo_global";
+
+function toLegacy(row) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    client_id: row.clientId,
+    setting_key: row.settingKey,
+    setting_value: row.settingValue,
+    setting_group: row.settingGroup,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
 }
 
-/**
- * POST handler to create or update client settings (including SEO).
- * Uses upsert based on user role and active client context.
- * Supports both single setting and batch updates.
- */
-async function updateSettings(request) {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const body = await request.json();
-    
-    // 1. Determine Client ID based on role
-    let clientId;
-    if (request.user.role === 'client') {
-        clientId = request.user.clientId;
-    } else { // 'employee' or 'admin'
-        clientId = request.user.activeClientId;
-        if (!clientId) {
-            return NextResponse.json({ error: 'Active client context required for employee/admin.' }, { status: 400 });
-        }
-    }
-    
-    // 2. Prepare data for upsert
-    let settingsToUpdate = [];
-    const defaultGroup = 'seo_global'; // Define default group explicitly
-    
-    if (Array.isArray(body.settings)) {
-      // Batch update
-      settingsToUpdate = body.settings.map(setting => {
-        if (!setting.setting_key || setting.setting_value === undefined) {
-            throw new Error('Each setting in the batch must have setting_key and setting_value.');
-        }
-        return {
-          client_id: clientId,
-          setting_key: setting.setting_key,
-          setting_value: setting.setting_value,
-          setting_group: setting.setting_group || defaultGroup,
-          // updated_at is handled by default value in db or trigger
-        };
-      });
-    } else if (body.setting_key && body.setting_value !== undefined) {
-      // Single setting update
-      settingsToUpdate = [{
-        client_id: clientId,
-        setting_key: body.setting_key,
-        setting_value: body.setting_value,
-        setting_group: body.setting_group || defaultGroup,
-        // updated_at is handled by default value in db or trigger
-      }];
-    } else {
-      return NextResponse.json({ 
-        error: 'Invalid request format. Provide either a settings array or a single setting object with setting_key and setting_value.' 
-      }, { status: 400 });
-    }
-
-    if (settingsToUpdate.length === 0) {
-         return NextResponse.json({ error: 'No valid settings provided for update.' }, { status: 400 });
-    }
-    
-    // 3. Perform upsert operation using the user-scoped client (RLS applies)
-    const { data, error } = await supabase
-      .from('wehoware_settings')
-      .upsert(settingsToUpdate, { 
-        onConflict: 'client_id, setting_key' // Assumes this unique constraint exists
-        // returning: 'minimal' // Remove this to get data back
-      })
-      .select(); // Select the upserted rows
-    
-    if (error) {
-      console.error("Database error upserting settings:", error);
-      // Check for specific errors like constraint violations if needed
-      return NextResponse.json({ error: `Database error: ${error.message}` }, { status: 500 });
-    }
-    
-    // 4. Return standardized success response with upserted data
-    return NextResponse.json({ data }, { status: 200 });
-
-  } catch (error) {
-     // Catch unexpected errors (e.g., JSON parsing issues, validation errors in map)
-    console.error('Unexpected error updating settings:', error);
-    return NextResponse.json({ error: `An unexpected error occurred: ${error.message}` }, { status: 500 });
+function resolveClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
   }
+  return null;
 }
 
-// Export handlers with auth middleware
-export const GET = withAuth(getSettings, { allowedRoles: ['client', 'employee', 'admin'] });
-export const POST = withAuth(updateSettings, { allowedRoles: ['client', 'employee', 'admin'] });
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required for employee/admin." },
+          { status: 400 }
+        );
+      }
+
+      const url = new URL(request.url);
+      const group = url.searchParams.get("group");
+      const key = url.searchParams.get("key");
+      const format = url.searchParams.get("format");
+
+      const where = { clientId };
+      if (group) where.settingGroup = group;
+      if (key) where.settingKey = key;
+
+      const rows = await prisma.wehowareSetting.findMany({ where });
+
+      if (format === "keyValue") {
+        const keyValueFormat = {};
+        for (const r of rows) {
+          keyValueFormat[r.settingKey] = r.settingValue;
+        }
+        return NextResponse.json({ data: keyValueFormat });
+      }
+
+      return NextResponse.json({ data: rows.map(toLegacy) });
+    } catch (err) {
+      console.error("[GET /api/v1/seo/settings] error:", err);
+      return NextResponse.json(
+        { error: "An unexpected error occurred." },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
+
+// -------------------------------------------------------------------
+// POST  — upsert single or batch
+// -------------------------------------------------------------------
+export const POST = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const body = await request.json();
+
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required for employee/admin." },
+          { status: 400 }
+        );
+      }
+
+      let toUpsert = [];
+
+      if (Array.isArray(body?.settings)) {
+        for (const s of body.settings) {
+          if (!s?.setting_key || s.setting_value === undefined) {
+            return NextResponse.json(
+              {
+                error:
+                  "Each setting in the batch must have setting_key and setting_value.",
+              },
+              { status: 400 }
+            );
+          }
+          toUpsert.push({
+            settingKey: s.setting_key,
+            settingValue: String(s.setting_value ?? ""),
+            settingGroup: s.setting_group || DEFAULT_GROUP,
+          });
+        }
+      } else if (body?.setting_key && body.setting_value !== undefined) {
+        toUpsert.push({
+          settingKey: body.setting_key,
+          settingValue: String(body.setting_value ?? ""),
+          settingGroup: body.setting_group || DEFAULT_GROUP,
+        });
+      } else {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid request format. Provide either a settings array or a single setting object with setting_key and setting_value.",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (toUpsert.length === 0) {
+        return NextResponse.json(
+          { error: "No valid settings provided for update." },
+          { status: 400 }
+        );
+      }
+
+      const results = await Promise.all(
+        toUpsert.map((s) =>
+          prisma.wehowareSetting.upsert({
+            where: {
+              clientId_settingKey: { clientId, settingKey: s.settingKey },
+            },
+            update: {
+              settingValue: s.settingValue,
+              settingGroup: s.settingGroup,
+            },
+            create: {
+              clientId,
+              settingKey: s.settingKey,
+              settingValue: s.settingValue,
+              settingGroup: s.settingGroup,
+            },
+          })
+        )
+      );
+
+      return NextResponse.json({ data: results.map(toLegacy) });
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Invalid JSON body" },
+          { status: 400 }
+        );
+      }
+      console.error("[POST /api/v1/seo/settings] error:", err);
+      return NextResponse.json(
+        { error: `An unexpected error occurred: ${err.message}` },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);

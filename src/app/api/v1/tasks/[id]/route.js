@@ -1,142 +1,253 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
+/**
+ * /api/v1/tasks/[id]
+ *
+ * Prisma/MySQL-backed handlers for a single task.
+ *
+ * Role rules (kept compatible with the pre-migration behavior):
+ *  - admin     — full access; scoped to active client context when set.
+ *  - employee  — can only see / mutate tasks they're assigned to.
+ *  - client    — read-only in other routes; this route is admin/employee.
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-// Helper to get a task and authorize
-async function getTaskAndAuthorize(request, taskId) {
-  const { supabase, user } = request;
-  const { data, error } = await supabase
-    .from('wehoware_tasks')
-    .select(`
-      *,
-      client:wehoware_clients(id, company_name),
-      assignee:wehoware_profiles(id, first_name, last_name, avatar_url)
-    `)
-    .eq('id', taskId)
-    .single();
+// Fields whose changes we audit in wehoware_task_activities. The left side
+// is the snake_case body key; the right side is the Prisma/camelCase column.
+const TRACKED_FIELDS = [
+  { body: "status", col: "status" },
+  { body: "priority", col: "priority" },
+  { body: "assignee_id", col: "assigneeId" },
+  { body: "title", col: "title" },
+  { body: "description", col: "description" },
+  { body: "due_date", col: "dueDate" },
+];
 
-  if (error || !data) {
-    throw new Error('Task not found or failed to fetch.');
+const TASK_INCLUDE = {
+  client: { select: { id: true, companyName: true } },
+  assignee: {
+    select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+  },
+};
+
+function shapeTask(task) {
+  if (!task) return task;
+  const out = { ...task };
+  if (task.client) {
+    out.client = { id: task.client.id, company_name: task.client.companyName };
   }
-
-  // In a real RLS scenario, the query itself would fail if the user doesn't have access.
-  // This is an extra layer of check.
-  if (user.role === 'client' && data.client_id !== user.clientId && !user.accessibleClients.some(c => c.id === data.client_id)) {
-     throw new Error('Unauthorized');
+  if (task.assignee) {
+    out.assignee = {
+      id: task.assignee.id,
+      first_name: task.assignee.firstName,
+      last_name: task.assignee.lastName,
+      avatar_url: task.assignee.avatarUrl,
+    };
   }
-
-  return data;
+  return out;
 }
 
+/**
+ * Load a task and enforce role-based access.
+ *
+ * Returns the Prisma task (with relations), or null when not found / not
+ * accessible — the caller decides whether to 404 or 403.
+ */
+async function loadTask(prisma, user, id) {
+  const where = { id };
+  if (user.role === "employee") where.assigneeId = user.id;
+  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "admin" && user.activeClientId) {
+    where.clientId = user.activeClientId;
+  }
+
+  return prisma.wehowareTask.findFirst({
+    where,
+    include: TASK_INCLUDE,
+  });
+}
+
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
 export const GET = withAuth(
   async (request, { params }) => {
     try {
-      // await the entire params object, then destructure `id`
+      const { prisma, user } = request;
       const { id } = await params;
-      const task = await getTaskAndAuthorize(request, id);
-      return NextResponse.json(task);
-    } catch (error) {
-      if (error.message === 'Unauthorized') {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+
+      const task = await loadTask(prisma, user, id);
+      if (!task) {
+        return NextResponse.json({ error: "Task not found" }, { status: 404 });
       }
-      console.error(error);
-      return NextResponse.json({ error: 'Failed to fetch task' }, { status: 500 });
+      return NextResponse.json(shapeTask(task));
+    } catch (err) {
+      console.error("[GET /api/v1/tasks/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to fetch task" },
+        { status: 500 }
+      );
     }
   },
-  { allowedRoles: ['admin', 'employee'] }
+  { allowedRoles: ["admin", "employee"] }
 );
 
-// PUT to update a task
-export const PUT = withAuth(async (request, { params }) => {
-  const { supabase, user } = request;
-  const body = await request.json();
-  const { id } = await params;
+// -------------------------------------------------------------------
+// PUT
+// -------------------------------------------------------------------
+export const PUT = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id } = await params;
 
-  let existingTask;
-  // Ensure task exists and user is authorized before updating
-  try {
-    existingTask = await getTaskAndAuthorize(request, id);
-  } catch (error) {
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-  }
+      const existing = await loadTask(prisma, user, id);
+      if (!existing) {
+        return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      }
 
-  // Perform the update
-  const { data: updatedTask, error: updateError } = await supabase
-    .from('wehoware_tasks')
-    .update(body)
-    .eq('id', id)
-    .select(`
-      *,
-      client:wehoware_clients(id, company_name),
-      assignee:wehoware_profiles(id, first_name, last_name, avatar_url)
-    `)
-    .single();
+      const body = await request.json();
+      const data = {};
 
-  if (updateError) {
-    console.error('Error updating task:', updateError);
-    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
-  }
+      // Accept both snake_case and camelCase from callers.
+      if (body.title !== undefined) data.title = body.title;
+      if (body.description !== undefined) data.description = body.description;
+      if (body.priority !== undefined) data.priority = body.priority;
+      if (body.status !== undefined) data.status = body.status;
 
-  // Log activities for changes
-  const activities = [];
-  const fieldsToTrack = ['status', 'priority', 'assignee_id', 'title', 'description', 'due_date'];
-  
-  fieldsToTrack.forEach(field => {
-    if (body.hasOwnProperty(field) && body[field] !== existingTask[field]) {
-      activities.push({
-        task_id: id,
-        user_id: user.id,
-        activity_type: `${field}_change`,
-        details: { from: existingTask[field], to: body[field] }
+      if (body.due_date !== undefined || body.dueDate !== undefined) {
+        const raw = body.due_date ?? body.dueDate;
+        data.dueDate = raw ? new Date(raw) : null;
+      }
+      if (body.assignee_id !== undefined || body.assigneeId !== undefined) {
+        data.assigneeId = body.assignee_id ?? body.assigneeId ?? null;
+      }
+      if (body.client_id !== undefined || body.clientId !== undefined) {
+        data.clientId = body.client_id ?? body.clientId;
+      }
+
+      if (Object.keys(data).length === 0) {
+        return NextResponse.json(
+          { error: "No valid fields provided for update" },
+          { status: 400 }
+        );
+      }
+
+      const updated = await prisma.wehowareTask.update({
+        where: { id },
+        data,
+        include: TASK_INCLUDE,
       });
+
+      // Build activity log entries for any tracked field that changed.
+      const activities = [];
+      for (const { body: bodyKey, col } of TRACKED_FIELDS) {
+        const camelKey =
+          bodyKey === "assignee_id"
+            ? "assigneeId"
+            : bodyKey === "due_date"
+              ? "dueDate"
+              : bodyKey;
+        const hasKey =
+          Object.prototype.hasOwnProperty.call(body, bodyKey) ||
+          Object.prototype.hasOwnProperty.call(body, camelKey);
+        if (!hasKey) continue;
+
+        const from = existing[col] ?? null;
+        const to = updated[col] ?? null;
+        // Normalize Dates for comparison so timezone reshuffling doesn't
+        // cause a phantom "changed" entry.
+        const fromComp = from instanceof Date ? from.toISOString() : from;
+        const toComp = to instanceof Date ? to.toISOString() : to;
+        if (fromComp === toComp) continue;
+
+        activities.push({
+          taskId: id,
+          userId: user.id,
+          activityType: `${bodyKey}_change`,
+          details: { from: fromComp, to: toComp },
+        });
+      }
+
+      if (activities.length > 0) {
+        try {
+          await prisma.wehowareTaskActivity.createMany({ data: activities });
+        } catch (activityErr) {
+          // Audit failure shouldn't fail the request.
+          console.warn(
+            "[PUT /api/v1/tasks/[id]] activity log failed:",
+            activityErr
+          );
+        }
+      }
+
+      return NextResponse.json(shapeTask(updated));
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Invalid JSON body" },
+          { status: 400 }
+        );
+      }
+      if (err?.code === "P2003") {
+        return NextResponse.json(
+          { error: "Invalid client_id or assignee_id" },
+          { status: 400 }
+        );
+      }
+      console.error("[PUT /api/v1/tasks/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to update task" },
+        { status: 500 }
+      );
     }
-  });
+  },
+  { allowedRoles: ["admin", "employee"] }
+);
 
-  if (activities.length > 0) {
-    const { error: activityError } = await supabase.from('wehoware_task_activities').insert(activities);
-    if (activityError) {
-        // Don't fail the whole request, but log the error
-        console.error('Failed to log task activities:', activityError);
+// -------------------------------------------------------------------
+// DELETE
+// -------------------------------------------------------------------
+export const DELETE = withAuth(
+  async (request, { params }) => {
+    try {
+      const { prisma, user } = request;
+      const { id } = await params;
+
+      const existing = await loadTask(prisma, user, id);
+      if (!existing) {
+        return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      }
+
+      // Log deletion BEFORE deleting, so if the activity insert fails we
+      // still have the task row. The activity will be orphaned if the
+      // cascade removes task activities; schema should relax that FK if
+      // audit retention matters. For now, we keep the pre-migration
+      // behavior of inserting a "deleted" activity.
+      try {
+        await prisma.wehowareTaskActivity.create({
+          data: {
+            taskId: id,
+            userId: user.id,
+            activityType: "deleted",
+            details: { title: existing.title },
+          },
+        });
+      } catch (activityErr) {
+        console.warn(
+          "[DELETE /api/v1/tasks/[id]] activity log failed:",
+          activityErr
+        );
+      }
+
+      await prisma.wehowareTask.delete({ where: { id } });
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      console.error("[DELETE /api/v1/tasks/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to delete task" },
+        { status: 500 }
+      );
     }
-  }
-
-  return NextResponse.json(updatedTask);
-}, { allowedRoles: ['admin', 'employee'] });
-
-// DELETE a task
-export const DELETE = withAuth(async (request, { params }) => {
-  const { supabase, user } = request;
-  const { id } = await params;
-
-  let existingTask;
-  try {
-    existingTask = await getTaskAndAuthorize(request, id);
-  } catch (error) {
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-  }
-
-  const { error } = await supabase
-    .from('wehoware_tasks')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error deleting task:', error);
-    return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
-  }
-
-  // Log deletion
-  await supabase.from('wehoware_task_activities').insert({
-    task_id: id, // Use 'id' from params, which is the actual task ID
-    user_id: user.id,
-    activity_type: 'deleted',
-    details: { title: existingTask.title }
-  });
-
-  return NextResponse.json({ success: true }, { status: 200 });
-}, { allowedRoles: ['admin', 'employee'] });
+  },
+  { allowedRoles: ["admin", "employee"] }
+);

@@ -1,87 +1,132 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../utils/auth-middleware';
+/**
+ * /api/v1/clients
+ *
+ * Prisma/MySQL-backed replacement for the old Supabase handler.
+ *
+ * GET  — list clients (clients see only their own; employees/admins see all)
+ * POST — create a new client (employee/admin)
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../utils/auth-middleware";
 
-// GET clients (employees/admins see their active client, clients only see their own)
+/**
+ * Reshape a Prisma client row into the snake_case payload legacy UI expects.
+ */
+function serializeClient(c) {
+  return {
+    id: c.id,
+    company_name: c.companyName,
+    contact_person: c.contactPerson,
+    contact_number: c.contactNumber,
+    email: c.email,
+    address: c.address,
+    website: c.website,
+    industry: c.industry,
+    domain: c.domain,
+    active: c.active,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+    // Include camelCase fields too so newer UI code doesn't need to translate
+    companyName: c.companyName,
+    contactPerson: c.contactPerson,
+    contactNumber: c.contactNumber,
+  };
+}
+
+// -------------------------------------------------------------------
+// GET — list clients
+// -------------------------------------------------------------------
 async function getClients(request) {
   try {
-    const { supabase } = request;
-    const userRole = request.user.role;
-    const userClientId = request.user.clientId; // For client role
-    const activeClientId = request.user.activeClientId; // For employee/admin role
+    const { prisma, user } = request;
 
-    // If user is client, they can only see their own client record
-    if (userRole === 'client') {
-      if (!userClientId) {
-        // This case should ideally be caught by middleware, but double-check
-        return NextResponse.json({ error: 'Client association not found.' }, { status: 403 });
+    if (user.role === "client") {
+      if (!user.clientId) {
+        return NextResponse.json(
+          { error: "Client association not found" },
+          { status: 403 }
+        );
       }
-      const { data, error } = await supabase
-        .from('wehoware_clients')
-        .select('*')
-        .eq('id', userClientId)
-        .single();
-        
-      if (error) {
-        console.error(`Error fetching client record for client ${userClientId}:`, error);
-        if (error.code === 'PGRST116') { // Not found
-          return NextResponse.json({ error: 'Client record not found.' }, { status: 404 });
-        }
-        return NextResponse.json({ error: 'Failed to fetch client record.' }, { status: 500 });
-      }
-      
-      // Return single client in an array for consistency
-      return NextResponse.json({ clients: data ? [data] : [] });
-    }
-    
-    // For employees/admins, fetch all clients
-    if (userRole === 'employee' || userRole === 'admin') {
-      const { data, error } = await supabase
-        .from('wehoware_clients')
-        .select('*');
-
-      if (error) {
-        console.error(`Error fetching all clients for user ${request.user.id}:`, error);
-        return NextResponse.json({ error: 'Failed to fetch clients.' }, { status: 500 });
-      }
-
-      return NextResponse.json({ clients: data || [] });
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: user.clientId },
+      });
+      return NextResponse.json({
+        clients: client ? [serializeClient(client)] : [],
+      });
     }
 
-    // Fallback if role is somehow unexpected (should be caught by middleware)
-    return NextResponse.json({ error: 'Invalid user role for this operation.' }, { status: 403 });
+    if (["employee", "admin"].includes(user.role)) {
+      const clients = await prisma.wehowareClient.findMany({
+        orderBy: { companyName: "asc" },
+      });
+      return NextResponse.json({
+        clients: clients.map(serializeClient),
+      });
+    }
 
-  } catch (error) {
-    console.error('Unexpected error in GET /clients:', error);
-    return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Invalid user role for this operation" },
+      { status: 403 }
+    );
+  } catch (err) {
+    console.error("[GET /api/v1/clients] error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch clients" },
+      { status: 500 }
+    );
   }
 }
 
-// POST create new client (employees only)
+// -------------------------------------------------------------------
+// POST — create a client
+// -------------------------------------------------------------------
 async function createClient(request) {
   try {
-    const { supabase } = request;
-    
+    const { prisma } = request;
     const body = await request.json();
-    
-    const { data, error } = await supabase
-      .from('wehoware_clients')
-      .insert([{
-        ...body,
-        created_at: new Date(),
-        updated_at: new Date()
-      }])
-      .select();
-    
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
     }
-    
-    return NextResponse.json({ client: data[0] }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const companyName = body.company_name ?? body.companyName;
+    if (!companyName || typeof companyName !== "string") {
+      return NextResponse.json(
+        { error: "company_name is required" },
+        { status: 400 }
+      );
+    }
+
+    const client = await prisma.wehowareClient.create({
+      data: {
+        companyName,
+        contactPerson: body.contact_person ?? body.contactPerson ?? null,
+        contactNumber: body.contact_number ?? body.contactNumber ?? null,
+        email: body.email ?? null,
+        address: body.address ?? null,
+        website: body.website ?? null,
+        industry: body.industry ?? null,
+        domain: body.domain ?? null,
+        active: body.active ?? true,
+      },
+    });
+
+    return NextResponse.json({ client: serializeClient(client) }, { status: 201 });
+  } catch (err) {
+    console.error("[POST /api/v1/clients] error:", err);
+    return NextResponse.json(
+      { error: "Failed to create client" },
+      { status: 500 }
+    );
   }
 }
 
-// Export the handlers with auth middleware
-export const GET = withAuth(getClients, { allowedRoles: ['client', 'employee', 'admin'] });
-export const POST = withAuth(createClient, { allowedRoles: ['employee', 'admin'] });
+export const GET = withAuth(getClients, {
+  allowedRoles: ["client", "employee", "admin"],
+});
+export const POST = withAuth(createClient, {
+  allowedRoles: ["employee", "admin"],
+});

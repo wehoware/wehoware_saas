@@ -1,147 +1,221 @@
-import { NextResponse } from 'next/server';
-// Import the dedicated admin client for auth operations
-import supabaseAdmin from '@/lib/supabaseAdmin';
+/**
+ * /api/v1/users
+ *
+ * Prisma/MySQL-backed replacement for the old Supabase auth.admin + profiles
+ * handler. NextAuth v5 + bcryptjs now own credential storage, so the password
+ * is hashed here and persisted to wehoware_profiles.password_hash.
+ *
+ * GET   — list users (optionally filtered by role), with client associations
+ * POST  — create a new user (admin-only)
+ */
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { withAuth } from "../../utils/auth-middleware";
 
-export async function GET(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const roles = searchParams.getAll('role'); // Allows for multiple role parameters, e.g., ?role=admin&role=employee
+// Fields returned for user listings. Explicitly omit passwordHash.
+const USER_SELECT = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  avatarUrl: true,
+  role: true,
+  clientId: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
-    // 1. Fetch user profiles from the database (using ADMIN client)
-    let query = supabaseAdmin
-      .from('wehoware_profiles')
-      .select('*');
-
-    if (roles.length > 0) {
-      query = query.in('role', roles);
-    }
-    
-    const { data: profiles, error: profilesError } = await query;
-
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-      throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
-    }
-
-    // 2. Fetch authentication users using the *admin* client
-    const { data: authUsersData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-
-    if (authError) {
-      console.error('Error fetching auth users:', authError);
-      // No need to check for 401/403 specifically here anymore,
-      // as the admin client should have the correct permissions.
-      // If an error still occurs, it might be a different issue.
-      throw new Error(`Failed to fetch auth users: ${authError.message}`);
-    }
-
-    // Handle potential pagination if listUsers returns markers (though unlikely for moderate user counts)
-    const authUsers = authUsersData?.users || [];
-
-
-    // 3. Merge profile and auth details
-    const mergedUsers = profiles.map(profile => {
-      const authUser = authUsers.find(u => u.id === profile.id);
-      return {
-        ...profile,
-        email: authUser?.email || 'No email found',
-        // Add any other relevant fields from authUser if needed
-        last_sign_in_at: authUser?.last_sign_in_at,
-        created_at_auth: authUser?.created_at, // Differentiate from profile created_at if necessary
-      };
-    });
-
-    // Return the merged user list
-    return NextResponse.json({ users: mergedUsers }, { status: 200 });
-
-  } catch (error) {
-    console.error('API Error fetching users:', error);
-    // Ensure the error message is passed correctly
-    const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
-  }
+/**
+ * Reshape a Prisma profile + userClients join back into the snake_case
+ * payload the old Supabase API returned. Keeps frontend consumers working.
+ */
+function serializeUser(profile) {
+  const userClients = profile.userClients ?? [];
+  return {
+    id: profile.id,
+    email: profile.email,
+    first_name: profile.firstName,
+    last_name: profile.lastName,
+    avatar_url: profile.avatarUrl,
+    role: profile.role,
+    client_id: profile.clientId,
+    created_at: profile.createdAt,
+    updated_at: profile.updatedAt,
+    // Backward-compat shape expected by admin UI
+    wehoware_user_clients: userClients.map((uc) => ({
+      client_id: uc.clientId,
+      is_primary: uc.isPrimary,
+    })),
+    client_ids: userClients.map((uc) => uc.clientId),
+    primary_client_id:
+      userClients.find((uc) => uc.isPrimary)?.clientId ?? profile.clientId,
+  };
 }
 
-// POST - Create a new user (Secure implementation)
-export async function POST(request) {
-  const body = await request.json();
+// -------------------------------------------------------------------
+// GET /api/v1/users
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request) => {
+    try {
+      const { prisma } = request;
+      const url = new URL(request.url);
+      const roles = url.searchParams.getAll("role");
 
-  // Validate required fields
-  if (!body.email || !body.password || !body.role) {
-    return NextResponse.json({ error: "Email, password, and role are required" }, { status: 400 });
-  }
-
-  if (body.role === "client" && (!body.client_ids || body.client_ids.length === 0)) {
-    return NextResponse.json({ error: "Client role requires at least one client association" }, { status: 400 });
-  }
-  if (body.role === "employee" && body.client_ids && body.client_ids.length > 0) {
-    return NextResponse.json({ error: "Employee role cannot have client associations during creation" }, { status: 400 });
-  }
-
-  let userId = null; // To store the new user's ID for potential cleanup
-
-  try {
-    // 1. Create Auth User using Admin client
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: body.email,
-      password: body.password,
-      email_confirm: true, // Or false if you want email verification
-    });
-
-    if (authError) throw new Error(`Auth user creation failed: ${authError.message}`);
-    userId = authData.user.id; // Store ID for potential cleanup
-
-    // 2. Create User Profile
-    const profileData = {
-      id: userId,
-      first_name: body.first_name || '',
-      last_name: body.last_name || '',
-      role: body.role, // Assign role
-      client_id: body.role === 'client' ? (body.client_ids[0] || null) : null, // Assign primary client ID only if role is client
-    };
-
-    const { error: profileError } = await supabaseAdmin
-      .from("wehoware_profiles")
-      .insert(profileData);
-
-    if (profileError) throw new Error(`Profile creation failed: ${profileError.message}`);
-
-    // 3. Create User-Client Associations (only for 'client' role)
-    if (body.role === 'client') {
-      const clientIdsToAssociate = body.client_ids || []; // Should always have at least one due to validation
-      const userClientRows = clientIdsToAssociate.map(clientId => ({
-        user_id: userId,
-        client_id: clientId,
-        is_primary: clientId === profileData.client_id, // Mark the one matching profile as primary
-      }));
-
-      const { error: assocError } = await supabaseAdmin
-        .from("wehoware_user_clients")
-        .insert(userClientRows);
-
-      if (assocError) throw new Error(`User-client association failed: ${assocError.message}`);
-    }
-
-    // If all steps succeeded
-    return NextResponse.json({ message: "User created successfully", userId: userId });
-
-  } catch (error) {
-    console.error("API User Creation Error:", error);
-
-    // Cleanup: Attempt to delete the auth user if created
-    if (userId) {
-      try {
-        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-        if (deleteError) {
-          console.error(`Failed to clean up auth user ${userId}:`, deleteError);
-        } else {
-          console.log(`Cleaned up auth user ${userId} due to error.`);
-        }
-      } catch (cleanupError) {
-        console.error(`Error during auth user cleanup for ${userId}:`, cleanupError);
+      const where = {};
+      if (roles.length > 0) {
+        where.role = { in: roles };
       }
-    }
 
-    // Return the specific error message
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
-  }
-}
+      const profiles = await prisma.wehowareProfile.findMany({
+        where,
+        select: {
+          ...USER_SELECT,
+          userClients: {
+            select: { clientId: true, isPrimary: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const users = profiles.map(serializeUser);
+
+      return NextResponse.json({ users }, { status: 200 });
+    } catch (err) {
+      console.error("[GET /api/v1/users] error:", err);
+      return NextResponse.json(
+        { error: "Failed to fetch users" },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["admin", "employee"] }
+);
+
+// -------------------------------------------------------------------
+// POST /api/v1/users  (admin-only)
+// -------------------------------------------------------------------
+export const POST = withAuth(
+  async (request) => {
+    try {
+      const { prisma } = request;
+      const body = await request.json();
+
+      const {
+        email,
+        password,
+        role,
+        first_name: firstName,
+        last_name: lastName,
+        avatar_url: avatarUrl,
+        client_ids: clientIdsRaw,
+      } = body ?? {};
+
+      // Validate required fields
+      if (!email || !password || !role) {
+        return NextResponse.json(
+          { error: "Email, password, and role are required" },
+          { status: 400 }
+        );
+      }
+      if (!firstName || !lastName) {
+        return NextResponse.json(
+          { error: "First name and last name are required" },
+          { status: 400 }
+        );
+      }
+
+      const clientIds = Array.isArray(clientIdsRaw) ? clientIdsRaw : [];
+
+      // Role-specific validation mirrors the old API contract
+      if (role === "client" && clientIds.length === 0) {
+        return NextResponse.json(
+          { error: "Client role requires at least one client association" },
+          { status: 400 }
+        );
+      }
+      if (role === "employee" && clientIds.length > 0) {
+        return NextResponse.json(
+          { error: "Employee role cannot have client associations during creation" },
+          { status: 400 }
+        );
+      }
+
+      // Enforce unique email up-front for a nicer error than P2002
+      const existing = await prisma.wehowareProfile.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (existing) {
+        return NextResponse.json(
+          { error: "A user with this email already exists" },
+          { status: 409 }
+        );
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const primaryClientId = role === "client" ? clientIds[0] : null;
+
+      // Use a transaction so the profile + associations are atomic
+      const created = await prisma.$transaction(async (tx) => {
+        const profile = await tx.wehowareProfile.create({
+          data: {
+            email,
+            passwordHash,
+            firstName,
+            lastName,
+            avatarUrl: avatarUrl ?? null,
+            role,
+            clientId: primaryClientId,
+          },
+          select: USER_SELECT,
+        });
+
+        if (role === "client" && clientIds.length > 0) {
+          await tx.wehowareUserClient.createMany({
+            data: clientIds.map((cid) => ({
+              userId: profile.id,
+              clientId: cid,
+              isPrimary: cid === primaryClientId,
+            })),
+          });
+        }
+
+        const userClients = await tx.wehowareUserClient.findMany({
+          where: { userId: profile.id },
+          select: { clientId: true, isPrimary: true },
+        });
+
+        return { ...profile, userClients };
+      });
+
+      return NextResponse.json(
+        {
+          message: "User created successfully",
+          userId: created.id,
+          user: serializeUser(created),
+        },
+        { status: 201 }
+      );
+    } catch (err) {
+      console.error("[POST /api/v1/users] error:", err);
+      if (err?.code === "P2002") {
+        return NextResponse.json(
+          { error: "A user with this email already exists" },
+          { status: 409 }
+        );
+      }
+      if (err?.code === "P2003") {
+        return NextResponse.json(
+          { error: "One or more client IDs are invalid" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to create user" },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["admin"] }
+);

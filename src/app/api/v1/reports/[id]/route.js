@@ -1,201 +1,219 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../../utils/auth-middleware';
+/**
+ * /api/v1/reports/[id]
+ * Prisma/MySQL-backed handlers for a single report.
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../../utils/auth-middleware";
 
-// Helper function to fetch report and authorize user
-async function getReportAndAuthorize(supabase, request, reportId) {
-    const { data: report, error: fetchError } = await supabase
-        .from('wehoware_reports')
-        .select('*, client_id') // Ensure client_id is selected
-        .eq('id', reportId)
-        .single();
-
-    if (fetchError || !report) {
-        if (fetchError?.code === 'PGRST116') {
-            return { report: null, authorized: false, error: 'Report not found.', status: 404 };
-        }
-        console.error('Error fetching report:', fetchError);
-        return { report: null, authorized: false, error: 'Failed to fetch report.', status: 500 };
-    }
-
-    // Authorization logic
-    let authorized = false;
-    if (request.user.role === 'client' && String(report.client_id) === String(request.user.clientId)) {
-        authorized = true;
-    } else if (['employee', 'admin'].includes(request.user.role)) {
-        if (request.user.activeClientId && String(report.client_id) === String(request.user.activeClientId)) {
-            authorized = true;
-        }
-    }
-
-    if (!authorized) {
-        return { report, authorized: false, error: 'Unauthorized to access this report.', status: 403 };
-    }
-
-    return { report, authorized: true, error: null, status: 200 };
+function resolveClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
+  }
+  return null;
 }
 
-// GET a specific report by ID
-export const GET = withAuth(async (request, { params }) => {
+function serializeReport(r) {
+  return {
+    id: r.id,
+    client_id: r.clientId,
+    template_id: r.templateId,
+    title: r.title,
+    description: r.description,
+    report_data: r.reportData,
+    date_range_start: r.dateRangeStart,
+    date_range_end: r.dateRangeEnd,
+    status: r.status,
+    is_scheduled: r.isScheduled,
+    schedule_frequency: r.scheduleFrequency,
+    last_generated_at: r.lastGeneratedAt,
+    next_generation_at: r.nextGenerationAt,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+    created_by: r.createdBy,
+    updated_by: r.updatedBy,
+    creator: r.creator
+      ? {
+          id: r.creator.id,
+          first_name: r.creator.firstName,
+          last_name: r.creator.lastName,
+        }
+      : null,
+    updater: r.updater
+      ? {
+          id: r.updater.id,
+          first_name: r.updater.firstName,
+          last_name: r.updater.lastName,
+        }
+      : null,
+  };
+}
+
+// -------------------------------------------------------------------
+// GET
+// -------------------------------------------------------------------
+export const GET = withAuth(
+  async (request, { params }) => {
     try {
-        const { supabase } = request; // Use the Supabase client from middleware
-        const reportId = params.id;
+      const { prisma, user } = request;
+      const { id } = await params;
 
-        if (!reportId) {
-            return NextResponse.json({ error: 'Report ID is required.' }, { status: 400 });
-        }
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required" },
+          { status: 400 }
+        );
+      }
 
-        const { report, authorized, error, status } = await getReportAndAuthorize(supabase, request, reportId);
+      const report = await prisma.wehowareReport.findFirst({
+        where: { id, clientId },
+        include: {
+          creator: { select: { id: true, firstName: true, lastName: true } },
+          updater: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
 
-        if (!authorized) {
-            return NextResponse.json({ error: error || 'Unauthorized' }, { status });
-        }
+      if (!report) {
+        return NextResponse.json(
+          { error: "Report not found" },
+          { status: 404 }
+        );
+      }
 
-        // Optionally fetch related data if needed, e.g., created_by profile
-        const { data: reportWithDetails, error: detailsError } = await supabase
-            .from('wehoware_reports')
-            .select('*, created_by:wehoware_profiles!created_by(id, first_name, last_name), updated_by:wehoware_profiles!updated_by(id, first_name, last_name)')
-            .eq('id', reportId)
-            .single();
-        
-        if (detailsError) {
-             console.error('Error fetching report details:', detailsError);
-             // Fallback to returning the basic report if details fail
-             return NextResponse.json(report);
-        }
-
-        return NextResponse.json(reportWithDetails || report);
-
-    } catch (error) {
-        console.error('Unexpected error fetching report:', error);
-        return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
+      return NextResponse.json(serializeReport(report));
+    } catch (err) {
+      console.error("[GET /api/v1/reports/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to fetch report" },
+        { status: 500 }
+      );
     }
-}, { allowedRoles: ['client', 'employee', 'admin'] });
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);
 
-// PUT update a specific report by ID
-export const PUT = withAuth(async (request, { params }) => {
+// -------------------------------------------------------------------
+// PUT
+// -------------------------------------------------------------------
+export const PUT = withAuth(
+  async (request, { params }) => {
     try {
-        const { supabase } = request; // Use the Supabase client from middleware
-        const reportId = params.id;
-        const body = await request.json();
-        const { title, content, type, report_date, status } = body;
+      const { prisma, user } = request;
+      const { id } = await params;
 
-        if (!reportId) {
-            return NextResponse.json({ error: 'Report ID is required.' }, { status: 400 });
-        }
+      if (!user.activeClientId) {
+        return NextResponse.json(
+          { error: "Active client context required" },
+          { status: 400 }
+        );
+      }
 
-        // 1. Fetch and Authorize (only employees/admins can update)
-        const { report, authorized, error: authError, status: authStatus } = await getReportAndAuthorize(supabase, request, reportId);
+      const existing = await prisma.wehowareReport.findFirst({
+        where: { id, clientId: user.activeClientId },
+        select: { id: true },
+      });
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Report not found" },
+          { status: 404 }
+        );
+      }
 
-        if (!authorized) {
-             // Check if the user is simply not allowed or if the report wasn't found
-             return NextResponse.json({ error: authError || 'Unauthorized' }, { status: authStatus });
-        }
-        
-        // Further check: ensure only employee/admin is making the request
-        if (!['employee', 'admin'].includes(request.user.role)) {
-            return NextResponse.json({ error: 'Only employees or admins can update reports.' }, { status: 403 });
-        }
-        
-        // Ensure they are updating within their active context (already checked by getReportAndAuthorize)
+      const body = await request.json();
+      const data = { updatedBy: user.id };
+      if (body.title !== undefined) data.title = body.title;
+      if (body.description !== undefined) data.description = body.description;
+      if (body.report_data !== undefined) data.reportData = body.report_data;
+      if (body.reportData !== undefined) data.reportData = body.reportData;
+      if (body.status !== undefined) data.status = body.status;
+      if (body.template_id !== undefined) data.templateId = body.template_id;
+      if (body.templateId !== undefined) data.templateId = body.templateId;
+      if (body.date_range_start !== undefined) {
+        data.dateRangeStart = body.date_range_start
+          ? new Date(body.date_range_start)
+          : null;
+      }
+      if (body.date_range_end !== undefined) {
+        data.dateRangeEnd = body.date_range_end
+          ? new Date(body.date_range_end)
+          : null;
+      }
+      if (body.is_scheduled !== undefined) data.isScheduled = body.is_scheduled;
+      if (body.schedule_frequency !== undefined) {
+        data.scheduleFrequency = body.schedule_frequency;
+      }
 
-        // 2. Prepare update data
-        const updateData = {};
-        if (title !== undefined) updateData.title = title;
-        if (content !== undefined) updateData.content = content; // Allow updating JSONB content
-        if (type !== undefined) updateData.type = type;
-        if (report_date !== undefined) updateData.report_date = report_date;
-        if (status !== undefined) updateData.status = status;
+      if (Object.keys(data).length === 1) {
+        return NextResponse.json(
+          { error: "No valid fields provided for update" },
+          { status: 400 }
+        );
+      }
 
-        if (Object.keys(updateData).length === 0) {
-             return NextResponse.json({ error: 'No valid fields provided for update.' }, { status: 400 });
-        }
+      const report = await prisma.wehowareReport.update({
+        where: { id },
+        data,
+        include: {
+          creator: { select: { id: true, firstName: true, lastName: true } },
+          updater: { select: { id: true, firstName: true, lastName: true } },
+        },
+      });
 
-        updateData.updated_by = request.user.id;
-        updateData.updated_at = new Date().toISOString();
-
-        // 3. Perform update using user-scoped client (RLS applies)
-        const { data: updatedReport, error: updateError } = await supabase
-            .from('wehoware_reports')
-            .update(updateData)
-            .eq('id', reportId)
-            // .eq('client_id', report.client_id) // RLS should handle this
-            .select('*, created_by:wehoware_profiles!created_by(id, first_name, last_name), updated_by:wehoware_profiles!updated_by(id, first_name, last_name)')
-            .single();
-
-        if (updateError) {
-            console.error('Error updating report:', updateError);
-            return NextResponse.json({ error: `Failed to update report: ${updateError.message}` }, { status: 500 });
-        }
-
-        if (!updatedReport) {
-            console.warn(`Update for report ${reportId} returned no data unexpectedly.`);
-            return NextResponse.json({ error: 'Report update failed (check permissions/RLS).' }, { status: 500 });
-        }
-
-        return NextResponse.json(updatedReport);
-
-    } catch (error) {
-        console.error('Unexpected error updating report:', error);
-         // Handle potential JSON parsing errors
-        if (error instanceof SyntaxError) {
-            return NextResponse.json({ error: 'Invalid JSON format in request body.' }, { status: 400 });
-        }
-        return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
+      return NextResponse.json(serializeReport(report));
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return NextResponse.json(
+          { error: "Invalid JSON body" },
+          { status: 400 }
+        );
+      }
+      console.error("[PUT /api/v1/reports/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to update report" },
+        { status: 500 }
+      );
     }
-}, { allowedRoles: ['employee', 'admin'] });
+  },
+  { allowedRoles: ["employee", "admin"] }
+);
 
-// DELETE a specific report by ID
-export const DELETE = withAuth(async (request, { params }) => {
+// -------------------------------------------------------------------
+// DELETE (admin only)
+// -------------------------------------------------------------------
+export const DELETE = withAuth(
+  async (request, { params }) => {
     try {
-        const { supabase } = request; // Use the Supabase client from middleware
-        const reportId = params.id;
+      const { prisma, user } = request;
+      const { id } = await params;
 
-        if (!reportId) {
-            return NextResponse.json({ error: 'Report ID is required.' }, { status: 400 });
-        }
+      if (!user.activeClientId) {
+        return NextResponse.json(
+          { error: "Active client context required" },
+          { status: 400 }
+        );
+      }
 
-        // Middleware already ensures user is admin
+      const existing = await prisma.wehowareReport.findFirst({
+        where: { id, clientId: user.activeClientId },
+        select: { id: true },
+      });
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Report not found" },
+          { status: 404 }
+        );
+      }
 
-        // 1. Fetch and Authorize (Admin must be in the report's client context)
-        const { report, authorized, error: authError, status: authStatus } = await getReportAndAuthorize(supabase, request, reportId);
-        
-        if (!authorized) {
-            // Check if the report wasn't found or if admin lacks context
-            return NextResponse.json({ error: authError || 'Unauthorized' }, { status: authStatus });
-        }
-        
-        // Ensure admin is making the request (redundant check due to middleware, but safe)
-        if (request.user.role !== 'admin') {
-            return NextResponse.json({ error: 'Only admins can delete reports.' }, { status: 403 });
-        }
-
-        // Ensure admin has active context matching the report (checked by getReportAndAuthorize)
-        if (!request.user.activeClientId || String(request.user.activeClientId) !== String(report.client_id)) {
-             return NextResponse.json({ error: 'Admin must have active context matching the report to delete it.' }, { status: 403 });
-        }
-
-        // 2. Perform delete using user-scoped client (RLS applies)
-        const { error: deleteError, count } = await supabase
-            .from('wehoware_reports')
-            .delete({ count: 'exact' })
-            .eq('id', reportId);
-            // .eq('client_id', report.client_id); // RLS should handle this
-
-        if (deleteError) {
-            console.error('Error deleting report:', deleteError);
-            return NextResponse.json({ error: `Failed to delete report: ${deleteError.message}` }, { status: 500 });
-        }
-
-        if (count === 0) {
-            console.warn(`Delete operation for report ${reportId} affected 0 rows unexpectedly.`);
-            // This could mean the record was deleted between fetch and delete, or RLS prevented it
-            return NextResponse.json({ error: 'Report not found or delete failed (check permissions/RLS).' }, { status: 404 });
-        }
-
-        return NextResponse.json({ success: true });
-
-    } catch (error) {
-        console.error('Unexpected error deleting report:', error);
-        return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
+      await prisma.wehowareReport.delete({ where: { id } });
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      console.error("[DELETE /api/v1/reports/[id]] error:", err);
+      return NextResponse.json(
+        { error: "Failed to delete report" },
+        { status: 500 }
+      );
     }
-}, { allowedRoles: ['admin'] }); // Only Admins can delete
+  },
+  { allowedRoles: ["admin"] }
+);

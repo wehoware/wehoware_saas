@@ -1,197 +1,220 @@
-import { NextResponse } from 'next/server';
-import { withAuth } from '../../utils/auth-middleware';
+/**
+ * /api/v1/blogs
+ *
+ * Prisma/MySQL-backed replacement for the old Supabase handler.
+ *
+ * GET   — list blogs (paginated, filtered) for the caller's active client
+ * POST  — create a new blog
+ */
+import { NextResponse } from "next/server";
+import { withAuth } from "../../utils/auth-middleware";
 
-// Helper function to generate a unique slug
-// Accepts the supabase client instance as the first argument
-async function generateUniqueSlug(supabase, title, clientId) {
-  let slug = title
-    .toLowerCase()
-    .replace(/\s+/g, '-') // Replace spaces with -
-    .replace(/[^\w-]+/g, '') // Remove all non-word chars
-    .replace(/--+/g, '-') // Replace multiple - with single -
-    .replace(/^-+/, '') // Trim - from start of text
-    .replace(/-+$/, ''); // Trim - from end of text
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+const SORTABLE_FIELDS = new Set([
+  "created_at",
+  "updated_at",
+  "published_at",
+  "title",
+  "status",
+]);
+// Map snake_case query values → camelCase Prisma field names
+const FIELD_MAP = {
+  created_at: "createdAt",
+  updated_at: "updatedAt",
+  published_at: "publishedAt",
+  title: "title",
+  status: "status",
+};
 
-  let uniqueSlug = slug;
-  let counter = 1;
-
-  // Check if slug exists for the client
-  while (true) {
-    // Use the passed-in supabase client
-    const { data, error } = await supabase
-      .from('wehoware_blogs')
-      .select('id')
-      .eq('client_id', clientId)
-      .eq('slug', uniqueSlug)
-      .maybeSingle(); // Use maybeSingle to handle 0 or 1 result
-
-    if (error) {
-      console.error('Error checking slug uniqueness:', error);
-      // Potentially throw an error or return a generic slug error
-      throw new Error('Failed to verify slug uniqueness');
-    }
-
-    if (!data) {
-      // Slug is unique
-      break;
-    }
-
-    // Slug exists, append counter and try again
-    uniqueSlug = `${slug}-${counter}`;
-    counter++;
+/**
+ * Resolve which client context (tenant) applies for the current request.
+ * Returns null if the user has no valid context.
+ */
+function resolveClientId(user) {
+  if (user.role === "client") return user.clientId ?? null;
+  if (["employee", "admin"].includes(user.role)) {
+    return user.activeClientId ?? null;
   }
-
-  return uniqueSlug;
+  return null;
 }
 
-// GET all blogs with pagination and filtering
+async function generateUniqueSlug(prisma, title, clientId, currentSlug = null) {
+  const base = String(title)
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "")
+    .replace(/--+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (base && base === currentSlug) return base;
+
+  let candidate = base || "post";
+  let counter = 1;
+  // Bounded loop guard — stop after 100 attempts to avoid runaway
+  while (counter < 100) {
+    const hit = await prisma.wehowareBlog.findFirst({
+      where: { clientId, slug: candidate },
+      select: { id: true },
+    });
+    if (!hit) return candidate;
+    candidate = `${base || "post"}-${counter}`;
+    counter += 1;
+  }
+  // Fallback — add a random suffix
+  return `${base || "post"}-${Date.now()}`;
+}
+
+// -------------------------------------------------------------------
+// GET /api/v1/blogs
+// -------------------------------------------------------------------
 export const GET = withAuth(async (request) => {
   try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const userRole = request.user.role;
-    const userClientId = request.user.clientId; // For client role
-    const activeClientId = request.user.activeClientId; // For employee/admin role
-
-    const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = parseInt(url.searchParams.get('limit') || '10');
-    const search = url.searchParams.get('search') || '';
-    const category = url.searchParams.get('category') || '';
-    const status = url.searchParams.get('status') || '';
-    const sortBy = url.searchParams.get('sortBy') || 'created_at';
-    const sortOrder = url.searchParams.get('sortOrder') || 'desc';
-    
-    // Calculate offset
-    const offset = (page - 1) * limit;
-    
-    // Build query using the per-request client
-    let query = supabase
-      .from('wehoware_blogs')
-      .select('*, wehoware_blog_categories(name)', { count: 'exact' });
-    
-    // Add filters if provided
-    if (search) {
-      query = query.or(`title.ilike.%${search}%, content.ilike.%${search}%`);
-    }
-    
-    if (category) {
-      query = query.eq('category_id', category);
-    }
-    
-    if (status) {
-      query = query.eq('status', status);
-    }
-    
-    // --- Updated Client Filtering Logic ---
-    // Add client filter based on user role
-    if (userRole === 'client') {
-      if (!userClientId) {
-        return NextResponse.json({ error: 'Client association not found.' }, { status: 403 });
-      }
-      query = query.eq('client_id', userClientId);
-    } else if (userRole === 'employee' || userRole === 'admin') {
-      if (!activeClientId) {
-        // Employees/Admins must have an active client context to view blogs
-        return NextResponse.json({ error: 'Active client context required.' }, { status: 400 });
-      }
-      query = query.eq('client_id', activeClientId);
-    } else {
-      // Should not happen due to withAuth, but safety check
-      return NextResponse.json({ error: 'Unauthorized role.' }, { status: 403 });
-    }
-    // --- End of Updated Client Filtering Logic ---
-    
-    // Add sorting and pagination
-    query = query
-      .order(sortBy, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + limit - 1);
-    
-    // Execute query
-    const { data, error, count } = await query;
-    
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    
-    // Calculate total pages
-    const totalPages = Math.ceil(count / limit);
-    
-    return NextResponse.json({
-      blogs: data,
-      pagination: {
-        page,
-        limit,
-        totalItems: count,
-        totalPages
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching blogs:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-});
-
-// POST create new blog
-export const POST = withAuth(async (request) => {
-  try {
-    const { supabase } = request; // Use the Supabase client from middleware
-    const body = await request.json();
-    
-    // Validate required fields
-    const { title, content, category_id, status, thumbnail } = body;
-    
-    if (!title || !content || !category_id) {
+    const { prisma, user } = request;
+    const clientId = resolveClientId(user);
+    if (!clientId) {
       return NextResponse.json(
-        { error: 'Title, content, and category are required' },
+        { error: "Active client context required" },
         { status: 400 }
       );
     }
-    
-    // Set client_id based on user role
-    let client_id = null;
-    
-    if (request.user.role === 'client') {
-      client_id = request.user.clientId;
-    } else if (['employee', 'admin'].includes(request.user.role) && request.user.activeClientId) {
-      client_id = request.user.activeClientId;
+
+    const url = new URL(request.url);
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+    const limit = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, parseInt(url.searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10))
+    );
+    const search = (url.searchParams.get("search") || "").trim();
+    const category = url.searchParams.get("category") || "";
+    const status = url.searchParams.get("status") || "";
+    const sortByRaw = url.searchParams.get("sortBy") || "created_at";
+    const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+    const sortBy = SORTABLE_FIELDS.has(sortByRaw)
+      ? FIELD_MAP[sortByRaw]
+      : "createdAt";
+
+    const where = { clientId };
+    if (category) where.categoryId = category;
+    if (status) where.status = status;
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },
+        { content: { contains: search } },
+        { excerpt: { contains: search } },
+      ];
     }
 
-    if (!client_id) {
-        return NextResponse.json({ error: 'Could not determine client context for blog creation.' }, { status: 400 });
-    }
+    const [items, totalItems] = await Promise.all([
+      prisma.wehowareBlog.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true } },
+        },
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.wehowareBlog.count({ where }),
+    ]);
 
-    // Generate unique slug using the per-request client
-    const slug = await generateUniqueSlug(supabase, title, client_id);
-    
-    // Prepare blog data
-    const blogData = {
-      title,
-      slug,
-      content,
-      category_id,
-      status: status || 'draft',
-      thumbnail,
-      client_id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      created_by: request.user.id,
-      updated_by: request.user.id
-    };
-    
-    // Insert blog using the per-request client
-    const { data, error } = await supabase
-      .from('wehoware_blogs')
-      .insert(blogData)
-      .select()
-      .single();
-    
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    
-    return NextResponse.json({ blog: data }, { status: 201 });
-  } catch (error) {
-    console.error('Error creating blog:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Preserve the old response shape used by admin/blogs/page.js etc.
+    const blogs = items.map((b) => ({
+      ...b,
+      wehoware_blog_categories: b.category ? { name: b.category.name } : null,
+    }));
+
+    return NextResponse.json({
+      blogs,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+      },
+    });
+  } catch (err) {
+    console.error("[GET /api/v1/blogs] error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch blogs" },
+      { status: 500 }
+    );
   }
-}, { allowedRoles: ['client', 'employee', 'admin'] });
+});
+
+// -------------------------------------------------------------------
+// POST /api/v1/blogs
+// -------------------------------------------------------------------
+export const POST = withAuth(
+  async (request) => {
+    try {
+      const { prisma, user } = request;
+      const clientId = resolveClientId(user);
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Active client context required" },
+          { status: 400 }
+        );
+      }
+
+      const body = await request.json();
+      const {
+        title,
+        content,
+        category_id: categoryId,
+        status,
+        thumbnail,
+        excerpt,
+      } = body ?? {};
+
+      if (!title || !content || !categoryId) {
+        return NextResponse.json(
+          { error: "Title, content, and category are required" },
+          { status: 400 }
+        );
+      }
+
+      const slug = await generateUniqueSlug(prisma, title, clientId);
+
+      const blog = await prisma.wehowareBlog.create({
+        data: {
+          title,
+          slug,
+          content,
+          excerpt: excerpt ?? null,
+          categoryId,
+          status: status || "Draft",
+          thumbnail: thumbnail ?? null,
+          clientId,
+          createdBy: user.id,
+          updatedBy: user.id,
+        },
+        include: {
+          category: { select: { id: true, name: true } },
+        },
+      });
+
+      return NextResponse.json({ blog }, { status: 201 });
+    } catch (err) {
+      console.error("[POST /api/v1/blogs] error:", err);
+      // Prisma known-error codes → friendlier messages
+      if (err?.code === "P2003") {
+        return NextResponse.json(
+          { error: "Invalid category_id" },
+          { status: 400 }
+        );
+      }
+      if (err?.code === "P2002") {
+        return NextResponse.json(
+          { error: "A blog with this slug already exists" },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to create blog" },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedRoles: ["client", "employee", "admin"] }
+);

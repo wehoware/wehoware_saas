@@ -1,150 +1,199 @@
 "use client";
 
+// src/contexts/auth-context.js
+// Primary auth context — provides login, logout, active client switching,
+// and role helpers to the entire component tree.
+//
+// MIGRATION CHANGES (Supabase → NextAuth + MySQL/Prisma):
+//   login()  — now calls NextAuth signIn('credentials') instead of POSTing
+//               directly; then fetches enriched user data from GET /api/v1/auth.
+//   logout() — now calls NextAuth signOut() instead of DELETE /api/v1/auth.
+//   initializeAuth() — unchanged; still calls GET /api/v1/auth.
+//   All response shapes and context values are preserved for backward compat.
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { signIn, signOut as nextAuthSignOut } from "next-auth/react";
 import { toast } from "react-hot-toast";
 
 const AuthContext = createContext(undefined);
+
+const ACTIVE_CLIENT_ID_KEY = "wehoware_activeClientId";
+
+// Paths accessible without authentication
+const PUBLIC_PATH_PREFIXES = ["/login", "/blog", "/about", "/contact", "/services"];
+
+function isPublicPath(pathname) {
+  if (pathname === "/") return true;
+  return PUBLIC_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
+  );
+}
+
+/** Fetch enriched current user from the server-side session. */
+async function fetchCurrentUser() {
+  try {
+    const response = await fetch("/api/v1/auth", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve which client should be active at startup. */
+function resolveInitialActiveClient(user) {
+  if (!user) return null;
+
+  if (["employee", "admin"].includes(user.role)) {
+    if (!user.accessibleClients?.length) return null;
+
+    let savedId = null;
+    try {
+      savedId = localStorage.getItem(ACTIVE_CLIENT_ID_KEY);
+    } catch {
+      // localStorage unavailable (SSR / private browsing) — non-fatal
+    }
+
+    if (savedId) {
+      const saved = user.accessibleClients.find((c) => c.id === savedId);
+      if (saved) return saved;
+    }
+
+    return (
+      user.accessibleClients.find((c) => c.isPrimary) ||
+      user.accessibleClients[0]
+    );
+  }
+
+  if (user.role === "client") {
+    return user.clientDetails ?? null;
+  }
+
+  return null;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [clientUrl, setClientUrl] = useState(null);
-  const [activeClient, setActiveClient] = useState(null); // State for the full client object
+  const [activeClient, setActiveClient] = useState(null);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Local storage key
-  const ACTIVE_CLIENT_ID_KEY = "wehoware_activeClientId";
-
-  // Initialize auth state on load
+  // ------------------------------------------------------------------
+  // Initialize auth state — runs on mount and on pathname change.
+  // Reads the NextAuth JWT session via GET /api/v1/auth.
+  // ------------------------------------------------------------------
   useEffect(() => {
+    let cancelled = false;
+
     const initializeAuth = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/v1/auth", {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        });
+        const fetchedUser = await fetchCurrentUser();
 
-        const data = await response.json();
+        if (cancelled) return;
 
-        if (response.ok && data.user) {
-          setUser(data.user);
+        if (fetchedUser) {
+          setUser(fetchedUser);
 
-          // Set initial active client
-          let initialActiveClient = null;
-          const savedClientId = localStorage.getItem(ACTIVE_CLIENT_ID_KEY);
-
-          if (
-            ["employee", "admin"].includes(data.user.role) &&
-            data.user.accessibleClients?.length > 0
-          ) {
-            // Try restoring from localStorage first for employee/admin
-            if (savedClientId) {
-              initialActiveClient =
-                data.user.accessibleClients.find(
-                  (c) => c.id === savedClientId
-                ) || null;
-            }
-            // If not restored or invalid, find primary or use the first one
-            if (!initialActiveClient) {
-              initialActiveClient =
-                data.user.accessibleClients.find((c) => c.isPrimary) ||
-                data.user.accessibleClients[0];
-            }
-          } else if (data.user.role === "client" && data.user.clientDetails) {
-            // For client users, set their own client as active (localStorage isn't strictly needed but doesn't hurt)
-            initialActiveClient = data.user.clientDetails;
-          }
-
+          const initialActiveClient = resolveInitialActiveClient(fetchedUser);
           setActiveClient(initialActiveClient);
-          setClientUrl(initialActiveClient?.website); // Set clientUrl from website field
+          setClientUrl(initialActiveClient?.website ?? null);
 
-          // Save/update the determined active client ID to localStorage
-          if (initialActiveClient) {
-            if (initialActiveClient.id !== savedClientId) {
-              localStorage.setItem(
-                ACTIVE_CLIENT_ID_KEY,
-                initialActiveClient.id
-              );
+          try {
+            if (initialActiveClient) {
+              const savedId = localStorage.getItem(ACTIVE_CLIENT_ID_KEY);
+              if (savedId !== initialActiveClient.id) {
+                localStorage.setItem(ACTIVE_CLIENT_ID_KEY, initialActiveClient.id);
+              }
+            } else {
+              localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
             }
-          } else {
-            localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+          } catch {
+            // non-fatal
           }
 
-          // Redirect to admin if on login page
           if (pathname === "/login") {
             router.replace("/admin");
           }
-        } else if (
-          pathname !== "/login" &&
-          pathname !== "/" &&
-          !pathname.startsWith("/blog") &&
-          !pathname.startsWith("/about") &&
-          !pathname.startsWith("/contact") &&
-          !pathname.startsWith("/services")
-        ) {
-          // Only redirect to login if not on public pages
-          router.replace("/login");
+        } else {
+          setUser(null);
+          setActiveClient(null);
+          setClientUrl(null);
+
+          if (!isPublicPath(pathname)) {
+            router.replace("/login");
+          }
         }
       } catch (error) {
+        if (cancelled) return;
         console.error("Error initializing auth:", error);
-        if (
-          pathname !== "/login" &&
-          pathname !== "/" &&
-          !pathname.startsWith("/blog") &&
-          !pathname.startsWith("/about") &&
-          !pathname.startsWith("/contact") &&
-          !pathname.startsWith("/services")
-        ) {
+        setUser(null);
+        setActiveClient(null);
+        setClientUrl(null);
+
+        if (!isPublicPath(pathname)) {
           router.replace("/login");
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     initializeAuth();
-  }, [pathname]);
 
-  // Login function
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ------------------------------------------------------------------
+  // login — delegates credential verification to NextAuth, then fetches
+  // the enriched user object (accessible clients, etc.) from the API.
+  // ------------------------------------------------------------------
   const login = async (email, password) => {
     try {
-      const response = await fetch("/api/v1/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const result = await signIn("credentials", {
+        email: typeof email === "string" ? email.trim().toLowerCase() : email,
+        password,
+        redirect: false,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Login failed");
+      if (!result?.ok || result?.error) {
+        throw new Error(
+          result?.error === "CredentialsSignin"
+            ? "Invalid email or password"
+            : (result?.error ?? "Login failed")
+        );
       }
 
-      setUser(data.user);
+      // Session cookie is now set — fetch enriched user data
+      const fetchedUser = await fetchCurrentUser();
 
-      // Set initial active client
-      let initialActiveClient = null;
-      if (
-        ["employee", "admin"].includes(data.user.role) &&
-        data.user.accessibleClients?.length > 0
-      ) {
-        initialActiveClient =
-          data.user.accessibleClients.find((c) => c.isPrimary) ||
-          data.user.accessibleClients[0];
-      } else if (data.user.role === "client" && data.user.clientDetails) {
-        initialActiveClient = data.user.clientDetails;
+      if (!fetchedUser) {
+        throw new Error("Failed to load user profile after login");
       }
 
+      setUser(fetchedUser);
+
+      const initialActiveClient = resolveInitialActiveClient(fetchedUser);
       setActiveClient(initialActiveClient);
-      setClientUrl(initialActiveClient?.website); // Set clientUrl from website field
+      setClientUrl(initialActiveClient?.website ?? null);
 
-      if (initialActiveClient) {
-        localStorage.setItem(ACTIVE_CLIENT_ID_KEY, initialActiveClient.id);
-      } else {
-        localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+      try {
+        if (initialActiveClient) {
+          localStorage.setItem(ACTIVE_CLIENT_ID_KEY, initialActiveClient.id);
+        } else {
+          localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+        }
+      } catch {
+        // non-fatal
       }
 
       router.replace("/admin");
@@ -157,18 +206,23 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Logout function
+  // ------------------------------------------------------------------
+  // logout — clears local state and signs out via NextAuth.
+  // ------------------------------------------------------------------
   const logout = async () => {
     try {
-      // Clear saved client ID before logging out
-      localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+      try {
+        localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+      } catch {
+        // non-fatal
+      }
 
-      await fetch("/api/v1/auth", {
-        method: "DELETE",
-      });
+      await nextAuthSignOut({ redirect: false });
 
       setUser(null);
       setActiveClient(null);
+      setClientUrl(null);
+
       router.replace("/login");
       toast.success("Logged out successfully");
     } catch (error) {
@@ -177,35 +231,36 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Switch active client (for employees)
+  // ------------------------------------------------------------------
+  // switchClient — employees/admins change the active client context.
+  // ------------------------------------------------------------------
   const switchClient = (clientId) => {
     if (!user || !["employee", "admin", "client"].includes(user.role)) {
       toast.error("Only employees can switch clients");
       return;
     }
 
-    const client = user.accessibleClients.find((c) => c.id === clientId);
+    const client = user.accessibleClients?.find((c) => c.id === clientId);
     if (!client) {
       toast.error("Client not found");
       return;
     }
 
     setActiveClient(client);
+    setClientUrl(client.website ?? null);
     toast.success(`Switched to ${client.name}`);
 
-    // Save the newly selected client ID to localStorage
-    localStorage.setItem(ACTIVE_CLIENT_ID_KEY, client.id);
-
-    // Update any API calls to include the new client ID
-    // This happens automatically through the auth middleware
+    try {
+      localStorage.setItem(ACTIVE_CLIENT_ID_KEY, client.id);
+    } catch {
+      // non-fatal
+    }
   };
 
-  // Determine roles - ensure user and user.role exist
   const isAdmin = user?.role === "admin";
   const isEmployee = user?.role === "employee";
   const isClient = user?.role === "client";
 
-  // Auth context value
   const value = {
     user,
     loading,

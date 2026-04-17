@@ -1,248 +1,217 @@
 // src/app/api/v1/auth/route.js
+// Auth API — NextAuth v5 + Prisma.
+//
+// ARCHITECTURE NOTE (post-migration):
+//   The primary login/logout flow in auth-context.js now uses NextAuth's own
+//   endpoints directly:
+//     Login:  signIn('credentials', { redirect: false }) → /api/auth/callback/credentials
+//     Logout: signOut({ redirect: false })               → /api/auth/signout
+//
+//   This file's endpoints serve two purposes:
+//     GET    — session hydration: reads the NextAuth JWT and returns the
+//              enriched user object (accessible clients, client details, names).
+//              Called on every page load by auth-context.js.
+//     POST   — legacy/API-client credential check: verifies email+password via
+//              Prisma+bcrypt and returns user data. Does NOT establish a session
+//              cookie (session is set only via /api/auth/callback/credentials).
+//              Kept for backward compatibility with non-browser API clients.
+//     DELETE — legacy session clear: deletes the NextAuth session cookies.
+//              Kept for backward compatibility; browser flow uses signOut().
 
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { auth } from "@/lib/auth";
+import {
+  getAccessibleClients,
+  getClientDetails,
+  ROLES_WITH_CLIENT_ACCESS,
+} from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
-// Helper: create a Supabase SSR client with proper cookie handling
-const createSupabaseInstance = async () => {
-  const cookieStore = await cookies(); // ✅ await cookies()
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch (error) {
-            // Ignore errors in read-only contexts or if headers are already sent
-          }
-        },
-        // Adding deprecated methods to potentially satisfy Supabase SSR checks/warnings
-        get(name) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name, value, options) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
-          }
-        },
-        remove(name, options) {
-          try {
-            cookieStore.set({ name, value: '', ...options });
-          } catch (error) {
-            // The `remove` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
-          }
-        },
-      },
-    }
-  );
-};
+// Cookie names used by NextAuth v5 (vary by environment)
+const SESSION_COOKIE_NAMES = [
+  "next-auth.session-token",
+  "__Secure-next-auth.session-token",
+];
 
-// — LOGIN —
+// ----------------------------------------------------------------
+// Shared: build the enriched user object returned to the frontend.
+// Uses a single Prisma query + two optional helpers — no N+1.
+// ----------------------------------------------------------------
+async function buildUserResponse(userId) {
+  const profile = await prisma.wehowareProfile.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      avatarUrl: true,
+      role: true,
+      clientId: true,
+    },
+  });
+
+  if (!profile) return null;
+
+  let accessibleClients = [];
+  let clientDetails = null;
+
+  if (ROLES_WITH_CLIENT_ACCESS.includes(profile.role)) {
+    accessibleClients = await getAccessibleClients(profile.id);
+  }
+
+  if (profile.role === "client" && profile.clientId) {
+    clientDetails = await getClientDetails(profile.clientId);
+  }
+
+  return {
+    id: profile.id,
+    email: profile.email,
+    role: profile.role,
+    firstName: profile.firstName ?? "",
+    lastName: profile.lastName ?? "",
+    avatarUrl: profile.avatarUrl ?? "",
+    clientId: profile.clientId ?? null,
+    accessibleClients,
+    clientDetails,
+  };
+}
+
+// ----------------------------------------------------------------
+// GET /api/v1/auth — Return enriched current user from JWT session.
+//
+// Called on every page load by auth-context.js initializeAuth().
+// Returns { user: UserObject } or { user: null } — never 4xx on
+// missing session (the frontend decides what to do with null).
+// ----------------------------------------------------------------
+export async function GET() {
+  let session;
+  try {
+    session = await auth();
+  } catch (err) {
+    console.error("[GET /api/v1/auth] Session read error:", err);
+    return NextResponse.json({ user: null });
+  }
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ user: null });
+  }
+
+  try {
+    const user = await buildUserResponse(session.user.id);
+    return NextResponse.json({ user });
+  } catch (err) {
+    console.error("[GET /api/v1/auth] DB error:", err);
+    // Return null rather than 500 — the frontend gracefully handles a null user
+    return NextResponse.json({ user: null });
+  }
+}
+
+// ----------------------------------------------------------------
+// POST /api/v1/auth — Credential verification for API clients.
+//
+// IMPORTANT: This endpoint verifies credentials and returns user
+// data but does NOT set a session cookie. Callers that need a
+// browser session must use POST /api/auth/callback/credentials
+// (the NextAuth handler) instead.
+//
+// Body: { email: string, password: string }
+// ----------------------------------------------------------------
 export async function POST(request) {
-  const supabase = await createSupabaseInstance(); // ✅ await here
-  const { email, password } = await request.json();
-
-  if (!email || !password) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
     return NextResponse.json(
-      { error: "Email and password are required" },
+      { error: "Invalid request body" },
       { status: 400 }
     );
   }
 
-  // Sign in and get a **verified** user and session
-  const {
-    data: { user, session },
-    error: authError,
-  } = await supabase.auth.signInWithPassword({ email, password });
+  const { email, password } = body;
 
-  if (authError) {
-    return NextResponse.json({ error: authError.message }, { status: 401 });
+  if (!email || typeof email !== "string" || email.trim().length === 0) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  }
+  if (!password || typeof password !== "string") {
+    return NextResponse.json(
+      { error: "Password is required" },
+      { status: 400 }
+    );
   }
 
-  // Fetch your own profiles table
-  const { data: profileData, error: profileError } = await supabase
-    .from("wehoware_profiles")
-    .select("id, first_name, last_name, role, client_id, avatar_url")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError) {
-    console.error("Error fetching user profile:", profileError);
+  let profile;
+  try {
+    profile = await prisma.wehowareProfile.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      select: {
+        id: true,
+        passwordHash: true,
+      },
+    });
+  } catch (err) {
+    console.error("[POST /api/v1/auth] DB error during lookup:", err);
+    return NextResponse.json(
+      { error: "Authentication failed" },
+      { status: 500 }
+    );
   }
 
-  // Build accessibleClients + clientDetails as before...
-  let accessibleClients = [];
-  if (profileData?.role && ["employee", "admin", "client"].includes(profileData.role)) {
-    const { data: clientsData, error: clientsError } = await supabase
-      .from("wehoware_user_clients")
-      .select(
-        "client_id, is_primary, wehoware_clients(id,company_name,domain,website)"
-      )
-      .eq("user_id", user.id);
+  if (!profile || !profile.passwordHash) {
+    // Use the same generic message for missing user and wrong password
+    // to prevent user-enumeration attacks
+    return NextResponse.json(
+      { error: "Invalid email or password" },
+      { status: 401 }
+    );
+  }
 
-    if (!clientsError && clientsData) {
-      accessibleClients = clientsData.map((c) => ({
-        id: c.wehoware_clients.id,
-        name: c.wehoware_clients.company_name,
-        domain: c.wehoware_clients.domain,
-        website: c.wehoware_clients.website,
-        isPrimary: c.is_primary,
-      }));
+  const isValid = await bcrypt.compare(String(password), profile.passwordHash);
+
+  if (!isValid) {
+    return NextResponse.json(
+      { error: "Invalid email or password" },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const user = await buildUserResponse(profile.id);
+    if (!user) {
+      return NextResponse.json(
+        { error: "User profile not found" },
+        { status: 404 }
+      );
     }
+    return NextResponse.json({ user });
+  } catch (err) {
+    console.error("[POST /api/v1/auth] DB error building response:", err);
+    return NextResponse.json(
+      { error: "Failed to load user profile" },
+      { status: 500 }
+    );
   }
-
-  let clientDetails = null;
-  if (profileData?.role === "client" && profileData.client_id) {
-    const { data: clientData, error: clientError } = await supabase
-      .from("wehoware_clients")
-      .select("id, company_name, domain, website")
-      .eq("id", profileData.client_id)
-      .single();
-
-    if (!clientError && clientData) {
-      clientDetails = {
-        id: clientData.id,
-        name: clientData.company_name,
-        domain: clientData.domain,
-        website: clientData.website,
-      };
-    }
-  }
-
-  return NextResponse.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      role: profileData?.role || "unknown",
-      firstName: profileData?.first_name || "",
-      lastName: profileData?.last_name || "",
-      avatarUrl: profileData?.avatar_url || "",
-      clientId: profileData?.client_id || null,
-      accessibleClients,
-      clientDetails,
-    },
-    session: {
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
-      expiresAt: session.expires_at,
-    },
-  });
 }
 
-// — LOGOUT —
-export async function DELETE(request) {
-  const supabase = await createSupabaseInstance(); // ✅ await here
-  const { error } = await supabase.auth.signOut();
+// ----------------------------------------------------------------
+// DELETE /api/v1/auth — Clear NextAuth session cookies.
+//
+// Legacy endpoint — the browser login flow now uses
+// signOut({ redirect: false }) from next-auth/react directly.
+// This endpoint is kept for API clients or non-browser flows.
+// ----------------------------------------------------------------
+export async function DELETE() {
+  const response = NextResponse.json({ success: true });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  return NextResponse.json({ success: true });
-}
-
-// — GET CURRENT USER & SESSION —
-export async function GET(request) {
-  const supabase = await createSupabaseInstance(); // ✅ await here
-
-  // 1) Retrieve session tokens (from your cookie store)
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-  if (sessionError) {
-    return NextResponse.json({ error: sessionError.message }, { status: 401 });
-  }
-
-  // 2) Fetch a **verified** user by contacting Supabase Auth
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  if (userError) {
-    return NextResponse.json({ error: userError.message }, { status: 401 });
-  }
-
-  // If no session or no user, return nulls
-  if (!session || !user) {
-    return NextResponse.json({ user: null, session: null });
-  }
-
-  // 3) Fetch profile data & client info exactly like in POST
-  const { data: profileData, error: profileError } = await supabase
-    .from("wehoware_profiles")
-    .select("id, first_name, last_name, role, client_id, avatar_url")
-    .eq("id", user.id)
-    .single();
-  if (profileError) {
-    console.error("Error fetching user profile:", profileError);
-  }
-
-  let accessibleClients = [];
-  if (profileData?.role && ["employee", "admin", "client"].includes(profileData.role)) {
-    const { data: clientsData, error: clientsError } = await supabase
-      .from("wehoware_user_clients")
-      .select(
-        "client_id, is_primary, wehoware_clients(id,company_name,domain,website)"
-      )
-      .eq("user_id", user.id);
-
-    if (!clientsError && clientsData) {
-      accessibleClients = clientsData.map((c) => ({
-        id: c.wehoware_clients.id,
-        name: c.wehoware_clients.company_name,
-        domain: c.wehoware_clients.domain,
-        website: c.wehoware_clients.website,
-        isPrimary: c.is_primary,
-      }));
-    }
-  }
-
-  let clientDetails = null;
-  if (profileData?.role === "client" && profileData.client_id) {
-    const { data: clientData, error: clientError } = await supabase
-      .from("wehoware_clients")
-      .select("id, company_name, domain, website")
-      .eq("id", profileData.client_id)
-      .single();
-
-    if (!clientError && clientData) {
-      clientDetails = {
-        id: clientData.id,
-        name: clientData.company_name,
-        domain: clientData.domain,
-        website: clientData.website,
-      };
-    }
-  }
-
-  return NextResponse.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      role: profileData?.role || "unknown",
-      firstName: profileData?.first_name || "",
-      lastName: profileData?.last_name || "",
-      avatarUrl: profileData?.avatar_url || "",
-      clientId: profileData?.client_id || null,
-      accessibleClients,
-      clientDetails,
-    },
-    session: {
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
-      expiresAt: session.expires_at,
-    },
+  SESSION_COOKIE_NAMES.forEach((name) => {
+    response.cookies.set(name, "", {
+      httpOnly: true,
+      expires: new Date(0),
+      path: "/",
+      sameSite: "lax",
+    });
   });
+
+  return response;
 }

@@ -157,10 +157,7 @@ export default function BlogCategoriesPage() {
       // Generate slug from name
       const slug = slugify(editingCategory.name, { lower: true, strict: true });
 
-      // Get the current user ID for audit
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      // Get the current user ID for audit (from NextAuth session via useAuth)
       const userId = user?.id;
 
       const { data, error } = await supabase

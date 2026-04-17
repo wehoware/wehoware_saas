@@ -27,3 +27,6 @@ coverage/
 
 # Optional: Storybook build output (if using Storybook)
 storybook-static/
+
+# Claude Code / agent workspace state (not code)
+.claude/

@@ -1,36 +1,120 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Wehoware SaaS
 
-## Getting Started
+Multi-tenant SaaS platform built with **Next.js 15** (App Router, React 19, Turbopack),
+**NextAuth v5** for authentication, **Prisma** ORM, and **MySQL 8.0+**.
 
-First, run the development server:
+---
+
+## Quick start
+
+### 1. Install
+
+```bash
+npm install
+```
+
+### 2. Configure environment
+
+Copy `.env.local.example` (or edit `.env.local`) and fill in:
+
+```env
+# MySQL (AWS RDS, PlanetScale, local — anything MySQL 8.0+)
+DATABASE_URL="mysql://user:pass@host:3306/wehoware"
+
+# NextAuth
+NEXTAUTH_SECRET="run: openssl rand -base64 32"
+NEXTAUTH_URL="http://localhost:3000"
+
+# Default tenant ID (optional, used by public-facing routes)
+NEXT_PUBLIC_CLIENT_ID="your-default-client-uuid"
+
+# --- Transitional only, remove once Supabase is fully ripped out ---
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
+SUPABASE_SERVICE_ROLE_KEY="..."
+```
+
+### 3. Push schema & seed admin user
+
+```bash
+npm run db:push     # create all 26 tables in MySQL
+npm run db:seed     # create default tenant + admin user
+```
+
+Default admin credentials (override via `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`
+env vars): see the console output at the end of `db:seed`.
+
+### 4. Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000> and log in at `/login`.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Useful scripts
 
-## Learn More
+| Command            | What it does                                 |
+| ------------------ | -------------------------------------------- |
+| `npm run dev`      | Start Next.js dev server (Turbopack)         |
+| `npm run build`    | Production build                             |
+| `npm run start`    | Run production build                         |
+| `npm run lint`     | ESLint                                       |
+| `npm run db:push`  | Apply `prisma/schema.prisma` to the database |
+| `npm run db:seed`  | Create default tenant + admin user           |
+| `npm run db:studio`| Open Prisma Studio (browse DB in browser)    |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── lib/
+│   ├── auth.js          # NextAuth v5 config (JWT + credentials)
+│   ├── prisma.js        # Prisma client singleton
+│   └── supabaseAdmin.js # (transitional) still used by ~40 unmigrated routes
+├── app/
+│   ├── api/
+│   │   ├── auth/[...nextauth]/  # NextAuth endpoints
+│   │   ├── v1/auth/             # Our enriched session endpoint
+│   │   └── utils/auth-middleware.js  # withAuth() HOC
+│   └── (pages...)
+├── contexts/
+│   └── auth-context.js  # React context wrapping signIn/signOut
+└── hooks/
+    └── useAuth.js       # re-exports from auth-context
+```
 
-## Deploy on Vercel
+### Migration status (Supabase → MySQL)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Area                            | Status                       |
+| ------------------------------- | ---------------------------- |
+| Database schema (26 tables)     | ✅ Migrated to MySQL/Prisma  |
+| Authentication                  | ✅ Migrated to NextAuth v5   |
+| Session management              | ✅ JWT via `next-auth`       |
+| Auth middleware                 | ✅ Uses Prisma               |
+| ~40 data routes (blogs, services, inquiries, tasks, reports, etc.) | ⚠️  Still call Supabase client (RLS disabled, works with service-role key) |
+| File uploads (thumbnails)       | ⚠️  Still use Supabase Storage — needs S3 replacement |
+| Data migration from old Supabase DB | ❌ Not yet done           |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The transitional Supabase client is attached to `request.supabase` in
+`auth-middleware.js` so unmigrated routes keep working. As each route is
+ported to Prisma, drop its `request.supabase` usage.
+
+---
+
+## Deploying
+
+The app is a standard Next.js 15 app — deploy to Vercel, Railway, Fly, or
+any Node host. Required runtime env vars:
+
+- `DATABASE_URL`
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL` (must match the public URL)
+- Supabase keys (until fully removed)
+
+Run `npm run db:push` + `npm run db:seed` once against the production DB
+before first deploy.

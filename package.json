@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:push": "prisma db push --skip-generate",
+    "db:seed": "node prisma/seed.mjs",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.3",

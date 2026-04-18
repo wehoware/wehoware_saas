@@ -33,7 +33,7 @@ export default function EditClientPage() {
         const res = await fetch(`/api/v1/clients/${clientId}`);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch client");
         const json = await res.json();
-        setClient(json.data);
+        setClient(json.client);
       } catch (error) {
         console.error("Error fetching client:", error);
         toast.error(error.message || "Failed to fetch client");

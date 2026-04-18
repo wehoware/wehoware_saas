@@ -39,6 +39,9 @@ function serializeClient(c) {
 async function getClients(request) {
   try {
     const { prisma, user } = request;
+    const url = new URL(request.url);
+    const sortField = url.searchParams.get("sort_field") || "companyName";
+    const sortOrder = url.searchParams.get("sort_order") || "asc";
 
     if (user.role === "client") {
       if (!user.clientId) {
@@ -56,8 +59,16 @@ async function getClients(request) {
     }
 
     if (["employee", "admin"].includes(user.role)) {
+      const orderByField = {
+        companyName: "companyName",
+        contactPerson: "contactPerson",
+        email: "email",
+        domain: "domain",
+        created_at: "createdAt",
+      }[sortField] || "companyName";
+
       const clients = await prisma.wehowareClient.findMany({
-        orderBy: { companyName: "asc" },
+        orderBy: { [orderByField]: sortOrder === "asc" ? "asc" : "desc" },
       });
       return NextResponse.json({
         clients: clients.map(serializeClient),

@@ -45,7 +45,7 @@ export default function ClientsPage() {
       const res = await fetch(`/api/v1/clients?sort_field=${sortField}&sort_order=${sortOrder}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
       const json = await res.json();
-      setClients(json.data || []);
+      setClients(json.clients || []);
     } catch (error) {
       console.error("Error fetching clients:", error);
       toast.error(error.message || "Failed to fetch clients");

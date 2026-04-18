@@ -110,7 +110,7 @@ export default function UsersPage() {
       const res = await fetch("/api/v1/clients");
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
       const json = await res.json();
-      setClients(json.data || []);
+      setClients(json.clients || []);
     } catch (error) {
       console.error("Error fetching clients:", error);
       toast.error("Failed to fetch client list");

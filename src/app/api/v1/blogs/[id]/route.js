@@ -9,6 +9,37 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 
+function serialize(b) {
+  return {
+    id: b.id,
+    client_id: b.clientId,
+    title: b.title,
+    slug: b.slug,
+    excerpt: b.excerpt,
+    content: b.content,
+    thumbnail: b.thumbnail,
+    status: b.status,
+    category_id: b.categoryId,
+    featured: b.featured,
+    read_time: b.readTime,
+    views: b.views,
+    likes: b.likes,
+    tags: b.tags,
+    created_at: b.createdAt,
+    updated_at: b.updatedAt,
+    published_at: b.publishedAt,
+    created_by: b.createdBy,
+    updated_by: b.updatedBy,
+    meta_title: b.metaTitle,
+    meta_description: b.metaDescription,
+    meta_keywords: b.metaKeywords,
+    wehoware_blog_categories: b.category ? { name: b.category.name } : null,
+    wehoware_profiles: b.creator
+      ? { first_name: b.creator.firstName, last_name: b.creator.lastName }
+      : null,
+  };
+}
+
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
   if (["employee", "admin"].includes(user.role)) {
@@ -72,20 +103,7 @@ export const GET = withAuth(async (request, { params }) => {
       );
     }
 
-    const response = {
-      ...blog,
-      wehoware_blog_categories: blog.category
-        ? { name: blog.category.name }
-        : null,
-      wehoware_profiles: blog.creator
-        ? {
-            first_name: blog.creator.firstName,
-            last_name: blog.creator.lastName,
-          }
-        : null,
-    };
-
-    return NextResponse.json({ blog: response });
+    return NextResponse.json({ blog: serialize(blog) });
   } catch (err) {
     console.error("[GET /api/v1/blogs/[id]] error:", err);
     return NextResponse.json(
@@ -116,17 +134,23 @@ export const PUT = withAuth(
       const {
         title,
         content,
-        category_id: categoryId,
+        category_id,
+        categoryId: categoryIdAlt,
         status,
         thumbnail,
         excerpt,
+        slug: slugInput,
+        tags,
+        featured,
+        read_time,
+        meta_title,
+        meta_description,
+        meta_keywords,
       } = body ?? {};
+      const categoryId = category_id ?? categoryIdAlt;
 
-      if (!title || !content || !categoryId) {
-        return NextResponse.json(
-          { error: "Title, content, and category are required" },
-          { status: 400 }
-        );
+      if (!title) {
+        return NextResponse.json({ error: "Title is required" }, { status: 400 });
       }
 
       // Ownership check
@@ -135,30 +159,32 @@ export const PUT = withAuth(
         select: { id: true, title: true, slug: true },
       });
       if (!existing) {
-        return NextResponse.json(
-          { error: "Blog not found" },
-          { status: 404 }
-        );
+        return NextResponse.json({ error: "Blog not found" }, { status: 404 });
+      }
+
+      let slug = existing.slug;
+      if (slugInput?.trim()) {
+        slug = slugInput.trim();
+      } else if (title !== existing.title) {
+        slug = await generateUniqueSlug(prisma, title, clientId, existing.slug);
       }
 
       const updateData = {
         title,
-        content,
-        excerpt: excerpt ?? null,
-        categoryId,
-        status: status || "Draft",
-        thumbnail: thumbnail ?? null,
+        slug,
         updatedBy: user.id,
       };
-
-      if (title !== existing.title) {
-        updateData.slug = await generateUniqueSlug(
-          prisma,
-          title,
-          clientId,
-          existing.slug
-        );
-      }
+      if (content !== undefined) updateData.content = content;
+      if (excerpt !== undefined) updateData.excerpt = excerpt ?? null;
+      if (categoryId !== undefined) updateData.categoryId = categoryId ?? null;
+      if (status !== undefined) updateData.status = status || "Draft";
+      if (thumbnail !== undefined) updateData.thumbnail = thumbnail ?? null;
+      if (tags !== undefined) updateData.tags = tags;
+      if (featured !== undefined) updateData.featured = featured;
+      if (read_time !== undefined) updateData.readTime = read_time ?? null;
+      if (meta_title !== undefined) updateData.metaTitle = meta_title ?? null;
+      if (meta_description !== undefined) updateData.metaDescription = meta_description ?? null;
+      if (meta_keywords !== undefined) updateData.metaKeywords = meta_keywords ?? null;
 
       const blog = await prisma.wehowareBlog.update({
         where: { id },
@@ -166,7 +192,7 @@ export const PUT = withAuth(
         include: { category: { select: { id: true, name: true } } },
       });
 
-      return NextResponse.json({ blog });
+      return NextResponse.json({ blog: serialize(blog) });
     } catch (err) {
       console.error("[PUT /api/v1/blogs/[id]] error:", err);
       if (err?.code === "P2003") {

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabase";
 import Link from "next/link";
 import { ArrowLeft, InfoIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -49,13 +48,10 @@ export default function AddIntegrationPage() {
   async function fetchProviders() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("wehoware_integration_providers")
-        .select("*")
-        .order("name");
-
-      if (error) throw error;
-      setProviders(data || []);
+      const res = await fetch("/api/v1/integrations/providers");
+      if (!res.ok) throw new Error("Failed to load integration providers");
+      const json = await res.json();
+      setProviders(json.data || []);
     } catch (error) {
       console.error("Error fetching providers:", error.message);
       toast.error("Failed to load integration providers");
@@ -98,22 +94,21 @@ export default function AddIntegrationPage() {
     try {
       setSaving(true);
 
-      const { data, error } = await supabase
-        .from("wehoware_integrations")
-        .insert([
-          {
-            ...integration,
-            config: integration.config || {},
-          },
-        ])
-        .select();
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        toast.success("Integration added successfully");
-        router.push("/admin/integrations");
+      const res = await fetch("/api/v1/integrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...integration,
+          config: integration.config || {},
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to save integration");
       }
+
+      toast.success("Integration added successfully");
+      router.push("/admin/integrations");
     } catch (error) {
       console.error("Error saving integration:", error.message);
       toast.error("Failed to save integration");

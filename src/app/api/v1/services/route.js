@@ -31,6 +31,38 @@ const FIELD_MAP = {
   featured: "featured",
 };
 
+function serialize(s) {
+  return {
+    id: s.id,
+    client_id: s.clientId,
+    category_id: s.categoryId,
+    title: s.title,
+    slug: s.slug,
+    description: s.description,
+    content: s.content,
+    thumbnail: s.thumbnail,
+    fee: s.fee,
+    fee_currency: s.feeCurrency,
+    service_code: s.serviceCode,
+    duration: s.duration,
+    tags: s.tags,
+    active: s.active,
+    featured: s.featured,
+    sort_order: s.sortOrder,
+    views: s.views,
+    created_at: s.createdAt,
+    updated_at: s.updatedAt,
+    created_by: s.createdBy,
+    updated_by: s.updatedBy,
+    meta_title: s.metaTitle,
+    meta_description: s.metaDescription,
+    meta_keywords: s.metaKeywords,
+    wehoware_service_categories: s.category
+      ? { id: s.category.id, name: s.category.name, slug: s.category.slug }
+      : null,
+  };
+}
+
 /**
  * Resolve which client context (tenant) applies for the current request.
  * Returns null if the user has no valid context.
@@ -134,17 +166,7 @@ export const GET = withAuth(
         prisma.wehowareService.count({ where }),
       ]);
 
-      // Preserve the old response shape for the admin UI
-      const data = items.map((s) => ({
-        ...s,
-        wehoware_service_categories: s.category
-          ? {
-              id: s.category.id,
-              name: s.category.name,
-              slug: s.category.slug,
-            }
-          : null,
-      }));
+      const data = items.map(serialize);
 
       return NextResponse.json({
         data,
@@ -243,18 +265,7 @@ export const POST = withAuth(
         },
       });
 
-      const response = {
-        ...service,
-        wehoware_service_categories: service.category
-          ? {
-              id: service.category.id,
-              name: service.category.name,
-              slug: service.category.slug,
-            }
-          : null,
-      };
-
-      return NextResponse.json({ service: response }, { status: 201 });
+      return NextResponse.json({ service: serialize(service) }, { status: 201 });
     } catch (err) {
       console.error("[POST /api/v1/services] error:", err);
       if (err?.code === "P2003") {

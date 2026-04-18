@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import supabase from '@/lib/supabase';
 import { useAuth } from "@/contexts/auth-context";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import GeneralSettingsForm from "@/components/settings/GeneralSettingsForm";
@@ -39,19 +38,17 @@ export default function SettingsPage() {
         if (!activeClient?.id) return;
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('wehoware_settings')
-                .select('setting_key, setting_value')
-                .eq('client_id', activeClient.id)
-                .in('setting_key', allSettingKeys);
-
-            if (error) throw error;
+            const [generalRes, themeRes] = await Promise.all([
+                fetch('/api/v1/settings?format=keyValue&group=general'),
+                fetch('/api/v1/settings?format=keyValue&group=theme'),
+            ]);
+            if (!generalRes.ok || !themeRes.ok) throw new Error('Failed to load settings');
+            const generalJson = await generalRes.json();
+            const themeJson = await themeRes.json();
 
             const fetchedSettings = {};
-            allSettingKeys.forEach(key => {
-                const found = data.find(item => item.setting_key === key);
-                fetchedSettings[key] = found ? found.setting_value : ''; // Default to empty string if not found
-            });
+            allSettingKeys.forEach(key => { fetchedSettings[key] = ''; });
+            Object.assign(fetchedSettings, generalJson.data || {}, themeJson.data || {});
             setSettings(fetchedSettings);
 
         } catch (error) {
@@ -89,13 +86,11 @@ export default function SettingsPage() {
 
         try {
             const updates = keysToSave
-                .filter(key => key in settings) // Only include keys present in the current state
+                .filter(key => key in settings)
                 .map(key => ({
-                    client_id: activeClient.id,
                     setting_key: key,
-                    setting_value: String(settings[key] || ''), // Ensure value is string and handle null/undefined
-                    setting_group: group, // Assign group based on the form saving
-                    updated_at: new Date().toISOString(),
+                    setting_value: String(settings[key] || ''),
+                    setting_group: group,
                 }));
 
             if (updates.length === 0) {
@@ -104,11 +99,12 @@ export default function SettingsPage() {
                 return;
             }
 
-            const { error } = await supabase
-                .from('wehoware_settings')
-                .upsert(updates, { onConflict: 'client_id, setting_key' });
-
-            if (error) throw error;
+            const res = await fetch('/api/v1/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings: updates }),
+            });
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to save settings');
 
             toast.success(`${group.charAt(0).toUpperCase() + group.slice(1)} settings saved successfully!`);
             // Optionally re-fetch settings after save, or just rely on local state

@@ -26,7 +26,7 @@ import {
   FolderTree,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import supabase from "@/lib/supabase";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,34 +64,13 @@ export default function ServicesPage() {
   const fetchServices = async () => {
     try {
       setIsLoading(true);
-
-      // Create the query
-      let query = supabase
-        .from("wehoware_services")
-        .select("*")
-        .eq("client_id", activeClient.id);
-
-      // Apply search if there is a search term
-      if (searchTerm) {
-        query = query.or(
-          `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
-        );
-      }
-
-      // Apply sorting
-      query = query.order(sortField, { ascending: sortOrder === "asc" });
-
-      if (showActiveOnly) {
-        query = query.eq("active", true);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      setServices(data || []);
+      const params = new URLSearchParams({ sortBy: sortField, sortOrder, limit: "100" });
+      if (showActiveOnly) params.set("active", "true");
+      if (searchTerm) params.set("search", searchTerm);
+      const res = await fetch(`/api/v1/services?${params}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch services");
+      const json = await res.json();
+      setServices(json.data || []);
     } catch (error) {
       console.error("Error fetching services:", error);
       setErrorMessage(error.message || "Failed to fetch services");
@@ -103,17 +82,10 @@ export default function ServicesPage() {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from("wehoware_service_categories")
-        .select("*")
-        .eq("client_id", activeClient.id)
-        .order("name");
-
-      if (error) {
-        throw error;
-      }
-
-      setCategories(data || []);
+      const res = await fetch("/api/v1/services/categories");
+      if (!res.ok) return;
+      const json = await res.json();
+      setCategories(json.data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
@@ -155,22 +127,9 @@ export default function ServicesPage() {
     try {
       setDeleteLoading(true);
 
-      // Get the current user ID for audit
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const userId = user?.id;
+      const res = await fetch(`/api/v1/services/${serviceToDelete.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to delete service");
 
-      const { error } = await supabase
-        .from("wehoware_services")
-        .delete()
-        .eq("id", serviceToDelete.id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Update local state without refetching
       setServices((prev) =>
         prev.filter((service) => service.id !== serviceToDelete.id)
       );

@@ -27,7 +27,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import supabase from "@/lib/supabase";
+
 import slugify from "slugify";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
@@ -81,15 +81,10 @@ export default function AddServicePage() {
         return;
       }
       try {
-        const { data, error } = await supabase
-          .from("wehoware_service_categories")
-          .select("id, name")
-          .eq("client_id", activeClient.id)
-          .eq("active", true)
-          .order("name");
-
-        if (error) throw error;
-        setCategories(data || []);
+        const res = await fetch("/api/v1/services/categories?active=true");
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to load categories");
+        const json = await res.json();
+        setCategories(json.data || []);
       } catch (error) {
         console.error("Error fetching categories:", error);
         setErrorMessage("Failed to load service categories.");
@@ -268,22 +263,12 @@ export default function AddServicePage() {
         updated_by: user?.id,
       };
 
-      const { data, error } = await supabase
-        .from("wehoware_services")
-        .insert([finalData])
-        .select();
-      if (error) {
-        console.error("Supabase insert error:", error);
-        // Check for specific Supabase errors if needed
-        if (error.code === "23505") {
-          // Example: unique constraint violation
-          throw new Error(
-            `Database Error: A service with this slug or another unique field might already exist. ${error.details}`
-          );
-        } else {
-          throw new Error(`Database Error: ${error.message}`);
-        }
-      }
+      const res = await fetch("/api/v1/services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalData),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to add service");
       setOriginalThumbnailUrl(thumbnailUrlToSave);
       toast.success("Service added successfully!");
       setIsLoading(false);

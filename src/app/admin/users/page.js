@@ -26,7 +26,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import supabase from "@/lib/supabase";
+
 import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
@@ -107,13 +107,10 @@ export default function UsersPage() {
 
   const fetchClients = async () => {
     try {
-      const { data, error } = await supabase
-        .from("wehoware_clients")
-        .select("id, company_name")
-        .eq("active", true)
-        .order("company_name");
-      if (error) throw error;
-      setClients(data || []);
+      const res = await fetch("/api/v1/clients");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
+      const json = await res.json();
+      setClients(json.data || []);
     } catch (error) {
       console.error("Error fetching clients:", error);
       toast.error("Failed to fetch client list");

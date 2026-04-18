@@ -9,6 +9,38 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 
+function serialize(s) {
+  return {
+    id: s.id,
+    client_id: s.clientId,
+    category_id: s.categoryId,
+    title: s.title,
+    slug: s.slug,
+    description: s.description,
+    content: s.content,
+    thumbnail: s.thumbnail,
+    fee: s.fee,
+    fee_currency: s.feeCurrency,
+    service_code: s.serviceCode,
+    duration: s.duration,
+    tags: s.tags,
+    active: s.active,
+    featured: s.featured,
+    sort_order: s.sortOrder,
+    views: s.views,
+    created_at: s.createdAt,
+    updated_at: s.updatedAt,
+    created_by: s.createdBy,
+    updated_by: s.updatedBy,
+    meta_title: s.metaTitle,
+    meta_description: s.metaDescription,
+    meta_keywords: s.metaKeywords,
+    wehoware_service_categories: s.category
+      ? { id: s.category.id, name: s.category.name, slug: s.category.slug }
+      : null,
+  };
+}
+
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
   if (["employee", "admin"].includes(user.role)) {
@@ -78,18 +110,7 @@ export const GET = withAuth(
         );
       }
 
-      const response = {
-        ...service,
-        wehoware_service_categories: service.category
-          ? {
-              id: service.category.id,
-              name: service.category.name,
-              slug: service.category.slug,
-            }
-          : null,
-      };
-
-      return NextResponse.json({ service: response });
+      return NextResponse.json({ service: serialize(service) });
     } catch (err) {
       console.error("[GET /api/v1/services/[id]] error:", err);
       return NextResponse.json(
@@ -209,18 +230,7 @@ export const PUT = withAuth(
         },
       });
 
-      const response = {
-        ...service,
-        wehoware_service_categories: service.category
-          ? {
-              id: service.category.id,
-              name: service.category.name,
-              slug: service.category.slug,
-            }
-          : null,
-      };
-
-      return NextResponse.json({ service: response });
+      return NextResponse.json({ service: serialize(service) });
     } catch (err) {
       console.error("[PUT /api/v1/services/[id]] error:", err);
       if (err?.code === "P2003") {

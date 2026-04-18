@@ -29,7 +29,7 @@ import {
   X as XIcon, // Added XIcon
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import supabase from "@/lib/supabase";
+
 import slugify from "slugify";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
@@ -84,44 +84,33 @@ export default function EditServicePage({ params }) {
     const fetchService = async () => {
       try {
         setIsFetching(true);
+        const res = await fetch(`/api/v1/services/${id}`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Service not found");
+        const json = await res.json();
+        const data = json.service;
+        if (!data) throw new Error("Service not found");
 
-        const { data, error } = await supabase
-          .from("wehoware_services")
-          .select("*, category_id(id, name)")
-          .eq("id", id)
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        if (data) {
-          const initialThumbnailUrl = data.thumbnail || "";
-          setFormData({
-            category_id: data.category_id?.id || "",
-            title: data.title || "",
-            slug: data.slug || "",
-            short_description: data.description || "",
-            content: data.content || "",
-            thumbnail: initialThumbnailUrl,
-            price: data.fee ? String(data.fee) : "",
-            fee_currency: data.fee_currency || "CAD",
-            service_code: data.service_code || "",
-            tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
-            duration: data.duration || "",
-            active: data.active === true,
-            featured: data.featured === true,
-            seo_title: data.meta_title || "",
-            seo_description: data.meta_description || "",
-            seo_keywords: data.meta_keywords || "",
-          });
-          setOriginalThumbnailUrl(initialThumbnailUrl); // Store original
-          setPreviewUrl(initialThumbnailUrl); // Set initial preview
-        } else {
-          setErrorDialogOpen(true);
-          setErrorMessage("Service not found");
-          setTimeout(() => router.push("/admin/services"), 100);
-        }
+        const initialThumbnailUrl = data.thumbnail || "";
+        setFormData({
+          category_id: data.category_id || "",
+          title: data.title || "",
+          slug: data.slug || "",
+          short_description: data.description || "",
+          content: data.content || "",
+          thumbnail: initialThumbnailUrl,
+          price: data.fee ? String(data.fee) : "",
+          fee_currency: data.fee_currency || "CAD",
+          service_code: data.service_code || "",
+          tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
+          duration: data.duration || "",
+          active: data.active === true,
+          featured: data.featured === true,
+          seo_title: data.meta_title || "",
+          seo_description: data.meta_description || "",
+          seo_keywords: data.meta_keywords || "",
+        });
+        setOriginalThumbnailUrl(initialThumbnailUrl);
+        setPreviewUrl(initialThumbnailUrl);
       } catch (error) {
         console.error("Error fetching service:", error);
         setErrorDialogOpen(true);
@@ -142,14 +131,10 @@ export default function EditServicePage({ params }) {
         return;
       }
       try {
-        const { data, error } = await supabase
-          .from("wehoware_service_categories")
-          .select("id, name")
-          .eq("client_id", activeClient.id)
-          .order("name");
-
-        if (error) throw error;
-        setCategories(data || []);
+        const res = await fetch("/api/v1/services/categories");
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch categories");
+        const json = await res.json();
+        setCategories(json.data || []);
       } catch (error) {
         console.error("Error fetching categories:", error);
         setErrorMessage(error.message || "Failed to fetch service categories");
@@ -283,14 +268,8 @@ export default function EditServicePage({ params }) {
         }
       }
 
-      const categoryIdToSend =
-        typeof formData.category_id === "object" &&
-        formData.category_id !== null
-          ? formData.category_id.id
-          : formData.category_id;
-
       const updateData = {
-        category_id: categoryIdToSend,
+        category_id: formData.category_id,
         title: formData.title,
         slug:
           formData.slug ||
@@ -315,22 +294,13 @@ export default function EditServicePage({ params }) {
       };
 
       toast.loading("Saving service...");
-      const { error } = await supabase
-        .from("wehoware_services")
-        .update(updateData)
-        .eq("id", id);
-
+      const res = await fetch(`/api/v1/services/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      });
       toast.dismiss();
-
-      if (error) {
-        // If update fails after upload, the uploaded file remains.
-        // Consider adding manual cleanup later if needed.
-        console.error(
-          "Database update failed AFTER potential storage action:",
-          error
-        );
-        throw error;
-      }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to update service");
 
       setSuccessDialogOpen(true);
       // Update original URL state after successful save

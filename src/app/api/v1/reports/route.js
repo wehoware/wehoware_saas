@@ -47,6 +47,13 @@ function serializeReport(r) {
           last_name: r.creator.lastName,
         }
       : null,
+    template: r.template
+      ? {
+          id: r.template.id,
+          title: r.template.title,
+          report_type: r.template.reportType,
+        }
+      : null,
   };
 }
 
@@ -83,6 +90,7 @@ export const GET = withAuth(
           where,
           include: {
             creator: { select: { id: true, firstName: true, lastName: true } },
+            template: { select: { id: true, title: true, reportType: true } },
           },
           orderBy: { createdAt: sortOrder },
           skip: (page - 1) * limit,

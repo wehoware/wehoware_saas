@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabase";
 import Link from "next/link";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -52,13 +51,10 @@ export default function GenerateReportPage() {
   async function fetchTemplates() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("wehoware_report_templates")
-        .select("*")
-        .order("title");
-
-      if (error) throw error;
-      setTemplates(data || []);
+      const res = await fetch('/api/v1/report-templates');
+      if (!res.ok) throw new Error('Failed to load report templates');
+      const json = await res.json();
+      setTemplates(json.data || []);
     } catch (error) {
       console.error("Error fetching templates:", error.message);
       toast.error("Failed to load report templates");
@@ -200,23 +196,19 @@ export default function GenerateReportPage() {
       }
 
       // Save the report to the database
-      const { data, error } = await supabase
-        .from("wehoware_reports")
-        .insert([
-          {
-            ...report,
-            report_data: reportData,
-            last_generated_at: new Date().toISOString(),
-          },
-        ])
-        .select();
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        toast.success("Report generated successfully");
-        router.push(`/admin/reports/view/${data[0].id}`);
-      }
+      const res = await fetch('/api/v1/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...report,
+          report_data: reportData,
+          last_generated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to generate report');
+      const createdReport = await res.json();
+      toast.success("Report generated successfully");
+      router.push('/admin/reports/view/' + createdReport.id);
     } catch (error) {
       console.error("Error generating report:", error.message);
       toast.error("Failed to generate report");

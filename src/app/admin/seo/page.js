@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import supabase from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -43,30 +42,18 @@ export default function SEOPage() {
     if (!activeClient?.id) return;
     setIsLoading(true);
     try {
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('wehoware_settings')
-        .select('setting_key, setting_value')
-        .eq('client_id', activeClient.id)
-        .in('setting_key', Object.keys(defaultGlobalSettings));
-
-      if (settingsError) throw settingsError;
+      const [settingsRes, pagesRes] = await Promise.all([
+        fetch('/api/v1/seo/settings?format=keyValue'),
+        fetch('/api/v1/seo/static-pages?limit=100&sortBy=page_slug&sortOrder=asc'),
+      ]);
+      if (!settingsRes.ok || !pagesRes.ok) throw new Error('Failed to load SEO data');
+      const settingsJson = await settingsRes.json();
+      const pagesJson = await pagesRes.json();
 
       const fetchedSettings = { ...defaultGlobalSettings };
-      settingsData.forEach(item => {
-        if (item.setting_key in fetchedSettings) {
-          fetchedSettings[item.setting_key] = item.setting_value;
-        }
-      });
+      Object.assign(fetchedSettings, settingsJson.data || {});
       setGlobalSettings(fetchedSettings);
-
-      const { data: pagesData, error: pagesError } = await supabase
-        .from('wehoware_static_pages')
-        .select('*')
-        .eq('client_id', activeClient.id)
-        .order('page_slug', { ascending: true });
-
-      if (pagesError) throw pagesError;
-      setStaticPages(pagesData || []);
+      setStaticPages(pagesJson.data || []);
 
     } catch (error) {
       console.error('Error fetching SEO data:', error);
@@ -100,26 +87,21 @@ export default function SEOPage() {
       const updates = Object.entries(globalSettings)
         .filter(([key]) => key in defaultGlobalSettings)
         .map(([key, value]) => ({
-          client_id: activeClient.id,
           setting_key: key,
           setting_value: String(value || ''),
           setting_group: 'seo_global',
-          updated_at: new Date().toISOString(),
         }));
 
-      const { error } = await supabase
-        .from('wehoware_settings')
-        .upsert(updates, { onConflict: 'client_id, setting_key' });
-
-      if (error) throw error;
+      const res = await fetch('/api/v1/seo/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: updates }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to save global settings');
       toast.success("Global SEO settings saved successfully!");
     } catch (error) {
       console.error('Error saving global settings:', error);
-      if (error.message?.includes('unique constraint')) {
-        toast.error("Failed to save: A unique setting already exists. Ensure your database schema is updated.");
-      } else {
-        toast.error("Failed to save global settings. " + error.message);
-      }
+      toast.error("Failed to save global settings. " + error.message);
     } finally {
       setIsSavingGlobal(false);
     }
@@ -138,71 +120,32 @@ export default function SEOPage() {
   const handleSaveStaticPage = async (pageFormData) => {
     if (!activeClient?.id) return;
 
-    const pageData = {
-      ...pageFormData,
-      client_id: activeClient.id,
-      updated_at: new Date().toISOString(),
-    };
-
-    const isNewPage = !pageData.id;
-    if (isNewPage) {
-      delete pageData.id;
-      pageData.created_at = new Date().toISOString();
-    } else {
-      delete pageData.created_at;
-    }
-
-    delete pageData.content;
-    delete pageData.template_name;
+    const isNewPage = !pageFormData.id;
+    const cleanData = { ...pageFormData };
+    delete cleanData.content;
+    delete cleanData.template_name;
 
     setIsSavingStaticPage(true);
     try {
-      let error;
+      let res;
       if (isNewPage) {
-        const { data: existing, error: checkError } = await supabase
-          .from('wehoware_static_pages')
-          .select('id')
-          .eq('client_id', activeClient.id)
-          .eq('page_slug', pageData.page_slug)
-          .maybeSingle();
-
-        if (checkError) throw checkError;
-        if (existing) {
-          toast.error(`Page slug "${pageData.page_slug}" already exists.`);
-          setIsSavingStaticPage(false);
-          return;
-        }
-
-        const { error: insertError } = await supabase
-          .from('wehoware_static_pages')
-          .insert(pageData);
-        error = insertError;
+        res = await fetch('/api/v1/seo/static-pages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cleanData),
+        });
       } else {
-        const { data: existing, error: checkError } = await supabase
-          .from('wehoware_static_pages')
-          .select('id')
-          .eq('client_id', activeClient.id)
-          .eq('page_slug', pageData.page_slug)
-          .neq('id', pageData.id)
-          .maybeSingle();
-
-        if (checkError) throw checkError;
-        if (existing) {
-          toast.error(`Page slug "${pageData.page_slug}" already exists.`);
-          setIsSavingStaticPage(false);
-          return;
-        }
-
-        const { error: updateError } = await supabase
-          .from('wehoware_static_pages')
-          .update(pageData)
-          .eq('id', pageData.id)
-          .eq('client_id', activeClient.id);
-        error = updateError;
+        const { id, ...updateData } = cleanData;
+        res = await fetch(`/api/v1/seo/static-pages/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData),
+        });
       }
-
-      if (error) throw error;
-
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || `Failed to ${isNewPage ? 'add' : 'update'} static page`);
+      }
       toast.success(`Static page ${isNewPage ? 'added' : 'updated'} successfully!`);
       setIsStaticPageDialogOpen(false);
       fetchSettings();
@@ -224,13 +167,8 @@ export default function SEOPage() {
 
     setIsSavingStaticPage(true);
     try {
-      const { error } = await supabase
-        .from('wehoware_static_pages')
-        .delete()
-        .eq('id', pageToDelete.id)
-        .eq('client_id', activeClient.id);
-
-      if (error) throw error;
+      const res = await fetch(`/api/v1/seo/static-pages/${pageToDelete.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to delete static page');
 
       toast.success("Static page deleted successfully!");
       setIsDeleteDialogOpen(false);

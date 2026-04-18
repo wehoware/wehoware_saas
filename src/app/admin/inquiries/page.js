@@ -23,7 +23,6 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import supabase from "@/lib/supabase";
 import AlertComponent from "@/components/ui/alert-component";
 import {
   DropdownMenu,
@@ -73,39 +72,20 @@ export default function InquiriesPage() {
         return;
       }
 
-      // Build query for inquiries with a join on services (only title)
-      let query = supabase
-        .from("wehoware_inquiries")
-        .select(
-          `
-          *,
-          wehoware_services(title)
-        `
-        )
-        .order(sortField, { ascending: sortOrder === "asc" });
+      const params = new URLSearchParams({
+        limit: '100',
+        sort_by: sortField,
+        sort_order: sortOrder,
+      });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      const res = await fetch(`/api/v1/inquiries?${params}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to fetch inquiries');
+      const json = await res.json();
 
-      // Add client_id filter
-      query = query.eq("client_id", activeClient.id);
-
-      // Filter by status if needed
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      // Format data to include service name and formatted date
-      const formattedData = data.map((inquiry) => ({
+      const formattedData = (json.data || []).map((inquiry) => ({
         ...inquiry,
-        service:
-          inquiry.wehoware_services && inquiry.wehoware_services.title
-            ? inquiry.wehoware_services.title
-            : "General Inquiry",
-        date: new Date(inquiry.created_at).toISOString().split("T")[0],
+        service: 'General Inquiry',
+        date: new Date(inquiry.created_at).toISOString().split('T')[0],
       }));
 
       setInquiries(formattedData || []);
@@ -120,22 +100,10 @@ export default function InquiriesPage() {
 
   const fetchServices = async () => {
     try {
-      // Declare query with 'let' so it can be updated
-      let query = supabase
-        .from("wehoware_services")
-        .select("id, title")
-        .order("title");
-
-      // Also filter services by active client if applicable
-      if (activeClient?.id) {
-        query = query.eq("client_id", activeClient.id);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        throw error;
-      }
-      setServices(data || []);
+      const res = await fetch('/api/v1/services?limit=100&sortBy=title');
+      if (!res.ok) return;
+      const json = await res.json();
+      setServices(json.data || []);
     } catch (error) {
       console.error("Error fetching services:", error);
     }
@@ -169,14 +137,12 @@ export default function InquiriesPage() {
     try {
       setIsLoading(true);
 
-      const { error } = await supabase
-        .from("wehoware_inquiries")
-        .update({ status: newStatus })
-        .eq("id", inquiry.id);
-
-      if (error) {
-        throw error;
-      }
+      const res = await fetch('/api/v1/inquiries', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: inquiry.id, status: newStatus }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to update inquiry status');
 
       // Update local inquiry state
       setInquiries((prev) =>

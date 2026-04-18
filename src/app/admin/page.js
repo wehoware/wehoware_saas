@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import supabase from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 import {
   Card,
@@ -52,41 +51,28 @@ export default function DashboardPage() {
     try {
       // Fetch counts in parallel
       const [inquiriesRes, postsRes, servicesRes, categoriesRes] = await Promise.all([
-        supabase
-          .from("wehoware_inquiries")
-          .select("id", { count: "exact", head: true })
-          .eq("client_id", activeClient.id),
-        supabase
-          .from("wehoware_blogs")
-          .select("id", { count: "exact", head: true })
-          .eq("client_id", activeClient.id),
-        supabase
-          .from("wehoware_services")
-          .select("id", { count: "exact", head: true })
-          .eq("client_id", activeClient.id),
-        supabase
-          .from("wehoware_blog_categories")
-          .select("id", { count: "exact", head: true })
-          .eq("client_id", activeClient.id),
+        fetch('/api/v1/inquiries?limit=1'),
+        fetch('/api/v1/blogs?limit=1'),
+        fetch('/api/v1/services?limit=1'),
+        fetch('/api/v1/blogs/categories'),
       ]);
-      // Check for errors (simplified error check)
-      if (inquiriesRes.error || postsRes.error || servicesRes.error || categoriesRes.error) {
-        console.error(
-          "Error fetching counts:",
-          inquiriesRes.error,
-          postsRes.error,
-          servicesRes.error,
-          categoriesRes.error
-        );
+      if (!inquiriesRes.ok || !postsRes.ok || !servicesRes.ok || !categoriesRes.ok) {
         throw new Error("Failed to load some dashboard data.");
       }
 
+      const [inquiriesJson, postsJson, servicesJson, categoriesJson] = await Promise.all([
+        inquiriesRes.json(),
+        postsRes.json(),
+        servicesRes.json(),
+        categoriesRes.json(),
+      ]);
+
       setDashboardData((prev) => ({
-        ...prev, // Keep placeholders for now
-        pendingInquiries: inquiriesRes.count || 0,
-        blogPosts: postsRes.count || 0,
-        activeServices: servicesRes.count || 0,
-        blogCategories: categoriesRes.count || 0,
+        ...prev,
+        pendingInquiries: inquiriesJson.pagination?.totalItems || 0,
+        blogPosts: postsJson.pagination?.totalItems || 0,
+        activeServices: servicesJson.pagination?.totalItems || 0,
+        blogCategories: (categoriesJson.data || []).length,
       }));
     } catch (error) {
       console.error("Error fetching dashboard data:", error);

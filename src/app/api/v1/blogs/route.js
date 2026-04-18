@@ -27,6 +27,34 @@ const FIELD_MAP = {
   status: "status",
 };
 
+function serialize(b) {
+  return {
+    id: b.id,
+    client_id: b.clientId,
+    title: b.title,
+    slug: b.slug,
+    excerpt: b.excerpt,
+    content: b.content,
+    thumbnail: b.thumbnail,
+    status: b.status,
+    category_id: b.categoryId,
+    featured: b.featured,
+    read_time: b.readTime,
+    views: b.views,
+    likes: b.likes,
+    tags: b.tags,
+    created_at: b.createdAt,
+    updated_at: b.updatedAt,
+    published_at: b.publishedAt,
+    created_by: b.createdBy,
+    updated_by: b.updatedBy,
+    meta_title: b.metaTitle,
+    meta_description: b.metaDescription,
+    meta_keywords: b.metaKeywords,
+    wehoware_blog_categories: b.category ? { name: b.category.name } : null,
+  };
+}
+
 /**
  * Resolve which client context (tenant) applies for the current request.
  * Returns null if the user has no valid context.
@@ -118,11 +146,7 @@ export const GET = withAuth(async (request) => {
       prisma.wehowareBlog.count({ where }),
     ]);
 
-    // Preserve the old response shape used by admin/blogs/page.js etc.
-    const blogs = items.map((b) => ({
-      ...b,
-      wehoware_blog_categories: b.category ? { name: b.category.name } : null,
-    }));
+    const blogs = items.map(serialize);
 
     return NextResponse.json({
       blogs,
@@ -161,20 +185,31 @@ export const POST = withAuth(
       const {
         title,
         content,
-        category_id: categoryId,
+        category_id,
+        categoryId: categoryIdAlt,
         status,
         thumbnail,
         excerpt,
+        slug: slugInput,
+        tags,
+        featured,
+        read_time,
+        meta_title,
+        meta_description,
+        meta_keywords,
       } = body ?? {};
+      const categoryId = category_id ?? categoryIdAlt;
 
-      if (!title || !content || !categoryId) {
+      if (!title || !content) {
         return NextResponse.json(
-          { error: "Title, content, and category are required" },
+          { error: "Title and content are required" },
           { status: 400 }
         );
       }
 
-      const slug = await generateUniqueSlug(prisma, title, clientId);
+      const slug = slugInput?.trim()
+        ? slugInput.trim()
+        : await generateUniqueSlug(prisma, title, clientId);
 
       const blog = await prisma.wehowareBlog.create({
         data: {
@@ -182,19 +217,23 @@ export const POST = withAuth(
           slug,
           content,
           excerpt: excerpt ?? null,
-          categoryId,
+          categoryId: categoryId ?? null,
           status: status || "Draft",
           thumbnail: thumbnail ?? null,
           clientId,
+          tags: tags ?? [],
+          featured: featured ?? false,
+          readTime: read_time ?? null,
+          metaTitle: meta_title ?? null,
+          metaDescription: meta_description ?? null,
+          metaKeywords: meta_keywords ?? null,
           createdBy: user.id,
           updatedBy: user.id,
         },
-        include: {
-          category: { select: { id: true, name: true } },
-        },
+        include: { category: { select: { id: true, name: true } } },
       });
 
-      return NextResponse.json({ blog }, { status: 201 });
+      return NextResponse.json({ blog: serialize(blog) }, { status: 201 });
     } catch (err) {
       console.error("[POST /api/v1/blogs] error:", err);
       // Prisma known-error codes → friendlier messages

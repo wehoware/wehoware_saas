@@ -26,7 +26,7 @@ import {
   UploadCloud,
   X as XIcon,
 } from "lucide-react";
-import supabase from "@/lib/supabase";
+
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import { useAuth } from "@/contexts/auth-context";
@@ -85,15 +85,8 @@ export default function EditBlogPage() {
     const fetchData = async () => {
       try {
         setIsFetching(true);
-        const blogPost = await fetchBlogPost();
-        if (blogPost?.client_id) {
-          await fetchCategories(blogPost.client_id);
-        } else {
-          console.warn(
-            "Blog post or client_id not found, cannot fetch categories."
-          );
-          setCategories([]);
-        }
+        await fetchBlogPost();
+        await fetchCategories();
       } catch (error) {
         console.error("Error fetching data:", error);
         setErrorMessage(error.message || "Failed to fetch data");
@@ -111,19 +104,11 @@ export default function EditBlogPage() {
   const fetchBlogPost = async () => {
     if (!id) return null;
     try {
-      const { data: blogPostData, error } = await supabase
-        .from("wehoware_blogs")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      if (!blogPostData) {
-        throw new Error("Blog post not found");
-      }
+      const res = await fetch(`/api/v1/blogs/${id}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Blog post not found");
+      const json = await res.json();
+      const blogPostData = json.blog;
+      if (!blogPostData) throw new Error("Blog post not found");
 
       const initialThumbnailUrl = blogPostData.thumbnail || "";
       setFormData({
@@ -134,19 +119,15 @@ export default function EditBlogPage() {
         thumbnail: blogPostData.thumbnail || "",
         status: blogPostData.status || "Draft",
         category_id: blogPostData.category_id || "",
-        tags: Array.isArray(blogPostData.tags)
-          ? blogPostData.tags.join(", ")
-          : "",
+        tags: Array.isArray(blogPostData.tags) ? blogPostData.tags.join(", ") : "",
         featured: blogPostData.featured === true,
-        read_time:
-          blogPostData.read_time !== null ? String(blogPostData.read_time) : "",
+        read_time: blogPostData.read_time !== null ? String(blogPostData.read_time) : "",
         seo_title: blogPostData.meta_title || "",
         seo_description: blogPostData.meta_description || "",
         seo_keywords: blogPostData.meta_keywords || "",
       });
       setOriginalThumbnailUrl(initialThumbnailUrl);
       setPreviewUrl(initialThumbnailUrl);
-
       return blogPostData;
     } catch (error) {
       console.error("Error fetching blog post:", error);
@@ -154,19 +135,12 @@ export default function EditBlogPage() {
     }
   };
 
-  const fetchCategories = async (clientId) => {
+  const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from("wehoware_blog_categories")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("name");
-
-      if (error) {
-        throw error;
-      }
-
-      setCategories(data || []);
+      const res = await fetch("/api/v1/blogs/categories");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch categories");
+      const json = await res.json();
+      setCategories(json.data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
       throw error;
@@ -301,17 +275,15 @@ export default function EditBlogPage() {
         updated_by: user?.id,
       };
 
-      const { data, error } = await supabase
-        .from("wehoware_blogs")
-        .update(dataToUpdate)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) {
+      const res = await fetch(`/api/v1/blogs/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToUpdate),
+      });
+      if (!res.ok) {
         shouldDeleteOldThumbnail = false;
         toast.dismiss("thumb-delete");
-        throw error;
+        throw new Error((await res.json().catch(() => ({}))).error || "Failed to update blog post");
       }
 
       if (shouldDeleteOldThumbnail && originalThumbnailUrl) {

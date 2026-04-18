@@ -27,7 +27,7 @@ import {
   FolderTree,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-import supabase from "@/lib/supabase";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +37,7 @@ import {
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
-import { deleteThumbnailByUrl } from "@/lib/storageUtils";
+
 
 export default function BlogsPage() {
   const router = useRouter();
@@ -66,41 +66,17 @@ export default function BlogsPage() {
   const fetchBlogs = async () => {
     try {
       setIsLoading(true);
-
-      // Create the query
-      let query = supabase
-        .from("wehoware_blogs")
-        .select(
-          `
-          *,
-          wehoware_blog_categories(name)
-        `
-        )
-        .eq("client_id", activeClient.id);
-
-      // Apply search if there is a search term
-      if (searchTerm) {
-        query = query.or(
-          `title.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%,excerpt.ilike.%${searchTerm}%`
-        );
-      }
-
-      // Apply sorting
-      query = query.order(sortField, { ascending: sortOrder === "asc" });
-
-      // Only filter by status if showPublishedOnly is true
-      if (showPublishedOnly) {
-        query = query.eq("status", "Published");
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      // Format the data to include category name
-      const formattedData = data.map((blog) => ({
+      const params = new URLSearchParams({
+        sortBy: sortField,
+        sortOrder,
+        limit: "100",
+      });
+      if (showPublishedOnly) params.set("status", "Published");
+      if (searchTerm) params.set("search", searchTerm);
+      const res = await fetch(`/api/v1/blogs?${params}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch blogs");
+      const json = await res.json();
+      const formattedData = (json.blogs || []).map((blog) => ({
         ...blog,
         category: blog.wehoware_blog_categories
           ? blog.wehoware_blog_categories.name
@@ -109,8 +85,7 @@ export default function BlogsPage() {
           ? new Date(blog.published_at).toISOString().split("T")[0]
           : new Date(blog.created_at).toISOString().split("T")[0],
       }));
-
-      setBlogs(formattedData || []);
+      setBlogs(formattedData);
     } catch (error) {
       console.error("Error fetching blogs:", error);
       setErrorMessage(error.message || "Failed to fetch blogs");
@@ -122,17 +97,10 @@ export default function BlogsPage() {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from("wehoware_blog_categories")
-        .select("*")
-        .eq("client_id", activeClient.id)
-        .order("name");
-
-      if (error) {
-        throw error;
-      }
-
-      setCategories(data || []);
+      const res = await fetch("/api/v1/blogs/categories");
+      if (!res.ok) return;
+      const json = await res.json();
+      setCategories(json.data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
@@ -174,23 +142,9 @@ export default function BlogsPage() {
     try {
       setDeleteLoading(true);
 
-      // If there's a thumbnail URL, delete it from storage first
-      if (
-        blogToDelete.thumbnail &&
-        blogToDelete.thumbnail.includes("supabase")
-      ) {
-        await deleteThumbnailByUrl(blogToDelete.thumbnail);
-      }
-
       // Delete the blog
-      const { error } = await supabase
-        .from("wehoware_blogs")
-        .delete()
-        .eq("id", blogToDelete.id);
-
-      if (error) {
-        throw error;
-      }
+      const delRes = await fetch(`/api/v1/blogs/${blogToDelete.id}`, { method: "DELETE" });
+      if (!delRes.ok) throw new Error((await delRes.json().catch(() => ({}))).error || "Failed to delete blog");
 
       // Refetch blogs
       fetchBlogs();

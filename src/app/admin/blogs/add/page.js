@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
-import supabase from "@/lib/supabase";
+
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import { useAuth } from "@/contexts/auth-context";
@@ -66,23 +66,18 @@ export default function AddBlogPage() {
 
   useEffect(() => {
     if (activeClient?.id) {
-      fetchCategories(activeClient.id);
+      fetchCategories();
     } else {
       setCategories([]);
     }
   }, [activeClient?.id]);
 
-  const fetchCategories = async (clientId) => {
+  const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from("wehoware_blog_categories")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("name");
-      if (error) {
-        throw error;
-      }
-      setCategories(data || []);
+      const res = await fetch("/api/v1/blogs/categories");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch categories");
+      const json = await res.json();
+      setCategories(json.data || []);
     } catch (error) {
       toast.error(error.message || "Failed to fetch categories");
       setErrorMessage(error.message || "Failed to fetch categories");
@@ -251,15 +246,12 @@ export default function AddBlogPage() {
         throw new Error("Invalid read time provided.");
       }
 
-      const { data, error } = await supabase
-        .from("wehoware_blogs")
-        .insert([dataToInsert])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
+      const res = await fetch("/api/v1/blogs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToInsert),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to create blog post");
 
       toast.success("Blog post created successfully!");
       router.push("/admin/blogs");

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import slugify from "slugify";
+
 import {
   Card,
   CardContent,
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft } from "lucide-react";
-import supabase from "@/lib/supabase";
+
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
@@ -62,17 +62,10 @@ export default function ServiceCategoriesPage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("wehoware_service_categories")
-        .select("*")
-        .eq("client_id", activeClient.id)
-        .order("name");
-
-      if (error) {
-        throw error;
-      }
-
-      setCategories(data || []);
+      const res = await fetch("/api/v1/services/categories");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch categories");
+      const json = await res.json();
+      setCategories(json.data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
       setErrorMessage(error.message || "Failed to fetch categories");
@@ -117,24 +110,17 @@ export default function ServiceCategoriesPage() {
     try {
       setIsSubmitting(true);
 
-      const categoryData = {
-        client_id: activeClient.id,
-        name: newCategory.name,
-        slug: slugify(newCategory.name, { lower: true, strict: true }),
-        description: newCategory.description,
-        icon_url: newCategory.icon_url || null,
-        active: newCategory.active,
-        created_by: user?.id,
-        updated_by: user?.id,
-      };
-
-      const { data, error } = await supabase
-        .from("wehoware_service_categories")
-        .insert(categoryData);
-
-      if (error) {
-        throw error;
-      }
+      const res = await fetch("/api/v1/services/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCategory.name,
+          description: newCategory.description,
+          icon_url: newCategory.icon_url || null,
+          active: newCategory.active,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to add category");
 
       setNewCategory({ name: "", description: "", icon_url: "", active: true });
       setShowAddForm(false);
@@ -158,28 +144,19 @@ export default function ServiceCategoriesPage() {
       return;
     }
 
-    // Get the current user ID for audit (from NextAuth session via useAuth)
-    const userId = user?.id;
-
-    const slug = slugify(editingCategory.name, { lower: true, strict: true });
-
     try {
       setIsSubmitting(true);
-
-      const { error } = await supabase
-        .from("wehoware_service_categories")
-        .update({
+      const res = await fetch(`/api/v1/services/categories/${editingCategory.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: editingCategory.name,
-          slug: slug,
           description: editingCategory.description,
           icon_url: editingCategory.icon_url || null,
           active: editingCategory.active,
-          updated_at: new Date(),
-          updated_by: userId,
-        })
-        .eq("id", editingCategory.id);
-
-      if (error) throw error;
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to update category");
 
       setEditingCategory(null);
       fetchCategories();
@@ -206,28 +183,8 @@ export default function ServiceCategoriesPage() {
     try {
       setDeleteLoading(true);
 
-      const { data: serviceData, error: serviceError } = await supabase
-        .from("wehoware_services")
-        .select("id")
-        .eq("category_id", categoryToDelete.id)
-        .limit(1);
-
-      if (serviceError) {
-        throw serviceError;
-      }
-
-      if (serviceData && serviceData.length > 0) {
-        throw new Error("Cannot delete category that is in use by services");
-      }
-
-      const { error } = await supabase
-        .from("wehoware_service_categories")
-        .delete()
-        .eq("id", categoryToDelete.id);
-
-      if (error) {
-        throw error;
-      }
+      const res = await fetch(`/api/v1/services/categories/${categoryToDelete.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to delete category");
 
       setCategories((prev) =>
         prev.filter((category) => category.id !== categoryToDelete.id)

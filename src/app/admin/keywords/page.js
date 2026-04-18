@@ -6,15 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Trash2, Plus, Check, X, Edit } from "lucide-react";
 import AlertComponent from "@/components/ui/alert-component";
-import supabase from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function ClientKeywordsPage() {
   const router = useRouter();
   const { user, activeClient } = useAuth();
 
-  // recordId is the ID from wehoware_client_keywords (if it exists)
-  const [recordId, setRecordId] = useState(null);
   // 'sections' holds an array of objects, each with a section name and an array of keywords
   const [sections, setSections] = useState([]);
 
@@ -50,27 +47,15 @@ export default function ClientKeywordsPage() {
       setErrorMessage("No active client selected or user missing.");
       setErrorDialogOpen(true);
       setSections([]);
-      setRecordId(null);
       setIsLoading(false);
       return;
     }
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("wehoware_client_keywords")
-        .select("*")
-        .eq("client_id", activeClient.id)
-        .eq("employee_id", user.id)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) {
-        setRecordId(data.id);
-        // Expect stored JSON to be: { sections: [...] }
-        setSections(data.keywords?.sections || []);
-      } else {
-        setRecordId(null);
-        setSections([]);
-      }
+      const res = await fetch('/api/v1/seo/keywords');
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to fetch sections');
+      const json = await res.json();
+      setSections(json.data?.sections || []);
     } catch (err) {
       console.error("Error fetching sections:", err);
       setErrorMessage(err.message || "Failed to fetch sections");
@@ -81,7 +66,7 @@ export default function ClientKeywordsPage() {
   };
 
   // Immediately update the database with the current sections.
-  const handleSaveSections = async () => {
+  const handleSaveSections = async (currentSections = sections) => {
     if (!activeClient?.id || !user?.id) {
       setErrorMessage("No active client selected or user missing.");
       setErrorDialogOpen(true);
@@ -89,30 +74,13 @@ export default function ClientKeywordsPage() {
     }
     try {
       setIsSubmitting(true);
-      if (recordId) {
-        const { error } = await supabase
-          .from("wehoware_client_keywords")
-          .update({
-            keywords: { sections },
-            updated_at: new Date(),
-          })
-          .eq("id", recordId);
-        if (error) throw error;
-        setSuccessMessage("Sections updated successfully!");
-      } else {
-        const { data, error } = await supabase
-          .from("wehoware_client_keywords")
-          .insert({
-            client_id: activeClient.id,
-            employee_id: user.id,
-            keywords: { sections },
-          });
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setRecordId(data[0].id);
-        }
-        setSuccessMessage("Sections created successfully!");
-      }
+      const res = await fetch('/api/v1/seo/keywords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sections: currentSections }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to save sections');
+      setSuccessMessage("Sections saved successfully!");
       setSuccessDialogOpen(true);
     } catch (err) {
       console.error("Error saving sections:", err);
@@ -146,7 +114,7 @@ export default function ClientKeywordsPage() {
     setSections(updatedSections);
     setNewSectionName("");
     setShowAddSectionForm(false);
-    handleSaveSections();
+    handleSaveSections(updatedSections);
   };
 
   // Remove an entire section with confirmation.
@@ -157,7 +125,7 @@ export default function ClientKeywordsPage() {
     if (!confirmed) return;
     const updatedSections = sections.filter((_, i) => i !== sectionIndex);
     setSections(updatedSections);
-    handleSaveSections();
+    handleSaveSections(updatedSections);
   };
 
   // Begin editing a section name.
@@ -178,7 +146,7 @@ export default function ClientKeywordsPage() {
     setSections(updatedSections);
     setEditingSectionIndex(null);
     setEditingSectionName("");
-    handleSaveSections();
+    handleSaveSections(updatedSections);
   };
 
   const handleCancelEditSection = () => {
@@ -221,7 +189,7 @@ export default function ClientKeywordsPage() {
     // Clear the input for that section.
     setNewKeyword((prev) => ({ ...prev, [sectionIndex]: "" }));
     // Immediately save changes.
-    handleSaveSections();
+    handleSaveSections(updatedSections);
   };
 
   // Remove an individual keyword from a section.
@@ -233,7 +201,7 @@ export default function ClientKeywordsPage() {
       (kw) => kw.toLowerCase() !== keywordToRemove.toLowerCase()
     );
     setSections(updatedSections);
-    handleSaveSections();
+    handleSaveSections(updatedSections);
   };
 
   if (isLoading) {

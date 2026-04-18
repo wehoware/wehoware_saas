@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
-import supabase from "@/lib/supabase";
+
 import {
   Plus,
   Edit,
@@ -39,19 +39,13 @@ export default function ClientsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState(null);
 
-  // Fetch all clients from Supabase, incorporating sorting
   const fetchClients = async () => {
     try {
       setIsLoading(true);
-      let query = supabase
-        .from("wehoware_clients")
-        .select("*")
-        .order(sortField, { ascending: sortOrder === "asc" });
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setClients(data || []);
+      const res = await fetch(`/api/v1/clients?sort_field=${sortField}&sort_order=${sortOrder}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
+      const json = await res.json();
+      setClients(json.data || []);
     } catch (error) {
       console.error("Error fetching clients:", error);
       toast.error(error.message || "Failed to fetch clients");
@@ -92,15 +86,12 @@ export default function ClientsPage() {
     setDeleteDialogOpen(true);
   };
 
-  // Handle client deletion using ConfirmDialog
-  const handleDelete = async (client) => {
+  const handleDelete = async () => {
     if (!clientToDelete) return;
     try {
       setDeleteLoading(true);
-      await supabase
-        .from("wehoware_clients")
-        .delete()
-        .eq("id", clientToDelete.id);
+      const res = await fetch(`/api/v1/clients/${clientToDelete.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to delete client");
       setClients(clients.filter((c) => c.id !== clientToDelete.id));
       toast.success("Client deleted successfully");
       setDeleteDialogOpen(false);

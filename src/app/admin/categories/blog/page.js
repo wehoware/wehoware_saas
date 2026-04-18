@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import slugify from "slugify";
+
 import {
   Card,
   CardContent,
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Plus, Edit, Trash2, Check, X, } from "lucide-react";
-import supabase from "@/lib/supabase";
+
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
@@ -50,17 +50,10 @@ export default function BlogCategoriesPage() {
   const fetchCategories = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("wehoware_blog_categories")
-        .select("*")
-        .eq("client_id", activeClient.id)
-        .order("name");
-
-      if (error) {
-        throw error;
-      }
-
-      setCategories(data || []);
+      const res = await fetch("/api/v1/blogs/categories");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch categories");
+      const json = await res.json();
+      setCategories(json.data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
       setErrorMessage(error.message || "Failed to fetch categories");
@@ -98,29 +91,13 @@ export default function BlogCategoriesPage() {
 
     try {
       setIsSubmitting(true);
+      const res = await fetch("/api/v1/blogs/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategory.name, description: newCategory.description }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to add category");
 
-      // Generate slug from name
-      const slug = slugify(newCategory.name, { lower: true, strict: true });
-
-      // Get the current user ID for audit
-      const userId = user?.id;
-
-      const { data, error } = await supabase
-        .from("wehoware_blog_categories")
-        .insert({
-          client_id: activeClient.id,
-          name: newCategory.name,
-          slug: slug,
-          description: newCategory.description,
-          created_by: userId,
-          updated_by: userId,
-        });
-
-      if (error) {
-        throw error;
-      }
-
-      // Reset form and refresh categories
       setNewCategory({ name: "", description: "" });
       setShowAddForm(false);
       fetchCategories();
@@ -153,28 +130,13 @@ export default function BlogCategoriesPage() {
 
     try {
       setIsSubmitting(true);
+      const res = await fetch(`/api/v1/blogs/categories/${editingCategory.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingCategory.name, description: editingCategory.description }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to update category");
 
-      // Generate slug from name
-      const slug = slugify(editingCategory.name, { lower: true, strict: true });
-
-      // Get the current user ID for audit (from NextAuth session via useAuth)
-      const userId = user?.id;
-
-      const { data, error } = await supabase
-        .from("wehoware_blog_categories")
-        .update({
-          name: editingCategory.name,
-          slug: slug,
-          description: editingCategory.description,
-          updated_by: userId,
-        })
-        .eq("id", editingCategory.id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Reset editing state and refresh categories
       setEditingCategory(null);
       fetchCategories();
 
@@ -200,31 +162,9 @@ export default function BlogCategoriesPage() {
     try {
       setDeleteLoading(true);
 
-      // Check if category is in use
-      const { data: blogData, error: blogError } = await supabase
-        .from("wehoware_blogs")
-        .select("id")
-        .eq("category_id", categoryToDelete.id)
-        .limit(1);
+      const res = await fetch(`/api/v1/blogs/categories/${categoryToDelete.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to delete category");
 
-      if (blogError) {
-        throw blogError;
-      }
-
-      if (blogData && blogData.length > 0) {
-        throw new Error("Cannot delete category that is in use by blog posts");
-      }
-
-      const { error } = await supabase
-        .from("wehoware_blog_categories")
-        .delete()
-        .eq("id", categoryToDelete.id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Update local state without refetching
       setCategories((prev) =>
         prev.filter((category) => category.id !== categoryToDelete.id)
       );

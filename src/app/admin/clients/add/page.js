@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "react-hot-toast";
-import supabase from "@/lib/supabase";
+
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
@@ -59,24 +59,16 @@ export default function AddClientPage() {
 
     try {
       setIsSubmitting(true);
-      const clientData = {
-        ...newClient,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-
-      const { data, error } = await supabase
-        .from("wehoware_clients")
-        .insert(clientData)
-        .select();
-
-      if (error) throw error;
+      const res = await fetch("/api/v1/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newClient),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to add client");
       toast.success("Client added successfully");
       router.push("/admin/clients");
     } catch (error) {
       console.error("Error adding client:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
       toast.error(error.message || "Failed to add client");
     } finally {
       setIsSubmitting(false);

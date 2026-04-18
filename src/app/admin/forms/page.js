@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import supabase from "@/lib/supabase";
 import Link from 'next/link';
 import { Plus, Edit, Trash, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -17,13 +16,10 @@ export default function FormTemplatesPage() {
   async function fetchFormTemplates() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('wehoware_form_templates')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTemplates(data || []);
+      const res = await fetch('/api/v1/forms');
+      if (!res.ok) throw new Error('Failed to load form templates');
+      const json = await res.json();
+      setTemplates(json.data || []);
     } catch (error) {
       console.error('Error fetching form templates:', error.message);
       toast.error('Failed to load form templates');
@@ -36,13 +32,9 @@ export default function FormTemplatesPage() {
     if (!confirm('Are you sure you want to delete this form template?')) return;
 
     try {
-      const { error } = await supabase
-        .from('wehoware_form_templates')
-        .delete()
-        .eq('id', id);
+      const res = await fetch('/api/v1/forms/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete form template');
 
-      if (error) throw error;
-      
       toast.success('Form template deleted successfully');
       fetchFormTemplates();
     } catch (error) {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import supabase from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Download, Tags, Check} from 'lucide-react';
 import { toast } from 'react-hot-toast';        
@@ -25,14 +24,10 @@ export default function FormSubmissions({ params }) {
 
   async function fetchFormTemplate() {
     try {
-      const { data, error } = await supabase
-        .from('wehoware_form_templates')
-        .select('*')
-        .eq('id', formId)
-        .single();
-
-      if (error) throw error;
-      setFormTemplate(data);
+      const res = await fetch('/api/v1/forms/' + formId);
+      if (!res.ok) throw new Error('Failed to load form template');
+      const json = await res.json();
+      setFormTemplate(json.data);
     } catch (error) {
       console.error('Error fetching form template:', error.message);
       toast.error('Failed to load form template');
@@ -42,14 +37,10 @@ export default function FormSubmissions({ params }) {
   async function fetchSubmissions() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('wehoware_form_submissions')
-        .select('*')
-        .eq('form_template_id', formId)
-        .order('submitted_at', { ascending: false });
-
-      if (error) throw error;
-      setSubmissions(data || []);
+      const res = await fetch('/api/v1/forms/' + formId + '/submissions?limit=100');
+      if (!res.ok) throw new Error('Failed to load submissions');
+      const json = await res.json();
+      setSubmissions(json.data || []);
     } catch (error) {
       console.error('Error fetching submissions:', error.message);
       toast.error('Failed to load submissions');
@@ -67,13 +58,9 @@ export default function FormSubmissions({ params }) {
 
   async function updateSubmissionStatus(id, status) {
     try {
-      const { error } = await supabase
-        .from('wehoware_form_submissions')
-        .update({ status })
-        .eq('id', id);
+      const res = await fetch('/api/v1/forms/' + formId + '/submissions/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      if (!res.ok) throw new Error('Failed to update status');
 
-      if (error) throw error;
-      
       // Update local state
       setSubmissions(submissions.map(sub => 
         sub.id === id ? { ...sub, status } : sub
@@ -88,18 +75,11 @@ export default function FormSubmissions({ params }) {
 
   async function saveSubmissionNotes() {
     if (!selectedSubmission) return;
-    
-    try {
-      const { error } = await supabase
-        .from('wehoware_form_submissions')
-        .update({
-          notes: noteText,
-          tags: submissionTags
-        })
-        .eq('id', selectedSubmission.id);
 
-      if (error) throw error;
-      
+    try {
+      const res = await fetch('/api/v1/forms/' + formId + '/submissions/' + selectedSubmission.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: noteText, tags: submissionTags }) });
+      if (!res.ok) throw new Error('Failed to save notes');
+
       // Update local state
       setSubmissions(submissions.map(sub => 
         sub.id === selectedSubmission.id 

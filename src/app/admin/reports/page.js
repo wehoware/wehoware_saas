@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import supabase from "@/lib/supabase";
 import Link from 'next/link';
 import { File, Download, Plus, Edit, Eye, Share, Trash , Clock} from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -23,16 +22,10 @@ export default function ReportsPage() {
   async function fetchReports() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('wehoware_reports')
-        .select(`
-          *,
-          template:template_id(title, report_type)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setReports(data || []);
+      const res = await fetch('/api/v1/reports?limit=100');
+      if (!res.ok) throw new Error('Failed to load reports');
+      const json = await res.json();
+      setReports(json.data || []);
     } catch (error) {
       console.error('Error fetching reports:', error.message);
       toast.error('Failed to load reports');
@@ -44,13 +37,10 @@ export default function ReportsPage() {
   async function fetchTemplates() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('wehoware_report_templates')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTemplates(data || []);
+      const res = await fetch('/api/v1/report-templates');
+      if (!res.ok) throw new Error('Failed to load report templates');
+      const json = await res.json();
+      setTemplates(json.data || []);
     } catch (error) {
       console.error('Error fetching report templates:', error.message);
       toast.error('Failed to load report templates');
@@ -63,13 +53,9 @@ export default function ReportsPage() {
     if (!confirm('Are you sure you want to delete this report?')) return;
 
     try {
-      const { error } = await supabase
-        .from('wehoware_reports')
-        .delete()
-        .eq('id', id);
+      const res = await fetch('/api/v1/reports/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete report');
 
-      if (error) throw error;
-      
       toast.success('Report deleted successfully');
       fetchReports();
     } catch (error) {
@@ -82,13 +68,9 @@ export default function ReportsPage() {
     if (!confirm('Are you sure you want to delete this template? Any reports using this template will be affected.')) return;
 
     try {
-      const { error } = await supabase
-        .from('wehoware_report_templates')
-        .delete()
-        .eq('id', id);
+      const res = await fetch('/api/v1/report-templates/' + id, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete report template');
 
-      if (error) throw error;
-      
       toast.success('Template deleted successfully');
       fetchTemplates();
     } catch (error) {
@@ -114,39 +96,7 @@ export default function ReportsPage() {
   }
 
   async function generateShareLink(reportId) {
-    try {
-      // Generate a unique token for sharing
-      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      
-      // Create a share record
-      const { data, error } = await supabase
-        .from('wehoware_report_shares')
-        .insert([{
-          report_id: reportId,
-          access_token: token,
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-        }])
-        .select();
-
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        // Create shareable URL
-        const shareUrl = `${window.location.origin}/reports/share/${token}`;
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(shareUrl)
-          .then(() => {
-            toast.success('Share link copied to clipboard');
-          })
-          .catch(() => {
-            toast.success('Share link created: ' + shareUrl);
-          });
-      }
-    } catch (error) {
-      console.error('Error generating share link:', error.message);
-      toast.error('Failed to create share link');
-    }
+    toast.error("Report sharing feature is not yet available.");
   }
 
   const renderReports = () => {

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import supabase from "@/lib/supabase";
+
 import AdminPageHeader from "@/components/AdminPageHeader";
 
 export default function EditClientPage() {
@@ -30,14 +30,10 @@ export default function EditClientPage() {
     const fetchClient = async () => {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
-          .from("wehoware_clients")
-          .select("*")
-          .eq("id", clientId)
-          .single();
-
-        if (error) throw error;
-        setClient(data);
+        const res = await fetch(`/api/v1/clients/${clientId}`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch client");
+        const json = await res.json();
+        setClient(json.data);
       } catch (error) {
         console.error("Error fetching client:", error);
         toast.error(error.message || "Failed to fetch client");
@@ -59,15 +55,12 @@ export default function EditClientPage() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const { error } = await supabase
-        .from("wehoware_clients")
-        .update({
-          ...client,
-          updated_at: new Date(),
-        })
-        .eq("id", clientId);
-
-      if (error) throw error;
+      const res = await fetch(`/api/v1/clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(client),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to update client");
       toast.success("Client updated successfully");
       router.push("/admin/clients");
     } catch (error) {

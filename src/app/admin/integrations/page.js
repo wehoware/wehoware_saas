@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import supabase from "@/lib/supabase";
 import Link from "next/link";
 import { Plus, Edit, FolderSync, Pause, Play, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -19,29 +18,15 @@ export default function IntegrationsPage() {
     try {
       setLoading(true);
 
-      // Fetch integration providers
-      const { data: providersData, error: providersError } = await supabase
-        .from("wehoware_integration_providers")
-        .select("*")
-        .order("name");
-
-      if (providersError) throw providersError;
-      setProviders(providersData || []);
-
-      // Fetch client integrations
-      const { data: integrationsData, error: integrationsError } =
-        await supabase
-          .from("wehoware_integrations")
-          .select(
-            `
-          *,
-          provider:provider_id(name, category, logo_url)
-        `
-          )
-          .order("created_at", { ascending: false });
-
-      if (integrationsError) throw integrationsError;
-      setIntegrations(integrationsData || []);
+      const [providersRes, integrationsRes] = await Promise.all([
+        fetch('/api/v1/integrations/providers'),
+        fetch('/api/v1/integrations'),
+      ]);
+      if (!providersRes.ok || !integrationsRes.ok) throw new Error('Failed to load integrations');
+      const providersJson = await providersRes.json();
+      const integrationsJson = await integrationsRes.json();
+      setProviders(providersJson.data || []);
+      setIntegrations(integrationsJson.data || []);
     } catch (error) {
       console.error("Error fetching integrations data:", error.message);
       toast.error("Failed to load integrations");
@@ -54,12 +39,15 @@ export default function IntegrationsPage() {
     const newStatus = currentStatus === "Active" ? "Paused" : "Active";
 
     try {
-      const { error } = await supabase
-        .from("wehoware_integrations")
-        .update({ status: newStatus })
-        .eq("id", id);
-
-      if (error) throw error;
+      const res = await fetch(`/api/v1/integrations/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to update integration status");
+      }
 
       // Update local state
       setIntegrations(
@@ -90,12 +78,11 @@ export default function IntegrationsPage() {
       return;
 
     try {
-      const { error } = await supabase
-        .from("wehoware_integrations")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
+      const res = await fetch(`/api/v1/integrations/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to delete integration");
+      }
 
       // Update local state
       setIntegrations(
@@ -112,41 +99,22 @@ export default function IntegrationsPage() {
   async function syncIntegration(id) {
     try {
       toast.success("Sync requested. This may take a few moments.");
-      const { error } = await supabase
-        .from("wehoware_integrations")
-        .update({
-          last_sync_at: new Date().toISOString(),
-          status: "Active",
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      // Log the sync operation
-      const { error: logError } = await supabase
-        .from("wehoware_integration_logs")
-        .insert([
-          {
-            integration_id: id,
-            operation: "manual_sync",
-            status: "Success",
-            start_time: new Date().toISOString(),
-            end_time: new Date().toISOString(),
-            records_processed: Math.floor(Math.random() * 100), // Simulated count
-          },
-        ]);
-
-      if (logError) throw logError;
+      const now = new Date().toISOString();
+      const res = await fetch(`/api/v1/integrations/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ last_sync_at: now, status: "Active" }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to sync integration");
+      }
 
       // Update local state
       setIntegrations(
         integrations.map((integration) =>
           integration.id === id
-            ? {
-                ...integration,
-                last_sync_at: new Date().toISOString(),
-                status: "Active",
-              }
+            ? { ...integration, last_sync_at: now, status: "Active" }
             : integration
         )
       );

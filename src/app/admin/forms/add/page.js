@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import supabase from "@/lib/supabase";
 import { toast } from "react-hot-toast";
 import { Plus, ArrowUp, ArrowDown, Trash } from "lucide-react";
 import SelectInput from "@/components/ui/select";
@@ -159,39 +158,28 @@ export default function AddFormTemplate() {
     try {
       setLoading(true);
 
-      // Save form template
-      const { data: templateData, error: templateError } = await supabase
-        .from("wehoware_form_templates")
-        .insert([
-          {
-            ...formTemplate,
-            notification_emails: formTemplate.notification_emails,
-          },
-        ])
-        .select();
+      // Create form template
+      const formRes = await fetch('/api/v1/forms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formTemplate),
+      });
+      if (!formRes.ok) throw new Error((await formRes.json().catch(() => ({}))).error || 'Failed to create form template');
+      const { data: templateData } = await formRes.json();
+      const templateId = templateData.id;
 
-      if (templateError) throw templateError;
-
-      if (templateData && templateData.length > 0) {
-        const templateId = templateData[0].id;
-
-        // Save form fields
-        const fieldsToInsert = formFields.map((field) => ({
-          ...field,
-          form_template_id: templateId,
-          options: JSON.stringify(field.options),
-          validation_rules: JSON.stringify(field.validation_rules),
-        }));
-
-        const { error: fieldsError } = await supabase
-          .from("wehoware_form_fields")
-          .insert(fieldsToInsert);
-
-        if (fieldsError) throw fieldsError;
-
-        toast.success("Form template created successfully!");
-        router.push("/admin/forms");
+      // Save form fields using batch replace
+      if (formFields.length > 0) {
+        const fieldsRes = await fetch('/api/v1/forms/' + templateId + '/fields', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: formFields }),
+        });
+        if (!fieldsRes.ok) throw new Error('Failed to save form fields');
       }
+
+      toast.success("Form template created successfully!");
+      router.push("/admin/forms");
     } catch (error) {
       console.error("Error saving form template:", error);
       toast.error("Failed to save form template");

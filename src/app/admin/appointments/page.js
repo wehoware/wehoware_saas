@@ -1,48 +1,48 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, Clock, LayoutGrid, Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppointmentCalendarView } from '@/components/appointments/calendar-view';
 import { UpcomingAppointments } from '@/components/appointments/upcoming-appointments';
 import { AppointmentTypes } from '@/components/appointments/appointment-types';
 import { AppointmentSettings } from '@/components/appointments/appointment-settings';
-
-// Mock data for sample appointments
-const sampleAppointments = [
-  {
-    id: '1',
-    name: 'John Smith',
-    email: 'john.smith@example.com',
-    type: '15-Minute Meeting',
-    date: '2025-04-27T10:00:00',
-    status: 'confirmed',
-  },
-  {
-    id: '2',
-    name: 'Sarah Johnson',
-    email: 'sarah.j@example.com',
-    type: '30-Minute Consultation',
-    date: '2025-04-27T14:30:00',
-    status: 'pending',
-  },
-  {
-    id: '3',
-    name: 'Michael Brown',
-    email: 'michael.b@example.com',
-    type: '1-Hour Strategy Session',
-    date: '2025-04-28T11:00:00',
-    status: 'confirmed',
-  },
-];
+import toast from 'react-hot-toast';
 
 export default function AppointmentsPage() {
   const [activeTab, setActiveTab] = useState("calendar");
-  
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAppointments() {
+      try {
+        const res = await fetch('/api/v1/appointments');
+        if (!res.ok) throw new Error('Failed to fetch appointments');
+        const json = await res.json();
+        const mapped = (json.data || []).map((a) => ({
+          id: a.id,
+          name: a.guest_name,
+          email: a.guest_email,
+          type: a.appointment_type?.name ?? null,
+          date: a.scheduled_at,
+          status: a.status,
+        }));
+        setAppointments(mapped);
+      } catch (err) {
+        console.error(err);
+        toast.error('Could not load appointments');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchAppointments();
+  }, []);
+
   const handleSlotSelect = (dateTime) => {
     console.log('Selected slot:', dateTime);
-    // In a real app, this would open a "create appointment" dialog
-    alert(`Selected time slot: ${dateTime.toString()}`);
+    toast('Selected time slot: ' + dateTime.toString());
   };
 
   return (
@@ -72,22 +72,22 @@ export default function AppointmentsPage() {
               Settings
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="calendar" className="mt-0">
-            <AppointmentCalendarView 
-              appointments={sampleAppointments}
+            <AppointmentCalendarView
+              appointments={appointments}
               onSlotSelect={handleSlotSelect}
             />
           </TabsContent>
-          
+
           <TabsContent value="upcoming" className="mt-0">
             <UpcomingAppointments />
           </TabsContent>
-          
+
           <TabsContent value="types" className="mt-0">
             <AppointmentTypes />
           </TabsContent>
-          
+
           <TabsContent value="settings" className="mt-0">
             <AppointmentSettings />
           </TabsContent>

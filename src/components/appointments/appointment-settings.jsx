@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 import {
   Save,
   Clock,
@@ -9,7 +10,6 @@ import {
   Bell,
   ExternalLink,
   Video,
-  
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -125,10 +125,28 @@ export function AppointmentSettings() {
     });
   };
 
-  const handleSaveSettings = () => {
-    // In a real app, this would save to backend
-    console.log("Saving settings:", settings);
-    alert("Settings saved!");
+  const handleSaveSettings = async () => {
+    try {
+      // Persist availability settings to the generic settings API
+      const res = await fetch("/api/v1/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settings: [
+            {
+              setting_key: "appointment_settings",
+              setting_value: JSON.stringify(settings),
+              setting_group: "appointments",
+            },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save settings");
+      toast.success("Appointment settings saved!");
+    } catch (err) {
+      console.error("Error saving appointment settings:", err);
+      toast.error("Failed to save settings");
+    }
   };
 
   return (

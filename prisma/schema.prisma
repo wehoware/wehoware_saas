@@ -95,6 +95,38 @@ enum TaskStatus {
   Backlog
 }
 
+enum AppointmentStatus {
+  Pending
+  Confirmed
+  Cancelled
+  Completed
+  NoShow @map("No Show")
+}
+
+enum InvoiceStatus {
+  Draft
+  Pending
+  Paid
+  Overdue
+  Cancelled
+}
+
+enum TransactionStatus {
+  Pending
+  Completed
+  Failed
+  Refunded
+}
+
+enum TransactionType {
+  Subscription
+  Service
+  Refund
+  Payout
+  Sale
+  Other
+}
+
 // =============================================================
 // 1. Clients (Tenants)
 // =============================================================
@@ -135,6 +167,11 @@ model WehowareClient {
   switchHistory         WehowareClientSwitchHistory[]
   keywords              WehowareClientKeyword[]
   tasks                 WehowareTask[]
+  appointmentTypes      WehowareAppointmentType[]
+  appointments          WehowareAppointment[]
+  invoices              WehowareInvoice[]
+  invoiceLineItems      WehowareInvoiceLineItem[]
+  transactions          WehowareTransaction[]
 
   @@map("wehoware_clients")
 }
@@ -185,6 +222,12 @@ model WehowareProfile {
   assignedTasks            WehowareTask[]            @relation("TaskAssignee")
   taskActivities           WehowareTaskActivity[]
   taskComments             WehowareTaskComment[]
+  createdAppointmentTypes  WehowareAppointmentType[] @relation("AppointmentTypeCreator")
+  createdAppointments      WehowareAppointment[]     @relation("AppointmentCreator")
+  updatedAppointments      WehowareAppointment[]     @relation("AppointmentUpdater")
+  createdInvoices          WehowareInvoice[]         @relation("InvoiceCreator")
+  updatedInvoices          WehowareInvoice[]         @relation("InvoiceUpdater")
+  createdTransactions      WehowareTransaction[]     @relation("TransactionCreator")
 
   @@index([role])
   @@index([clientId])
@@ -298,6 +341,7 @@ model WehowareService {
   reviewsCount    Int      @default(0) @map("reviews_count")
   tags            Json     @default("[]")
   duration        Int?
+  views           Int      @default(0)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   createdBy       String?  @map("created_by") @db.VarChar(36)
@@ -769,4 +813,148 @@ model WehowareTaskComment {
   user WehowareProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("wehoware_task_comments")
+}
+
+// =============================================================
+// 27. Appointment Types
+// =============================================================
+model WehowareAppointmentType {
+  id                   String   @id @default(uuid()) @db.VarChar(36)
+  clientId             String   @map("client_id") @db.VarChar(36)
+  name                 String   @db.VarChar(255)
+  description          String?  @db.Text
+  duration             Int      @default(30)
+  color                String   @default("#4f46e5") @db.VarChar(20)
+  slug                 String?  @db.VarChar(255)
+  active               Boolean  @default(true)
+  requiresConfirmation Boolean  @default(false) @map("requires_confirmation")
+  price                Decimal? @db.Decimal(10, 2)
+  currency             String   @default("CAD") @db.VarChar(10)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  createdBy            String?  @map("created_by") @db.VarChar(36)
+
+  client       WehowareClient      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator      WehowareProfile?    @relation("AppointmentTypeCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  appointments WehowareAppointment[]
+
+  @@index([clientId])
+  @@map("wehoware_appointment_types")
+}
+
+// =============================================================
+// 28. Appointments
+// =============================================================
+model WehowareAppointment {
+  id                String            @id @default(uuid()) @db.VarChar(36)
+  clientId          String            @map("client_id") @db.VarChar(36)
+  appointmentTypeId String?           @map("appointment_type_id") @db.VarChar(36)
+  guestName         String            @map("guest_name") @db.VarChar(255)
+  guestEmail        String            @map("guest_email") @db.VarChar(255)
+  guestPhone        String?           @map("guest_phone") @db.VarChar(50)
+  scheduledAt       DateTime          @map("scheduled_at")
+  status            AppointmentStatus @default(Pending)
+  location          String?           @db.VarChar(255)
+  meetingLink       String?           @map("meeting_link") @db.VarChar(500)
+  address           String?           @db.VarChar(500)
+  notes             String?           @db.Text
+  timezone          String?           @default("UTC") @db.VarChar(100)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  createdBy         String?           @map("created_by") @db.VarChar(36)
+  updatedBy         String?           @map("updated_by") @db.VarChar(36)
+
+  client          WehowareClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentType WehowareAppointmentType? @relation(fields: [appointmentTypeId], references: [id], onDelete: SetNull)
+  creator         WehowareProfile?         @relation("AppointmentCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater         WehowareProfile?         @relation("AppointmentUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("wehoware_appointments")
+}
+
+// =============================================================
+// 29. Invoices
+// =============================================================
+model WehowareInvoice {
+  id            String        @id @default(uuid()) @db.VarChar(36)
+  clientId      String        @map("client_id") @db.VarChar(36)
+  invoiceNumber String        @map("invoice_number") @db.VarChar(50)
+  clientName    String        @map("client_name") @db.VarChar(255)
+  clientEmail   String?       @map("client_email") @db.VarChar(255)
+  invoiceDate   DateTime      @map("invoice_date") @db.Date
+  dueDate       DateTime      @map("due_date") @db.Date
+  status        InvoiceStatus @default(Draft)
+  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
+  taxRate       Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxAmount     Decimal       @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  total         Decimal       @default(0) @db.Decimal(12, 2)
+  currency      String        @default("CAD") @db.VarChar(10)
+  notes         String?       @db.Text
+  paidAt        DateTime?     @map("paid_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdBy     String?       @map("created_by") @db.VarChar(36)
+  updatedBy     String?       @map("updated_by") @db.VarChar(36)
+
+  client    WehowareClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator   WehowareProfile?  @relation("InvoiceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater   WehowareProfile?  @relation("InvoiceUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  lineItems WehowareInvoiceLineItem[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([invoiceDate])
+  @@map("wehoware_invoices")
+}
+
+// =============================================================
+// 30. Invoice Line Items
+// =============================================================
+model WehowareInvoiceLineItem {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  invoiceId   String   @map("invoice_id") @db.VarChar(36)
+  clientId    String   @map("client_id") @db.VarChar(36)
+  description String   @db.VarChar(500)
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  invoice WehowareInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client  WehowareClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("wehoware_invoice_line_items")
+}
+
+// =============================================================
+// 31. Transactions
+// =============================================================
+model WehowareTransaction {
+  id              String            @id @default(uuid()) @db.VarChar(36)
+  clientId        String            @map("client_id") @db.VarChar(36)
+  transactionDate DateTime          @map("transaction_date") @db.Date
+  description     String            @db.VarChar(500)
+  amount          Decimal           @db.Decimal(12, 2)
+  type            TransactionType   @default(Other)
+  status          TransactionStatus @default(Pending)
+  reference       String?           @db.VarChar(255)
+  currency        String            @default("CAD") @db.VarChar(10)
+  notes           String?           @db.Text
+  invoiceId       String?           @map("invoice_id") @db.VarChar(36)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  createdBy       String?           @map("created_by") @db.VarChar(36)
+
+  client  WehowareClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator WehowareProfile? @relation("TransactionCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status])
+  @@index([transactionDate])
+  @@map("wehoware_transactions")
 }

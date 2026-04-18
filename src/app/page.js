@@ -182,12 +182,14 @@ export default function Home() {
             >
               <div className="relative overflow-hidden rounded-2xl border shadow-2xl">
                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/40 via-background/0 to-background/0 z-10 rounded-2xl"></div>
-                <img
-                  src="https://rfwmtrsvoiwmzeowdmyv.supabase.co/storage/v1/object/public/wehoware-thumbnails/wehoware/technological-ecology-concept_23-2148437384.avif"
+                <Image
+                  src="/images/hero-dashboard.webp"
                   alt="Wehoware Dashboard"
                   width={600}
                   height={400}
                   className="rounded-2xl w-full object-cover"
+                  priority
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
 

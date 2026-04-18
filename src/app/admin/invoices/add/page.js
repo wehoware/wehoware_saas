@@ -1,24 +1,27 @@
 "use client";
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import AdminPageHeader from '@/components/AdminPageHeader';
-import InvoiceForm from '@/components/invoice/InvoiceForm'; // Assuming InvoiceForm.jsx is in this path
-import { ArrowLeft } from 'lucide-react';
+import React from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import AdminPageHeader from "@/components/AdminPageHeader";
+import InvoiceForm from "@/components/invoice/InvoiceForm";
+import { ArrowLeft } from "lucide-react";
 
 export default function AddInvoicePage() {
   const router = useRouter();
 
   const handleSubmit = async (formData) => {
-    // In a real application, you would send this data to your API
-    console.log('Submitting new invoice:', formData);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000)); 
-    
-    // For now, we'll just log it and navigate back
-    // You might want to show a success toast message here
-    alert('Invoice created successfully! (Mock)'); // Replace with a proper toast notification
-    router.push('/admin/invoices'); 
+    const res = await fetch("/api/v1/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error || "Failed to create invoice");
+    }
+    toast.success("Invoice created successfully!");
+    router.push("/admin/invoices");
   };
 
   return (
@@ -30,10 +33,7 @@ export default function AddInvoicePage() {
         backIcon={<ArrowLeft className="mr-2 h-4 w-4" />}
       />
       <div className="mt-6">
-        <InvoiceForm 
-          onSubmit={handleSubmit} 
-          isEditing={false} 
-        />
+        <InvoiceForm onSubmit={handleSubmit} isEditing={false} />
       </div>
     </div>
   );

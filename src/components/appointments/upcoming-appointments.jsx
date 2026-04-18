@@ -1,189 +1,178 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, parseISO, isToday, isTomorrow, isFuture } from "date-fns";
+import { toast } from "react-hot-toast";
 import {
-  CalendarClock,
-  Clock,
-  User,
-  Video,
-  MapPin,
-  MoreHorizontal,
-  Calendar,
-  Check,
-  X,
-  Phone,
+  CalendarClock, Clock, User, Video, MapPin, MoreHorizontal,
+  Calendar, Check, X, Phone, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
 
-// Temporary data for upcoming appointments
-const initialAppointments = [
-  {
-    id: "1",
-    name: "John Smith",
-    email: "john.smith@example.com",
-    type: "15-Minute Meeting",
-    date: "2025-04-27T10:00:00",
-    status: "confirmed",
-    location: "Zoom",
-    link: "https://zoom.us/j/123456789",
-    notes: "Wants to discuss potential partnership",
-  },
-  {
-    id: "2",
-    name: "Sarah Johnson",
-    email: "sarah.j@example.com",
-    type: "30-Minute Consultation",
-    date: "2025-04-27T14:30:00",
-    status: "pending",
-    location: "Google Meet",
-    link: "https://meet.google.com/abc-defg-hij",
-    notes: "First-time client looking for web design services",
-  },
-  {
-    id: "3",
-    name: "Michael Brown",
-    email: "michael.b@example.com",
-    type: "1-Hour Strategy Session",
-    date: "2025-04-28T11:00:00",
-    status: "confirmed",
-    location: "In-person",
-    address: "123 Business St, Suite 101",
-    notes: "Bringing marketing team of 3 people",
-  },
-  {
-    id: "4",
-    name: "Emma Wilson",
-    email: "emma.w@example.com",
-    type: "15-Minute Meeting",
-    date: "2025-04-29T09:15:00",
-    status: "confirmed",
-    location: "Phone Call",
-    phone: "+1 (555) 123-4567",
-    notes: "",
-  },
-  {
-    id: "5",
-    name: "David Lee",
-    email: "david.lee@example.com",
-    type: "30-Minute Consultation",
-    date: "2025-04-30T15:00:00",
-    status: "confirmed",
-    location: "Zoom",
-    link: "https://zoom.us/j/987654321",
-    notes: "Follow-up from previous session",
-  },
-];
+/** Map API appointment shape → component display shape */
+function mapAppointment(a) {
+  return {
+    id: a.id,
+    name: a.guest_name,
+    email: a.guest_email,
+    type: a.appointment_type?.name ?? "Appointment",
+    date: a.scheduled_at,
+    status: a.status?.toLowerCase() ?? "pending",
+    location: a.location ?? "Online",
+    link: a.meeting_link ?? null,
+    address: a.address ?? null,
+    phone: a.guest_phone ?? null,
+    notes: a.notes ?? "",
+  };
+}
 
 export function UpcomingAppointments() {
-  const [appointments, setAppointments] = useState(initialAppointments);
-  const [filter, setFilter] = useState("all"); // all, today, tomorrow, pending
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [appointmentToCancel, setAppointmentToCancel] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
-  const handleConfirm = (id) => {
-    setAppointments(
-      appointments.map((appointment) =>
-        appointment.id === id
-          ? { ...appointment, status: "confirmed" }
-          : appointment
-      )
-    );
+  useEffect(() => {
+    fetchAppointments();
+  }, []);
+
+  async function fetchAppointments() {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/v1/appointments?limit=100");
+      if (!res.ok) throw new Error("Failed to load appointments");
+      const json = await res.json();
+      setAppointments((json.appointments || json.data || []).map(mapAppointment));
+    } catch (err) {
+      console.error("Error fetching appointments:", err);
+      toast.error("Failed to load appointments");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleConfirm = async (id) => {
+    try {
+      const res = await fetch(`/api/v1/appointments/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Confirmed" }),
+      });
+      if (!res.ok) throw new Error("Failed to confirm appointment");
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "confirmed" } : a))
+      );
+      toast.success("Appointment confirmed");
+    } catch (err) {
+      toast.error(err.message || "Failed to confirm appointment");
+    }
   };
 
   const handleCancel = (id) => {
-    if (window.confirm("Are you sure you want to cancel this appointment?")) {
-      // In a real app, you might not delete but mark as canceled
-      setAppointments(
-        appointments.filter((appointment) => appointment.id !== id)
+    setAppointmentToCancel(id);
+    setCancelDialogOpen(true);
+  };
+
+  const confirmCancel = async () => {
+    if (!appointmentToCancel) return;
+    try {
+      setCancelLoading(true);
+      const res = await fetch(`/api/v1/appointments/${appointmentToCancel}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Cancelled" }),
+      });
+      if (!res.ok) throw new Error("Failed to cancel appointment");
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === appointmentToCancel ? { ...a, status: "cancelled" } : a
+        )
       );
+      toast.success("Appointment cancelled");
+      if (selectedAppointment?.id === appointmentToCancel) {
+        setSelectedAppointment(null);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to cancel appointment");
+    } finally {
+      setCancelLoading(false);
+      setCancelDialogOpen(false);
+      setAppointmentToCancel(null);
     }
   };
 
-  const handleReschedule = (id) => {
-    // In a real app, this would open a rescheduling interface
-    alert(`Reschedule functionality would open for appointment ${id}`);
+  const handleReschedule = () => {
+    toast.error("Reschedule feature coming soon");
   };
 
   const filteredAppointments = appointments.filter((appointment) => {
-    const date = parseISO(appointment.date);
-    switch (filter) {
-      case "today":
-        return isToday(date);
-      case "tomorrow":
-        return isTomorrow(date);
-      case "pending":
-        return appointment.status === "pending";
-      default:
-        return isFuture(date);
+    if (appointment.status === "cancelled") return false;
+    try {
+      const date = parseISO(appointment.date);
+      switch (filter) {
+        case "today": return isToday(date);
+        case "tomorrow": return isTomorrow(date);
+        case "pending": return appointment.status === "pending";
+        default: return isFuture(date) || isToday(date);
+      }
+    } catch {
+      return true;
     }
   });
 
-  const getLocationIcon = (location) => {
-    switch (location.toLowerCase()) {
-      case "zoom":
-      case "google meet":
-      case "microsoft teams":
-        return <Video className="h-4 w-4" />;
-      case "phone call":
-        return <Phone className="h-4 w-4" />;
-      case "in-person":
-        return <MapPin className="h-4 w-4" />;
-      default:
-        return <Calendar className="h-4 w-4" />;
-    }
+  const getLocationIcon = (location = "") => {
+    const l = location.toLowerCase();
+    if (["zoom", "google meet", "microsoft teams"].includes(l)) return <Video className="h-4 w-4" />;
+    if (l === "phone call") return <Phone className="h-4 w-4" />;
+    if (l === "in-person") return <MapPin className="h-4 w-4" />;
+    return <Calendar className="h-4 w-4" />;
   };
 
   const getDateLabel = (dateString) => {
-    const date = parseISO(dateString);
-    if (isToday(date)) return "Today";
-    if (isTomorrow(date)) return "Tomorrow";
-    return format(date, "EEE, MMM d");
+    try {
+      const date = parseISO(dateString);
+      if (isToday(date)) return "Today";
+      if (isTomorrow(date)) return "Tomorrow";
+      return format(date, "EEE, MMM d");
+    } catch {
+      return dateString;
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Upcoming Appointments</h2>
         <div className="flex space-x-2">
-          <Button
-            variant={filter === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("all")}
-          >
-            All
-          </Button>
-          <Button
-            variant={filter === "today" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("today")}
-          >
-            Today
-          </Button>
-          <Button
-            variant={filter === "tomorrow" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("tomorrow")}
-          >
-            Tomorrow
-          </Button>
-          <Button
-            variant={filter === "pending" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter("pending")}
-          >
-            Pending
-          </Button>
+          {["all", "today", "tomorrow", "pending"].map((f) => (
+            <Button
+              key={f}
+              variant={filter === f ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilter(f)}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -194,44 +183,32 @@ export function UpcomingAppointments() {
           <p className="text-gray-500 max-w-md">
             {filter === "all"
               ? "You don't have any upcoming appointments."
-              : `You don't have any appointments ${
-                  filter === "pending" ? "pending" : filter
-                }.`}
+              : `No appointments ${filter === "pending" ? "pending" : filter}.`}
           </p>
         </Card>
       ) : (
         <ScrollArea className="max-h-[550px]">
           <div className="space-y-3">
             {filteredAppointments.map((appointment) => {
-              const date = parseISO(appointment.date);
+              let date;
+              try { date = parseISO(appointment.date); } catch { date = new Date(); }
 
               return (
                 <Card
                   key={appointment.id}
-                  className={`p-4 ${
-                    appointment.status === "pending"
-                      ? "border-amber-300 border-2"
-                      : ""
-                  }`}
+                  className={`p-4 ${appointment.status === "pending" ? "border-amber-300 border-2" : ""}`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center">
-                        <h3 className="font-semibold text-lg">
-                          {appointment.name}
-                        </h3>
+                        <h3 className="font-semibold text-lg">{appointment.name}</h3>
                         {appointment.status === "pending" && (
-                          <Badge
-                            variant="outline"
-                            className="ml-2 text-amber-600 border-amber-300 bg-amber-50"
-                          >
+                          <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300 bg-amber-50">
                             Awaiting Confirmation
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">
-                        {appointment.email}
-                      </p>
+                      <p className="text-sm text-gray-500">{appointment.email}</p>
                     </div>
 
                     <DropdownMenu>
@@ -244,32 +221,19 @@ export function UpcomingAppointments() {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {appointment.status === "pending" && (
-                          <DropdownMenuItem
-                            onClick={() => handleConfirm(appointment.id)}
-                          >
-                            <Check className="h-4 w-4 mr-2" />
-                            Confirm
+                          <DropdownMenuItem onClick={() => handleConfirm(appointment.id)}>
+                            <Check className="h-4 w-4 mr-2" /> Confirm
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem
-                          onClick={() => setSelectedAppointment(appointment)}
-                        >
-                          <User className="h-4 w-4 mr-2" />
-                          View Details
+                        <DropdownMenuItem onClick={() => setSelectedAppointment(appointment)}>
+                          <User className="h-4 w-4 mr-2" /> View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleReschedule(appointment.id)}
-                        >
-                          <Calendar className="h-4 w-4 mr-2" />
-                          Reschedule
+                        <DropdownMenuItem onClick={handleReschedule}>
+                          <Calendar className="h-4 w-4 mr-2" /> Reschedule
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleCancel(appointment.id)}
-                          className="text-red-600"
-                        >
-                          <X className="h-4 w-4 mr-2" />
-                          Cancel
+                        <DropdownMenuItem onClick={() => handleCancel(appointment.id)} className="text-red-600">
+                          <X className="h-4 w-4 mr-2" /> Cancel
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -278,32 +242,21 @@ export function UpcomingAppointments() {
                   <div className="mt-3 grid grid-cols-2 gap-y-2 gap-x-4">
                     <div className="flex items-center text-sm">
                       <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-                      <span>
-                        {getDateLabel(appointment.date)},{" "}
-                        {format(date, "h:mm a")}
-                      </span>
+                      <span>{getDateLabel(appointment.date)}, {format(date, "h:mm a")}</span>
                     </div>
-
                     <div className="flex items-center text-sm">
                       <Clock className="h-4 w-4 mr-2 text-gray-500" />
                       <span>{appointment.type}</span>
                     </div>
-
                     <div className="flex items-center text-sm col-span-2">
                       {getLocationIcon(appointment.location)}
                       <span className="ml-2">{appointment.location}</span>
                       {appointment.link && (
-                        <a
-                          href={appointment.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 text-blue-600 hover:underline"
-                        >
+                        <a href={appointment.link} target="_blank" rel="noopener noreferrer" className="ml-2 text-blue-600 hover:underline">
                           Join Link
                         </a>
                       )}
                     </div>
-
                     {appointment.notes && (
                       <div className="col-span-2 mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
                         <strong>Notes:</strong> {appointment.notes}
@@ -317,97 +270,78 @@ export function UpcomingAppointments() {
         </ScrollArea>
       )}
 
-      {/* Appointment details modal - would be implemented with a proper modal component */}
+      {/* Detail Modal */}
       {selectedAppointment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="p-6 max-w-md w-full">
             <div className="flex justify-between items-start">
               <h2 className="text-xl font-bold">Appointment Details</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedAppointment(null)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setSelectedAppointment(null)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
-
             <div className="mt-4 space-y-4">
               <div>
                 <h3 className="text-sm text-gray-500">Client</h3>
                 <p className="font-medium">{selectedAppointment.name}</p>
                 <p className="text-sm">{selectedAppointment.email}</p>
               </div>
-
               <div>
                 <h3 className="text-sm text-gray-500">Appointment Type</h3>
                 <p className="font-medium">{selectedAppointment.type}</p>
               </div>
-
               <div>
-                <h3 className="text-sm text-gray-500">Date & Time</h3>
-                <p className="font-medium">
-                  {format(
-                    parseISO(selectedAppointment.date),
-                    "EEEE, MMMM d, yyyy"
-                  )}
-                </p>
-                <p className="text-sm">
-                  {format(parseISO(selectedAppointment.date), "h:mm a")}
-                </p>
+                <h3 className="text-sm text-gray-500">Date &amp; Time</h3>
+                {(() => {
+                  try {
+                    const d = parseISO(selectedAppointment.date);
+                    return <>
+                      <p className="font-medium">{format(d, "EEEE, MMMM d, yyyy")}</p>
+                      <p className="text-sm">{format(d, "h:mm a")}</p>
+                    </>;
+                  } catch { return <p className="font-medium">{selectedAppointment.date}</p>; }
+                })()}
               </div>
-
               <div>
                 <h3 className="text-sm text-gray-500">Location</h3>
                 <p className="font-medium">{selectedAppointment.location}</p>
                 {selectedAppointment.link && (
-                  <a
-                    href={selectedAppointment.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline"
-                  >
+                  <a href={selectedAppointment.link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
                     {selectedAppointment.link}
                   </a>
                 )}
-                {selectedAppointment.address && (
-                  <p className="text-sm">{selectedAppointment.address}</p>
-                )}
-                {selectedAppointment.phone && (
-                  <p className="text-sm">{selectedAppointment.phone}</p>
-                )}
+                {selectedAppointment.address && <p className="text-sm">{selectedAppointment.address}</p>}
+                {selectedAppointment.phone && <p className="text-sm">{selectedAppointment.phone}</p>}
               </div>
-
               {selectedAppointment.notes && (
                 <div>
                   <h3 className="text-sm text-gray-500">Notes</h3>
-                  <p className="text-sm bg-gray-50 p-2 rounded">
-                    {selectedAppointment.notes}
-                  </p>
+                  <p className="text-sm bg-gray-50 p-2 rounded">{selectedAppointment.notes}</p>
                 </div>
               )}
             </div>
-
             <div className="mt-6 flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => handleReschedule(selectedAppointment.id)}
-              >
-                Reschedule
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  handleCancel(selectedAppointment.id);
-                  setSelectedAppointment(null);
-                }}
-              >
+              <Button variant="outline" onClick={handleReschedule}>Reschedule</Button>
+              <Button variant="destructive" onClick={() => { setSelectedAppointment(null); handleCancel(selectedAppointment.id); }}>
                 Cancel Appointment
               </Button>
             </div>
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        title="Cancel Appointment?"
+        message="Are you sure you want to cancel this appointment? The record will be marked as Cancelled."
+        confirmLabel="Yes, Cancel"
+        cancelLabel="Keep"
+        onConfirm={confirmCancel}
+        isLoading={cancelLoading}
+        loadingLabel="Cancelling..."
+        variant="destructive"
+      />
     </div>
   );
 }

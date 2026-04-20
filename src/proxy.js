@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 /**
- * Next.js Edge Middleware
+ * Next.js Edge Proxy (previously "middleware" in Next.js <=15)
  * Runs on every request before it hits a route handler or page.
  *
  * Responsibilities:
@@ -9,15 +9,6 @@ import { NextResponse } from "next/server";
  * 2. Protect /admin/* routes — redirect to /login if no session cookie
  * 3. Redirect authenticated users away from /login
  */
-
-const PUBLIC_PATHS = [
-  "/login",
-  "/",
-  "/about",
-  "/contact",
-  "/services",
-  "/blog",
-];
 
 /** Security headers applied to every response */
 function addSecurityHeaders(response) {
@@ -49,7 +40,7 @@ function addSecurityHeaders(response) {
   return response;
 }
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl;
 
   // Skip static files, _next internals, and API routes (API routes have their
@@ -63,8 +54,12 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  // Check for NextAuth session token (works with both dev and prod cookie names)
+  // Check for NextAuth session token.
+  // NextAuth v5 uses the "authjs.*" cookie prefix; "next-auth.*" is kept as a
+  // fallback in case any older v4 session cookies are still around.
   const sessionToken =
+    request.cookies.get("authjs.session-token")?.value ||
+    request.cookies.get("__Secure-authjs.session-token")?.value ||
     request.cookies.get("next-auth.session-token")?.value ||
     request.cookies.get("__Secure-next-auth.session-token")?.value;
 
@@ -92,7 +87,7 @@ export function middleware(request) {
 
 export const config = {
   // Run on all paths except static files (redundant with the check above but
-  // prevents the middleware from even being invoked for static assets)
+  // prevents the proxy from even being invoked for static assets)
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],

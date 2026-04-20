@@ -27,6 +27,33 @@ const FIELD_MAP = {
   due_date: "dueDate",
 };
 
+// TaskStatus enum: Prisma JS identifiers use underscores (To_Do, In_Progress)
+// but the legacy UI sends / expects the original DB values with spaces
+// ("To Do", "In Progress"). These helpers translate in both directions so
+// the API accepts either form and always returns the UI-friendly form.
+const STATUS_TO_PRISMA = {
+  "To Do": "To_Do",
+  "In Progress": "In_Progress",
+  Done: "Done",
+  Backlog: "Backlog",
+};
+const STATUS_FROM_PRISMA = {
+  To_Do: "To Do",
+  In_Progress: "In Progress",
+  Done: "Done",
+  Backlog: "Backlog",
+};
+function toPrismaStatus(s) {
+  if (s == null) return s;
+  if (STATUS_TO_PRISMA[s]) return STATUS_TO_PRISMA[s];
+  // Already in Prisma form (To_Do, In_Progress, …) or an unknown value
+  return s;
+}
+function fromPrismaStatus(s) {
+  if (s == null) return s;
+  return STATUS_FROM_PRISMA[s] ?? s;
+}
+
 // Standard include used across GET endpoints to preserve response shape
 // expected by the admin UI (client.company_name / assignee.first_name …).
 const TASK_INCLUDE = {
@@ -48,7 +75,7 @@ const TASK_INCLUDE = {
  */
 function shapeTask(task) {
   if (!task) return task;
-  const out = { ...task };
+  const out = { ...task, status: fromPrismaStatus(task.status) };
   if (task.client) {
     out.client = {
       id: task.client.id,
@@ -95,7 +122,7 @@ export const GET = withAuth(async (request) => {
     const assigneeFilter = searchParams.get("assignee_id");
 
     const where = {};
-    if (status) where.status = status;
+    if (status) where.status = toPrismaStatus(status);
     if (priority) where.priority = priority;
 
     // Role-based scoping
@@ -188,7 +215,7 @@ export const POST = withAuth(
           description: description ?? null,
           dueDate: due_date ? new Date(due_date) : null,
           priority: priority ?? null,
-          status: status ?? null,
+          status: status ? toPrismaStatus(status) : null,
           clientId: client_id,
           assigneeId: assignee_id ?? null,
           createdBy: user.id,
@@ -217,6 +244,12 @@ export const POST = withAuth(
       if (err?.code === "P2003") {
         return NextResponse.json(
           { error: "Invalid client_id or assignee_id" },
+          { status: 400 }
+        );
+      }
+      if (err?.name === "PrismaClientValidationError") {
+        return NextResponse.json(
+          { error: "Invalid task fields (check status/priority values)" },
           { status: 400 }
         );
       }

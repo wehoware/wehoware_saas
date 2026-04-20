@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -52,9 +53,11 @@ export default function ThemeSettingsForm({
               placeholder="https://.../logo_light.png"
             />
             {getSetting("logo_url_light") && (
-              <img
+              <Image
                 src={getSetting("logo_url_light")}
                 alt="Light Logo Preview"
+                width={32}
+                height={32}
                 className="mt-2 h-8 object-contain"
               />
             )}
@@ -68,9 +71,11 @@ export default function ThemeSettingsForm({
               placeholder="https://.../logo_dark.png"
             />
             {getSetting("logo_url_dark") && (
-              <img
+              <Image
                 src={getSetting("logo_url_dark")}
                 alt="Dark Logo Preview"
+                width={32}
+                height={32}
                 className="mt-2 h-8 object-contain bg-gray-800 p-1 rounded"
               />
             )}
@@ -85,9 +90,11 @@ export default function ThemeSettingsForm({
             placeholder="https://.../favicon.ico"
           />
           {getSetting("favicon_url") && (
-            <img
+            <Image
               src={getSetting("favicon_url")}
               alt="Favicon Preview"
+              width={24}
+              height={24}
               className="mt-2 h-6 w-6 object-contain"
             />
           )}

@@ -17,11 +17,86 @@ Multi-tenant SaaS platform with Next.js 15, featuring authentication, client man
 
 **Multi-Tenant:** Client switching via localStorage, data isolation via client_id, role-based access control
 ## Project Structure
-**API (43 endpoints):** auth, blogs, clients, forms, inquiries, integrations, reports, seo, services, settings, tasks, uploads, users
-**Admin Pages (35+):** appointments, blogs, categories, clients, forms, inquiries, integrations, invoices, keywords, reports, seo, services, settings, tasks, transactions, users
-**Components:** UI library (shadcn/ui), dashboard, tasks (11 files), appointments, invoice, seo, settings, admin layout
-**Core:** auth-context.js, auth.js, prisma.js, database schemas
-**Components:** shadcn/ui library (25+ components), task management (11 components), dashboard, form builder, SEO tools, admin interface
+
+src/
+  app/                          # Next.js App Router
+    api/                        # API routes
+      auth/                     # NextAuth endpoints
+      v1/                       # Version 1 API (43 endpoints)
+        auth/                   # Authentication API
+        blogs/                  # Blog management (6 endpoints)
+        clients/                # Client management (2 endpoints)
+        forms/                  # Form builder (5 endpoints)
+        inquiries/              # Lead management (1 endpoint)
+        integrations/           # Third-party integrations (4 endpoints)
+        reports/                # Reporting system (2 endpoints)
+        seo/                    # SEO management (5 endpoints)
+        services/               # Service catalog (5 endpoints)
+        settings/               # Configuration (3 endpoints)
+        tasks/                  # Task management (5 endpoints)
+        uploads/                # File uploads (1 endpoint)
+        users/                  # User management (2 endpoints)
+    admin/                      # Admin dashboard (35+ pages)
+      appointments/            # Appointment scheduling
+      blogs/                    # Blog management interface
+      categories/              # Category management
+      clients/                  # Client administration
+      forms/                    # Form builder interface
+      inquiries/                # Inquiry management
+      integrations/             # Integration management
+      invoices/                # Invoice system
+      keywords/                # SEO keyword management
+      reports/                 # Reporting interface
+      seo/                      # SEO tools
+      services/                # Service management
+      settings/                # System settings
+      tasks/                   # Task management interface
+      transactions/            # Transaction tracking
+      users/                   # User administration
+    login/                      # Authentication page
+    about/                      # About page
+    blog/                       # Public blog pages
+    contact/                    # Contact page
+    services/                   # Public services pages
+  components/                  # Reusable React components (25+ files)
+    ui/                        # Shadcn/ui components (25+ components)
+    dashboard/                 # Dashboard components
+    tasks/                      # Task management components (11 files)
+    appointments/               # Appointment components
+    invoice/                    # Invoice components
+    seo/                        # SEO management components
+    settings/                   # Settings components
+    AdminHeader.js              # Admin navigation header
+    AdminLayout.js              # Admin layout wrapper
+    Footer.js                   # Site footer
+    Header.js                   # Site header
+  contexts/                    # React contexts
+    auth-context.js            # Authentication state management
+  hooks/                       # Custom React hooks
+    useAuth.js                 # Authentication hook
+  lib/                         # Utility libraries
+    auth.js                    # NextAuth configuration
+    prisma.js                  # Prisma client singleton
+  db/                          # Database schemas
+    schema.sql                 # SQL schema reference
+    wehoware_profiles_rows.sql  # Profile data reference
+  styles/                      # Global styles
+    globals.css                # Global CSS variables
+
+### Component Architecture
+
+**UI Components (shadcn/ui):**
+- Complete component library with 25+ accessible components
+- Custom theme with design tokens and dark mode support
+- Radix UI primitives for accessibility
+- TailwindCSS integration with custom animations
+
+**Business Components:**
+- **Task Management**: 11 specialized components for complete task workflow
+- **Dashboard**: Overview cards, charts, and activity feeds
+- **Form Builder**: Dynamic form creation with validation
+- **SEO Tools**: Keyword management and static page editing
+- **Admin Interface**: Comprehensive admin layout and navigation
 ## Key Files
 
 **Auth:** src/lib/auth.js (NextAuth config), src/contexts/auth-context.js (state management), src/app/api/v1/auth/route.js (API), src/app/login/page.js (UI)

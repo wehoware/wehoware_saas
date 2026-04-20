@@ -43,10 +43,6 @@ export function UpcomingAppointments() {
   const [appointmentToCancel, setAppointmentToCancel] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
-  useEffect(() => {
-    fetchAppointments();
-  }, []);
-
   async function fetchAppointments() {
     try {
       setLoading(true);
@@ -61,6 +57,10 @@ export function UpcomingAppointments() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchAppointments();
+  }, []);
 
   const handleConfirm = async (id) => {
     try {

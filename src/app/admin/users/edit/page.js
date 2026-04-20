@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
@@ -37,6 +37,39 @@ export default function EditUserPage() {
     client_ids: [], // This will store IDs from wehoware_user_clients
   });
 
+  const fetchUser = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/v1/users/${userId}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch user");
+      const json = await res.json();
+      const u = json.user;
+      setEditUser({
+        id: u.id || "",
+        email: u.email || "",
+        first_name: u.first_name || "",
+        last_name: u.last_name || "",
+        role: u.role || "client",
+        client_ids: u.client_ids || [],
+      });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      toast.error(error.message || "Failed to fetch user details");
+      router.push("/admin/users");
+    }
+  }, [userId, router]);
+
+  const fetchClients = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/clients");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
+      const json = await res.json();
+      setClients(json.clients || []);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      toast.error("Failed to fetch client list");
+    }
+  }, []);
+
   useEffect(() => {
     const checkUserRole = async () => {
       try {
@@ -64,40 +97,7 @@ export default function EditUserPage() {
     };
 
     checkUserRole();
-  }, [user, isAdmin, userId, router]);
-
-  const fetchUser = async () => {
-    try {
-      const res = await fetch(`/api/v1/users/${userId}`);
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch user");
-      const json = await res.json();
-      const u = json.user;
-      setEditUser({
-        id: u.id || "",
-        email: u.email || "",
-        first_name: u.first_name || "",
-        last_name: u.last_name || "",
-        role: u.role || "client",
-        client_ids: u.client_ids || [],
-      });
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      toast.error(error.message || "Failed to fetch user details");
-      router.push("/admin/users");
-    }
-  };
-
-  const fetchClients = async () => {
-    try {
-      const res = await fetch("/api/v1/clients");
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
-      const json = await res.json();
-      setClients(json.clients || []);
-    } catch (error) {
-      console.error("Error fetching clients:", error);
-      toast.error("Failed to fetch client list");
-    }
-  };
+  }, [user, isAdmin, userId, router, fetchUser, fetchClients]);
 
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import slugify from "slugify";
@@ -64,14 +65,6 @@ export default function AddBlogPage() {
     seo_keywords: "",
   });
 
-  useEffect(() => {
-    if (activeClient?.id) {
-      fetchCategories();
-    } else {
-      setCategories([]);
-    }
-  }, [activeClient?.id]);
-
   const fetchCategories = async () => {
     try {
       const res = await fetch("/api/v1/blogs/categories");
@@ -84,6 +77,14 @@ export default function AddBlogPage() {
       setErrorDialogOpen(true);
     }
   };
+
+  useEffect(() => {
+    if (activeClient?.id) {
+      fetchCategories();
+    } else {
+      setCategories([]);
+    }
+  }, [activeClient?.id]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -387,9 +388,11 @@ export default function AddBlogPage() {
                         {/* Preview */}
                         <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
                           {previewUrl ? (
-                            <img
+                            <Image
                               src={previewUrl}
                               alt="Preview"
+                              width={96}
+                              height={96}
                               className="w-full h-full object-cover"
                             />
                           ) : (

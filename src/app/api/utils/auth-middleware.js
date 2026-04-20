@@ -1,6 +1,5 @@
 // src/app/api/utils/auth-middleware.js
 // Route-level auth middleware — NextAuth v5 JWT session verification +
-// Prisma client attachment. Supabase has been fully removed.
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
@@ -90,47 +89,100 @@ export function withAuth(handler, options = {}) {
       clientId: profile.clientId ?? null,
     };
 
-    // --- Client switching (employees/admins) ---
-    // When a ?clientId= query param is provided and the user has access to
-    // that client, set activeClientId and record the switch for audit.
+    // --- Resolve active client context (employees/admins/clients) ---
+    // Precedence:
+    //   1. Explicit ?clientId= query param (lets a single request override)
+    //   2. wehoware_active_client_id cookie (set by the auth context when
+    //      the user picks a client from the header switcher)
+    //   3. Fallback: the user's primary wehoware_user_clients row, or their
+    //      first accessible client — so every request has a client context
+    //      without each admin page needing to pass ?clientId= manually.
+    //
+    // Regardless of source, access is always verified against
+    // wehoware_user_clients before activeClientId is set on request.user.
     if (["employee", "admin", "client"].includes(profile.role)) {
       const url = new URL(request.url);
-      const activeClientId = url.searchParams.get("clientId");
+      const queryClientId = url.searchParams.get("clientId");
+      const cookieClientId = request.cookies?.get?.(
+        "wehoware_active_client_id"
+      )?.value;
 
-      if (activeClientId) {
+      // Explicit sources to try in order. We only write an audit row when
+      // the user actually changes their client (query param request), not
+      // on every page load where the cookie is just replaying state.
+      const candidates = [
+        { id: queryClientId, audit: true },
+        { id: cookieClientId, audit: false },
+      ].filter((c) => c.id);
+
+      let resolvedClientId = null;
+
+      for (const { id, audit } of candidates) {
         try {
           const clientAccess = await prisma.wehowareUserClient.findFirst({
-            where: {
-              userId: profile.id,
-              clientId: activeClientId,
-            },
+            where: { userId: profile.id, clientId: id },
             select: { clientId: true },
           });
+          if (!clientAccess) continue;
 
-          if (clientAccess) {
-            // Fire-and-forget audit insert; don't block the request on it
+          resolvedClientId = id;
+
+          if (audit) {
+            // Fire-and-forget audit insert; don't block the request on it.
             prisma.wehowareClientSwitchHistory
               .create({
                 data: {
                   userId: profile.id,
-                  clientId: activeClientId,
+                  clientId: id,
                   ipAddress:
-                    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-                    "unknown",
-                  userAgent:
-                    request.headers.get("user-agent") ?? "unknown",
+                    request.headers
+                      .get("x-forwarded-for")
+                      ?.split(",")[0]
+                      ?.trim() ?? "unknown",
+                  userAgent: request.headers.get("user-agent") ?? "unknown",
                 },
               })
               .catch((err) => {
-                console.warn("[withAuth] Failed to write switch history:", err);
+                console.warn(
+                  "[withAuth] Failed to write switch history:",
+                  err
+                );
               });
-
-            request.user.activeClientId = activeClientId;
           }
+          break;
         } catch (err) {
-          // Non-fatal — log and continue; the switch just won't register
           console.warn("[withAuth] Client access check error:", err);
         }
+      }
+
+      // Fallback: pick the user's primary client (or first accessible).
+      // For role=client, profile.clientId is the authoritative tenant.
+      if (!resolvedClientId) {
+        if (profile.role === "client") {
+          resolvedClientId = profile.clientId ?? null;
+        } else {
+          try {
+            const primary =
+              (await prisma.wehowareUserClient.findFirst({
+                where: { userId: profile.id, isPrimary: true },
+                select: { clientId: true },
+              })) ??
+              (await prisma.wehowareUserClient.findFirst({
+                where: { userId: profile.id },
+                select: { clientId: true },
+              }));
+            resolvedClientId = primary?.clientId ?? null;
+          } catch (err) {
+            console.warn(
+              "[withAuth] Fallback client lookup failed:",
+              err
+            );
+          }
+        }
+      }
+
+      if (resolvedClientId) {
+        request.user.activeClientId = resolvedClientId;
       }
     }
 

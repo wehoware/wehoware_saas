@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -47,31 +47,7 @@ export default function UsersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
 
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        if (!user) {
-          router.push("/login");
-          return;
-        }
-        if (!isAdmin) {
-          toast.error("Access Denied: Only employees can access this page");
-          router.push("/admin");
-          return;
-        }
-        fetchUsers();
-        fetchClients();
-      } catch (error) {
-        console.error("Error checking user role:", error);
-        toast.error("Failed to verify your access permissions");
-        router.push("/admin");
-      }
-    };
-
-    checkUserRole();
-  }, [user, isAdmin, router]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setIsLoading(true);
       // Fetch users from the secure API endpoint
@@ -103,9 +79,9 @@ export default function UsersPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sortField, sortOrder]);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const res = await fetch("/api/v1/clients");
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
@@ -115,7 +91,31 @@ export default function UsersPage() {
       console.error("Error fetching clients:", error);
       toast.error("Failed to fetch client list");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        if (!user) {
+          router.push("/login");
+          return;
+        }
+        if (!isAdmin) {
+          toast.error("Access Denied: Only employees can access this page");
+          router.push("/admin");
+          return;
+        }
+        fetchUsers();
+        fetchClients();
+      } catch (error) {
+        console.error("Error checking user role:", error);
+        toast.error("Failed to verify your access permissions");
+        router.push("/admin");
+      }
+    };
+
+    checkUserRole();
+  }, [user, isAdmin, router, fetchUsers, fetchClients]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);

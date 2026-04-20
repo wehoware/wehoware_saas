@@ -19,6 +19,23 @@ import { toast } from "react-hot-toast";
 const AuthContext = createContext(undefined);
 
 const ACTIVE_CLIENT_ID_KEY = "wehoware_activeClientId";
+// Cookie name read by the API auth middleware so every request is scoped to
+// the currently selected client without requiring each page to pass
+// ?clientId= explicitly. Keep in sync with src/app/api/utils/auth-middleware.js.
+const ACTIVE_CLIENT_COOKIE = "wehoware_active_client_id";
+
+function writeActiveClientCookie(clientId) {
+  if (typeof document === "undefined") return;
+  if (clientId) {
+    // 30-day, SameSite=Lax so it's sent on same-origin fetches; not HttpOnly
+    // because this is a client-writable scoping hint, not a credential.
+    document.cookie = `${ACTIVE_CLIENT_COOKIE}=${encodeURIComponent(
+      clientId
+    )}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+  } else {
+    document.cookie = `${ACTIVE_CLIENT_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  }
+}
 
 // Paths accessible without authentication
 const PUBLIC_PATH_PREFIXES = ["/login", "/blog", "/about", "/contact", "/services"];
@@ -105,6 +122,7 @@ export function AuthProvider({ children }) {
           const initialActiveClient = resolveInitialActiveClient(fetchedUser);
           setActiveClient(initialActiveClient);
           setClientUrl(initialActiveClient?.website ?? null);
+          writeActiveClientCookie(initialActiveClient?.id ?? null);
 
           try {
             if (initialActiveClient) {
@@ -126,6 +144,7 @@ export function AuthProvider({ children }) {
           setUser(null);
           setActiveClient(null);
           setClientUrl(null);
+          writeActiveClientCookie(null);
 
           if (!isPublicPath(pathname)) {
             router.replace("/login");
@@ -185,6 +204,7 @@ export function AuthProvider({ children }) {
       const initialActiveClient = resolveInitialActiveClient(fetchedUser);
       setActiveClient(initialActiveClient);
       setClientUrl(initialActiveClient?.website ?? null);
+      writeActiveClientCookie(initialActiveClient?.id ?? null);
 
       try {
         if (initialActiveClient) {
@@ -222,6 +242,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       setActiveClient(null);
       setClientUrl(null);
+      writeActiveClientCookie(null);
 
       router.replace("/login");
       toast.success("Logged out successfully");
@@ -248,6 +269,7 @@ export function AuthProvider({ children }) {
 
     setActiveClient(client);
     setClientUrl(client.website ?? null);
+    writeActiveClientCookie(client.id);
     toast.success(`Switched to ${client.name}`);
 
     try {

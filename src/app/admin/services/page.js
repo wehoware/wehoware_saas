@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Image from "next/image";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -54,14 +55,7 @@ export default function ServicesPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [serviceToDelete, setServiceToDelete] = useState(null);
   const [categories, setCategories] = useState([]);
-  // Fetch services from Supabase
-  useEffect(() => {
-    if (!activeClient?.id) return;
-    fetchServices();
-    fetchCategories();
-  }, [showActiveOnly, sortField, sortOrder, activeClient]);
-
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams({ sortBy: sortField, sortOrder, limit: "100" });
@@ -78,9 +72,9 @@ export default function ServicesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sortField, sortOrder, showActiveOnly, searchTerm]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch("/api/v1/services/categories");
       if (!res.ok) return;
@@ -89,7 +83,14 @@ export default function ServicesPage() {
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
-  };
+  }, []);
+
+  // Fetch services from Supabase
+  useEffect(() => {
+    if (!activeClient?.id) return;
+    fetchServices();
+    fetchCategories();
+  }, [showActiveOnly, sortField, sortOrder, activeClient, fetchServices, fetchCategories]);
 
   // Handle search
   const handleSearch = (e) => {
@@ -355,14 +356,16 @@ export default function ServicesPage() {
                             className="hover:bg-gray-50 transition-colors"
                           >
                             <td className="p-3">
-                              <img
-                                src={service.thumbnail || "../images/blank.jpg"}
+                              <Image
+                                src={service.thumbnail || "/images/blank.jpg"}
                                 alt={
                                   service.title
                                     ? `Thumbnail for ${service.title}`
                                     : "Service thumbnail"
                                 }
-                                className="h-10 w-10 rounded-md object-cover border"
+                                width={64}
+                                height={64}
+                                className="w-16 h-16 object-cover rounded"
                               />
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
@@ -383,10 +386,10 @@ export default function ServicesPage() {
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {service.fee && (
+                              {service.fee != null && (
                                 <div className="text-sm text-gray-900">
                                   {service.fee_currency}{" "}
-                                  {service.fee.toFixed(2)}
+                                  {Number(service.fee).toFixed(2)}
                                 </div>
                               )}
                               {service.duration && (

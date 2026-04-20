@@ -9,10 +9,6 @@ export default function FormTemplatesPage() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchFormTemplates();
-  }, []);
-
   async function fetchFormTemplates() {
     try {
       setLoading(true);
@@ -27,6 +23,10 @@ export default function FormTemplatesPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchFormTemplates();
+  }, []);
 
   async function deleteFormTemplate(id) {
     if (!confirm('Are you sure you want to delete this form template?')) return;

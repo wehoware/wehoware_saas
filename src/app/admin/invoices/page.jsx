@@ -47,10 +47,6 @@ export default function InvoicesPage() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    fetchInvoices();
-  }, [statusFilter, sortField, sortOrder]);
-
   async function fetchInvoices() {
     try {
       setIsLoading(true);
@@ -75,6 +71,10 @@ export default function InvoicesPage() {
       setIsLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [statusFilter, sortField, sortOrder]);
 
   const handleSort = (field) => {
     if (sortField === field) {

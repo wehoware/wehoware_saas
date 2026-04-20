@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -49,19 +49,7 @@ export default function InquiriesPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [services, setServices] = useState([]);
 
-  // Fetch inquiries when statusFilter, sortField, or sortOrder changes (runs on mount too)
-  useEffect(() => {
-    if (activeClient?.id) {
-      fetchInquiries();
-    }
-  }, [statusFilter, sortField, sortOrder, activeClient?.id]);
-
-  // Fetch services on mount
-  useEffect(() => {
-    fetchServices();
-  }, []);
-
-  const fetchInquiries = async () => {
+  const fetchInquiries = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -96,9 +84,9 @@ export default function InquiriesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, sortField, sortOrder, activeClient?.id]);
 
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
     try {
       const res = await fetch('/api/v1/services?limit=100&sortBy=title');
       if (!res.ok) return;
@@ -107,7 +95,19 @@ export default function InquiriesPage() {
     } catch (error) {
       console.error("Error fetching services:", error);
     }
-  };
+  }, []);
+
+  // Fetch inquiries when statusFilter, sortField, or sortOrder changes (runs on mount too)
+  useEffect(() => {
+    if (activeClient?.id) {
+      fetchInquiries();
+    }
+  }, [statusFilter, sortField, sortOrder, activeClient?.id, fetchInquiries]);
+
+  // Fetch services on mount
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
 
   // Local search filtering (for larger datasets consider server-side search)
   const filteredInquiries = inquiries.filter((inquiry) => {

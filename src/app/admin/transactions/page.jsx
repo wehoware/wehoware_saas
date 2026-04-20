@@ -116,10 +116,6 @@ export default function AdminTransactionsPage() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    fetchTransactions();
-  }, [typeFilter, statusFilter, activeSortOption]);
-
   const fetchTransactions = async (showRefreshing = false) => {
     try {
       if (showRefreshing) {
@@ -152,6 +148,10 @@ export default function AdminTransactionsPage() {
       setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [typeFilter, statusFilter, activeSortOption]);
 
   const handleRefresh = () => fetchTransactions(true);
 

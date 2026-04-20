@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export default function ClientsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState(null);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch(`/api/v1/clients?sort_field=${sortField}&sort_order=${sortOrder}`);
@@ -52,12 +52,12 @@ export default function ClientsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sortField, sortOrder]);
 
   // Trigger fetch when sort changes
   useEffect(() => {
     fetchClients();
-  }, [sortField, sortOrder]);
+  }, [sortField, sortOrder, fetchClients]);
 
   // Filter clients based on the search term (Client-side filtering)
   const filteredClients = clients.filter((client) => {

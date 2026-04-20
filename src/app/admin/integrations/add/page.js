@@ -27,6 +27,21 @@ export default function AddIntegrationPage() {
     sync_frequency: "daily",
   });
 
+  async function fetchProviders() {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/v1/integrations/providers");
+      if (!res.ok) throw new Error("Failed to load integration providers");
+      const json = await res.json();
+      setProviders(json.data || []);
+    } catch (error) {
+      console.error("Error fetching providers:", error.message);
+      toast.error("Failed to load integration providers");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     fetchProviders();
   }, []);
@@ -44,21 +59,6 @@ export default function AddIntegrationPage() {
       }
     }
   }, [providerId, providers]);
-
-  async function fetchProviders() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/v1/integrations/providers");
-      if (!res.ok) throw new Error("Failed to load integration providers");
-      const json = await res.json();
-      setProviders(json.data || []);
-    } catch (error) {
-      console.error("Error fetching providers:", error.message);
-      toast.error("Failed to load integration providers");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const handleProviderChange = (e) => {
     const id = e.target.value;

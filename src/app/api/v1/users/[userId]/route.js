@@ -143,15 +143,24 @@ export const PUT = withAuth(
         updates.push("password");
       }
 
+      // Client associations may be updated for any role. `clientId` on the
+      // profile row only matters for the `client` role's session context; we
+      // leave it null for admin/employee so their sessions aren't pinned to
+      // a single client.
       const effectiveRole = role ?? existing.role;
-      const shouldUpdateClients =
-        effectiveRole === "client" && Array.isArray(clientIdsRaw);
+      const shouldUpdateClients = Array.isArray(clientIdsRaw);
 
-      let primaryClientIdForProfile;
+      let primaryClientIdForProfile = null;
       if (shouldUpdateClients) {
-        primaryClientIdForProfile =
-          primaryClientIdRaw || clientIdsRaw[0] || null;
-        profileData.clientId = primaryClientIdForProfile;
+        if (effectiveRole === "client") {
+          primaryClientIdForProfile =
+            primaryClientIdRaw || clientIdsRaw[0] || null;
+          profileData.clientId = primaryClientIdForProfile;
+        } else {
+          // Admin/employee: clear profile.clientId; accessible clients live
+          // in WehowareUserClient rows only.
+          profileData.clientId = null;
+        }
       }
 
       // Transaction so the profile row and its associations stay in sync

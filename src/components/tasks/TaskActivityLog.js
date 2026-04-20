@@ -14,7 +14,7 @@ const TaskActivityLog = ({ activities = [] }) => {
       <CardHeader>
         <CardTitle className="text-lg font-semibold">Activity Log</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="relative">
         <ScrollArea className="h-72 w-full pr-4"> {/* Adjust height as needed */}
           <div className="relative pl-6">
             {/* Vertical timeline bar */}

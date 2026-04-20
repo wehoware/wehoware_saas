@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import Image from "next/image";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -57,13 +58,7 @@ export default function BlogsPage() {
   const [blogToDelete, setBlogToDelete] = useState(null);
   const [categories, setCategories] = useState([]);
 
-  // Fetch blogs when sort or filter changes
-  useEffect(() => {
-    fetchBlogs();
-    fetchCategories();
-  }, [showPublishedOnly, activeClient, sortField, sortOrder]);
-
-  const fetchBlogs = async () => {
+  const fetchBlogs = useCallback(async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams({
@@ -93,9 +88,9 @@ export default function BlogsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sortField, sortOrder, showPublishedOnly, searchTerm]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch("/api/v1/blogs/categories");
       if (!res.ok) return;
@@ -104,7 +99,13 @@ export default function BlogsPage() {
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
-  };
+  }, []);
+
+  // Fetch blogs when sort or filter changes
+  useEffect(() => {
+    fetchBlogs();
+    fetchCategories();
+  }, [showPublishedOnly, activeClient, sortField, sortOrder, fetchBlogs, fetchCategories]);
 
   // Handle search
   const handleSearch = (e) => {
@@ -360,14 +361,16 @@ export default function BlogsPage() {
                             className="border-b border-gray-200 last:border-0"
                           >
                             <td className="p-3">
-                              <img
-                                src={blog.thumbnail || "../images/blank.jpg"}
+                              <Image
+                                src={blog.thumbnail || "/images/blank.jpg"}
                                 alt={
                                   blog.title
                                     ? `Thumbnail for ${blog.title}`
-                                    : "Blog post thumbnail"
+                                    : "Blog thumbnail"
                                 }
-                                className="h-10 w-10 rounded-md object-cover border"
+                                width={64}
+                                height={64}
+                                className="w-16 h-16 object-cover rounded"
                               />
                             </td>
                             <td className="p-3 max-w-[300px]">

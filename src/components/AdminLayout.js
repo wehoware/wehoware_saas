@@ -6,7 +6,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import AdminHeader from "@/components/AdminHeader";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
@@ -191,12 +190,7 @@ const AdminLayout = ({ children }) => {
   // an empty render if no user exists (handled elsewhere),
   // or the main layout UI otherwise.
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
+    <>
       {isLoading ? (
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="animate-pulse text-primary">
@@ -314,7 +308,7 @@ const AdminLayout = ({ children }) => {
           </div>
         </div>
       )}
-    </ThemeProvider>
+    </>
   );
 };
 

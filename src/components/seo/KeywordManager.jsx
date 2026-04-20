@@ -217,7 +217,7 @@ export function KeywordManager() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete Section?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Are you sure you want to delete the section "{section.title}" and all its keywords? This cannot be undone.
+                        Are you sure you want to delete the section &ldquo;{section.title}&rdquo; and all its keywords? This cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

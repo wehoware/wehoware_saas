@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -45,13 +45,7 @@ export default function ServiceCategoriesPage() {
   });
   const [showAddForm, setShowAddForm] = useState(false);
 
-  useEffect(() => {
-    if (activeClient) {
-      fetchCategories();
-    }
-  }, [activeClient]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -73,7 +67,13 @@ export default function ServiceCategoriesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeClient]);
+
+  useEffect(() => {
+    if (activeClient) {
+      fetchCategories();
+    }
+  }, [activeClient, fetchCategories]);
 
   const handleInputChange = (e, isNewCategory = false) => {
     const { name, value } = e.target;

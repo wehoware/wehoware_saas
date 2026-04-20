@@ -49,10 +49,6 @@ export function AppointmentTypes() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [typeToDelete, setTypeToDelete] = useState(null);
 
-  useEffect(() => {
-    fetchTypes();
-  }, []);
-
   async function fetchTypes() {
     try {
       setLoading(true);
@@ -67,6 +63,10 @@ export function AppointmentTypes() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchTypes();
+  }, []);
 
   const handleCreateNew = () => {
     setCurrentType({ ...BLANK_TYPE });

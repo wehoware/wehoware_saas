@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { Button } from "@/components/ui/button";
@@ -34,15 +34,8 @@ export default function ClientKeywordsPage() {
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Fetch the stored sections when the active client changes.
-  useEffect(() => {
-    if (activeClient) {
-      fetchSections();
-    }
-  }, [activeClient ]);
-
   // Retrieve sections from Supabase.
-  const fetchSections = async () => {
+  const fetchSections = useCallback(async () => {
     if (!activeClient?.id || !user?.id) {
       setErrorMessage("No active client selected or user missing.");
       setErrorDialogOpen(true);
@@ -63,7 +56,14 @@ export default function ClientKeywordsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeClient?.id, user?.id]);
+
+  // Fetch the stored sections when the active client changes.
+  useEffect(() => {
+    if (activeClient) {
+      fetchSections();
+    }
+  }, [activeClient, fetchSections]);
 
   // Immediately update the database with the current sections.
   const handleSaveSections = async (currentSections = sections) => {

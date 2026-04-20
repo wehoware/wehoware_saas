@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Download, Tags, Check} from 'lucide-react';
 import { toast } from 'react-hot-toast';        
 
 export default function FormSubmissions({ params }) {
   const router = useRouter();
-  const { formId } = params;
+  const { formId } = use(params);
   const [submissions, setSubmissions] = useState([]);
   const [formTemplate, setFormTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,12 +17,7 @@ export default function FormSubmissions({ params }) {
   const [submissionTags, setSubmissionTags] = useState([]);
   const [newTag, setNewTag] = useState('');
 
-  useEffect(() => {
-    fetchFormTemplate();
-    fetchSubmissions();
-  }, [formId]);
-
-  async function fetchFormTemplate() {
+  const fetchFormTemplate = useCallback(async () => {
     try {
       const res = await fetch('/api/v1/forms/' + formId);
       if (!res.ok) throw new Error('Failed to load form template');
@@ -32,9 +27,9 @@ export default function FormSubmissions({ params }) {
       console.error('Error fetching form template:', error.message);
       toast.error('Failed to load form template');
     }
-  }
+  }, [formId]);
 
-  async function fetchSubmissions() {
+  const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/v1/forms/' + formId + '/submissions?limit=100');
@@ -47,7 +42,12 @@ export default function FormSubmissions({ params }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [formId]);
+
+  useEffect(() => {
+    fetchFormTemplate();
+    fetchSubmissions();
+  }, [formId, fetchFormTemplate, fetchSubmissions]);
 
   function openSubmissionDetails(submission) {
     setSelectedSubmission(submission);

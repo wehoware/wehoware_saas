@@ -42,11 +42,6 @@ export default function BlogCategoriesPage() {
   });
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Fetch categories on mount
-  useEffect(() => {
-    fetchCategories();
-  }, [activeClient]);
-
   const fetchCategories = async () => {
     try {
       setIsLoading(true);
@@ -62,6 +57,11 @@ export default function BlogCategoriesPage() {
       setIsLoading(false);
     }
   };
+
+  // Fetch categories on mount
+  useEffect(() => {
+    fetchCategories();
+  }, [activeClient]);
 
   const handleInputChange = (e, isNewCategory = false) => {
     const { name, value } = e.target;

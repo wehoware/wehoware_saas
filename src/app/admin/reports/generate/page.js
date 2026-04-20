@@ -30,6 +30,21 @@ export default function GenerateReportPage() {
     schedule_frequency: "monthly",
   });
 
+  async function fetchTemplates() {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/v1/report-templates');
+      if (!res.ok) throw new Error('Failed to load report templates');
+      const json = await res.json();
+      setTemplates(json.data || []);
+    } catch (error) {
+      console.error("Error fetching templates:", error.message);
+      toast.error("Failed to load report templates");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     fetchTemplates();
   }, []);
@@ -47,21 +62,6 @@ export default function GenerateReportPage() {
       }
     }
   }, [templateId, templates]);
-
-  async function fetchTemplates() {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/v1/report-templates');
-      if (!res.ok) throw new Error('Failed to load report templates');
-      const json = await res.json();
-      setTemplates(json.data || []);
-    } catch (error) {
-      console.error("Error fetching templates:", error.message);
-      toast.error("Failed to load report templates");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const handleTemplateChange = (e) => {
     const id = e.target.value;

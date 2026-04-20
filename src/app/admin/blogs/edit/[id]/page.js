@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import Image from "next/image";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import RichTextEditor from "@/components/ui/rich-text-editor";
 import slugify from "slugify";
@@ -81,27 +82,7 @@ export default function EditBlogPage() {
     }
   }, [params]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsFetching(true);
-        await fetchBlogPost();
-        await fetchCategories();
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setErrorMessage(error.message || "Failed to fetch data");
-        setErrorDialogOpen(true);
-      } finally {
-        setIsFetching(false);
-      }
-    };
-
-    if (id) {
-      fetchData();
-    }
-  }, [id]);
-
-  const fetchBlogPost = async () => {
+  const fetchBlogPost = useCallback(async () => {
     if (!id) return null;
     try {
       const res = await fetch(`/api/v1/blogs/${id}`);
@@ -133,7 +114,7 @@ export default function EditBlogPage() {
       console.error("Error fetching blog post:", error);
       throw error;
     }
-  };
+  }, [id]);
 
   const fetchCategories = async () => {
     try {
@@ -146,6 +127,26 @@ export default function EditBlogPage() {
       throw error;
     }
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsFetching(true);
+        await fetchBlogPost();
+        await fetchCategories();
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        setErrorMessage(error.message || "Failed to fetch data");
+        setErrorDialogOpen(true);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+
+    if (id) {
+      fetchData();
+    }
+  }, [id, fetchBlogPost]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -449,9 +450,11 @@ export default function EditBlogPage() {
                       {/* Preview */}
                       <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
                         {previewUrl ? (
-                          <img
+                          <Image
                             src={previewUrl}
                             alt="Preview"
+                            width={96}
+                            height={96}
                             className="w-full h-full object-cover"
                           />
                         ) : (

@@ -181,7 +181,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
 
   // NextAuth will log detailed errors in development automatically
-  debug: process.env.NODE_ENV === "development",
+  debug: false,
 });
 
 // Export helpers so API routes can reuse them without re-implementing

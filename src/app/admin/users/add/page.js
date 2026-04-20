@@ -39,6 +39,18 @@ export default function AddUserPage() {
     client_ids: [],
   });
 
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/v1/clients");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
+      const json = await res.json();
+      setClients(json.clients || []);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      toast.error("Failed to fetch client list");
+    }
+  };
+
   useEffect(() => {
     const checkUserRole = async () => {
       try {
@@ -61,18 +73,6 @@ export default function AddUserPage() {
 
     checkUserRole();
   }, [user, isAdmin, router]);
-
-  const fetchClients = async () => {
-    try {
-      const res = await fetch("/api/v1/clients");
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
-      const json = await res.json();
-      setClients(json.clients || []);
-    } catch (error) {
-      console.error("Error fetching clients:", error);
-      toast.error("Failed to fetch client list");
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -118,16 +118,8 @@ export default function AddUserPage() {
       return;
     }
 
-    if (
-      newUser.role === "employee" &&
-      newUser.client_ids &&
-      newUser.client_ids.length > 0
-    ) {
-      toast.error(
-        "Validation Error: Employees should not have client associations set during creation."
-      );
-      return;
-    }
+    // Admin & employee MAY have client associations (for multi-tenant SaaS
+    // they need access to multiple clients). No extra validation required.
 
     try {
       setIsSubmitting(true);
@@ -253,11 +245,15 @@ export default function AddUserPage() {
                 }
               />
             </div>
-            {newUser.role === "client" && (
+            {(newUser.role === "client" ||
+              newUser.role === "employee" ||
+              newUser.role === "admin") && (
               <div className="my-4">
                 <Label htmlFor="client_id">
-                  Client Associations{" "}
-                  <span className="text-destructive">*</span>
+                  Client Associations
+                  {newUser.role === "client" && (
+                    <span className="text-destructive"> *</span>
+                  )}
                 </Label>
                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md">
                   {clients.length > 0 ? (

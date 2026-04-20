@@ -204,6 +204,7 @@ const TaskForm = ({
           value={formData.status || ''}
           onChange={handleChange} // Use unified handleChange
           options={[
+            { value: "Backlog", label: "Backlog" },
             { value: "To Do", label: "To Do" },
             { value: "In Progress", label: "In Progress" },
             { value: "Done", label: "Done" },

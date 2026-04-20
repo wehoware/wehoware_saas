@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AdminPageHeader from '@/components/AdminPageHeader';
@@ -61,87 +61,86 @@ export default function EditTaskPage() {
   const [comments, setComments] = useState([]);
   const [otherActivities, setOtherActivities] = useState([]);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!taskId) return;
+    
+    setIsFetching(true);
+    setError(null);
+    try {
+      const [taskResponse, usersResponse, feedResponse, clientsResponse] = await Promise.all([
+        fetch(`/api/v1/tasks/${taskId}`),
+        fetch('/api/v1/users'),
+        fetch(`/api/v1/tasks/${taskId}/activities`),
+        fetch('/api/v1/clients') // Fetch clients
+      ]);
 
-    const fetchData = async () => {
-      setIsFetching(true);
-      setError(null);
-      try {
-        const [taskResponse, usersResponse, feedResponse, clientsResponse] = await Promise.all([
-          fetch(`/api/v1/tasks/${taskId}`),
-          fetch('/api/v1/users'),
-          fetch(`/api/v1/tasks/${taskId}/activities`),
-          fetch('/api/v1/clients') // Fetch clients
-        ]);
-
-        if (!taskResponse.ok) {
-          throw new Error(`Failed to fetch task: ${taskResponse.statusText}`);
-        }
-        const taskData = await taskResponse.json();
-        setTask(taskData);
-
-        if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
-          setUsers(usersData.users || []); // Correctly extract the array
-        } else {
-          console.warn('Could not fetch users.');
-        }
-
-        if (feedResponse.ok) {
-          const feedData = await feedResponse.json();
-          setAllActivities(feedData); // Store all fetched activities
-
-          // Filter for comments and other activities from the combined feed
-          const commentsData = [];
-          const otherActivitiesData = [];
-          // Sort feedData to ensure oldest is first for chat-style display if TaskComments doesn't reverse
-          // However, API already sends newest first, and TaskComments reverses, so newest will be at bottom.
-          // We will keep newest first from API for activities log.
-
-          (feedData || []).forEach(item => {
-            if (item.feed_type === 'comment') {
-              commentsData.push({
-                id: item.id,
-                text: item.content,
-                user: item.user,
-                timestamp: item.created_at
-              });
-            } else if (item.feed_type === 'activity') {
-              // Exclude 'commented' activity_type from the general activity log if they are also feed_type: 'activity'
-              if (item.activity_type === 'commented') return;
-
-              let activityText = formatActivity(item, users);
-              otherActivitiesData.push({
-                ...item,
-                text: activityText 
-              });
-            }
-          });
-          setComments(commentsData);
-          setOtherActivities(otherActivitiesData);
-
-        } else {
-          console.warn('Could not fetch activity feed.');
-        }
-
-        if (clientsResponse.ok) {
-          const clientsData = await clientsResponse.json();
-          setClients(clientsData.clients); // Assuming API returns { clients: [...] }
-        } else {
-          console.warn('Could not fetch clients.');
-        }
-
-      } catch (err) {
-        setError(err.message);
-        toast.error(`Error: ${err.message}`);
-      } finally {
-        setIsFetching(false);
+      if (!taskResponse.ok) {
+        throw new Error(`Failed to fetch task: ${taskResponse.statusText}`);
       }
-    };
+      const taskData = await taskResponse.json();
+      setTask(taskData);
 
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        setUsers(usersData.users || []); // Correctly extract the array
+      } else {
+        console.warn('Could not fetch users.');
+      }
+
+      if (feedResponse.ok) {
+        const feedData = await feedResponse.json();
+        setAllActivities(feedData); // Store all fetched activities
+
+        // Filter for comments and other activities from the combined feed
+        const commentsData = [];
+        const otherActivitiesData = [];
+        // Sort feedData to ensure oldest is first for chat-style display if TaskComments doesn't reverse
+        // However, API already sends newest first, and TaskComments reverses, so newest will be at bottom.
+
+        (feedData || []).forEach(item => {
+          if (item.feed_type === 'comment') {
+            commentsData.push({
+              id: item.id,
+              text: item.content,
+              user: item.user,
+              timestamp: item.created_at
+            });
+          } else if (item.feed_type === 'activity') {
+            // Exclude 'commented' activity_type from the general activity log if they are also feed_type: 'activity'
+            if (item.activity_type === 'commented') return;
+
+            let activityText = formatActivity(item, users);
+            otherActivitiesData.push({
+              ...item,
+              text: activityText 
+            });
+          }
+        });
+        setComments(commentsData);
+        setOtherActivities(otherActivitiesData);
+
+      } else {
+        console.warn('Could not fetch activity feed.');
+      }
+
+      if (clientsResponse.ok) {
+        const clientsData = await clientsResponse.json();
+        setClients(clientsData.clients); // Assuming API returns { clients: [...] }
+      } else {
+        console.warn('Could not fetch clients.');
+      }
+
+    } catch (err) {
+      setError(err.message);
+      toast.error(`Error: ${err.message}`);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [taskId, users]);
+
+  useEffect(() => {
     fetchData();
-  }, [taskId]);
+  }, [fetchData]);
 
   const handleUpdateTask = async (formData) => {
     setIsLoading(true);

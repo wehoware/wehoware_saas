@@ -127,16 +127,12 @@ export const POST = withAuth(
 
       const clientIds = Array.isArray(clientIdsRaw) ? clientIdsRaw : [];
 
-      // Role-specific validation mirrors the old API contract
+      // Client role must have at least one associated client. Admin &
+      // employee may optionally have client associations for multi-tenant
+      // access control.
       if (role === "client" && clientIds.length === 0) {
         return NextResponse.json(
           { error: "Client role requires at least one client association" },
-          { status: 400 }
-        );
-      }
-      if (role === "employee" && clientIds.length > 0) {
-        return NextResponse.json(
-          { error: "Employee role cannot have client associations during creation" },
           { status: 400 }
         );
       }
@@ -154,6 +150,8 @@ export const POST = withAuth(
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
+      // Primary client column on the profile only matters for `client` role
+      // sessions; for admin/employee it stays null.
       const primaryClientId = role === "client" ? clientIds[0] : null;
 
       // Use a transaction so the profile + associations are atomic
@@ -171,7 +169,7 @@ export const POST = withAuth(
           select: USER_SELECT,
         });
 
-        if (role === "client" && clientIds.length > 0) {
+        if (clientIds.length > 0) {
           await tx.wehowareUserClient.createMany({
             data: clientIds.map((cid) => ({
               userId: profile.id,

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Check, ChevronRight, Users, Code, Clock, Award, } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -224,9 +225,11 @@ export default function AboutPage() {
             >
               <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-blue-500/20 rounded-xl blur-xl opacity-50"></div>
               <div className="relative bg-card border rounded-xl overflow-hidden">
-                <img 
+                <Image 
                   src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8NXx8dGVhbSUyMG1lZXRpbmd8ZW58MHx8MHx8&auto=format&fit=crop&w=800&q=60" 
                   alt="Team meeting"
+                  width={800}
+                  height={320}
                   className="w-full h-80 object-cover"
                 />
                 <div className="p-6">
@@ -303,9 +306,11 @@ export default function AboutPage() {
                 whileHover={{ y: -5 }}
               >
                 <div className="relative h-64">
-                  <img 
+                  <Image 
                     src={member.image} 
                     alt={member.name}
+                    width={256}
+                    height={256}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>

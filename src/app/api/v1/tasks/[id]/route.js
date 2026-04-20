@@ -22,6 +22,29 @@ const TRACKED_FIELDS = [
   { body: "due_date", col: "dueDate" },
 ];
 
+// Keep these in sync with src/app/api/v1/tasks/route.js — see that file
+// for the rationale behind the To Do / To_Do translation.
+const STATUS_TO_PRISMA = {
+  "To Do": "To_Do",
+  "In Progress": "In_Progress",
+  Done: "Done",
+  Backlog: "Backlog",
+};
+const STATUS_FROM_PRISMA = {
+  To_Do: "To Do",
+  In_Progress: "In Progress",
+  Done: "Done",
+  Backlog: "Backlog",
+};
+function toPrismaStatus(s) {
+  if (s == null) return s;
+  return STATUS_TO_PRISMA[s] ?? s;
+}
+function fromPrismaStatus(s) {
+  if (s == null) return s;
+  return STATUS_FROM_PRISMA[s] ?? s;
+}
+
 const TASK_INCLUDE = {
   client: { select: { id: true, companyName: true } },
   assignee: {
@@ -31,7 +54,7 @@ const TASK_INCLUDE = {
 
 function shapeTask(task) {
   if (!task) return task;
-  const out = { ...task };
+  const out = { ...task, status: fromPrismaStatus(task.status) };
   if (task.client) {
     out.client = { id: task.client.id, company_name: task.client.companyName };
   }
@@ -112,7 +135,7 @@ export const PUT = withAuth(
       if (body.title !== undefined) data.title = body.title;
       if (body.description !== undefined) data.description = body.description;
       if (body.priority !== undefined) data.priority = body.priority;
-      if (body.status !== undefined) data.status = body.status;
+      if (body.status !== undefined) data.status = toPrismaStatus(body.status);
 
       if (body.due_date !== undefined || body.dueDate !== undefined) {
         const raw = body.due_date ?? body.dueDate;
@@ -191,6 +214,12 @@ export const PUT = withAuth(
       if (err?.code === "P2003") {
         return NextResponse.json(
           { error: "Invalid client_id or assignee_id" },
+          { status: 400 }
+        );
+      }
+      if (err?.name === "PrismaClientValidationError") {
+        return NextResponse.json(
+          { error: "Invalid task fields (check status/priority values)" },
           { status: 400 }
         );
       }

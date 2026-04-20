@@ -1,7 +1,6 @@
 /**
  * /api/v1/blogs
  *
- * Prisma/MySQL-backed replacement for the old Supabase handler.
  *
  * GET   — list blogs (paginated, filtered) for the caller's active client
  * POST  — create a new blog

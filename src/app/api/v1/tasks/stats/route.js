@@ -8,9 +8,11 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 
+// Prisma JS enum identifiers (the underscore form, NOT the DB-mapped
+// "To Do" / "In Progress" values) must be used when filtering via Prisma.
 const STATUSES = {
-  todo: "To Do",
-  inProgress: "In Progress",
+  todo: "To_Do",
+  inProgress: "In_Progress",
   done: "Done",
 };
 

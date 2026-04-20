@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Edit, FolderSync, Pause, Play, Trash2 } from "lucide-react";
@@ -9,10 +10,6 @@ export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState([]);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   async function fetchData() {
     try {
@@ -34,6 +31,10 @@ export default function IntegrationsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   async function toggleIntegrationStatus(id, currentStatus) {
     const newStatus = currentStatus === "Active" ? "Paused" : "Active";
@@ -173,9 +174,11 @@ export default function IntegrationsPage() {
                     >
                       <div className="flex-shrink-0 h-12 w-12 mr-4">
                         {integration.provider?.logo_url ? (
-                          <img
+                          <Image
                             src={integration.provider.logo_url}
                             alt={integration.provider.name}
+                            width={48}
+                            height={48}
                             className="h-12 w-12 object-contain"
                           />
                         ) : (
@@ -285,9 +288,11 @@ export default function IntegrationsPage() {
               >
                 <div className="h-12 w-12 mx-auto mb-4">
                   {provider.logo_url ? (
-                    <img
+                    <Image
                       src={provider.logo_url}
                       alt={provider.name}
+                      width={48}
+                      height={48}
                       className="h-12 w-12 object-contain"
                     />
                   ) : (

@@ -49,12 +49,15 @@ export default function DashboardPage() {
     if (!activeClient?.id) return;
     setIsLoading(true);
     try {
-      // Fetch counts in parallel
+      // Scope all queries to the currently selected client — the API's
+      // withAuth middleware reads ?clientId= and populates user.activeClientId
+      // which these endpoints require for employee/admin callers.
+      const cid = encodeURIComponent(activeClient.id);
       const [inquiriesRes, postsRes, servicesRes, categoriesRes] = await Promise.all([
-        fetch('/api/v1/inquiries?limit=1'),
-        fetch('/api/v1/blogs?limit=1'),
-        fetch('/api/v1/services?limit=1'),
-        fetch('/api/v1/blogs/categories'),
+        fetch(`/api/v1/inquiries?limit=1&clientId=${cid}`),
+        fetch(`/api/v1/blogs?limit=1&clientId=${cid}`),
+        fetch(`/api/v1/services?limit=1&clientId=${cid}`),
+        fetch(`/api/v1/blogs/categories?clientId=${cid}`),
       ]);
       if (!inquiriesRes.ok || !postsRes.ok || !servicesRes.ok || !categoriesRes.ok) {
         throw new Error("Failed to load some dashboard data.");

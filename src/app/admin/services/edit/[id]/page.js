@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useRef, useMemo } from "react"; // Added useRef
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
@@ -460,9 +461,11 @@ export default function EditServicePage({ params }) {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                       <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
                         {previewUrl ? (
-                          <img
+                          <Image
                             src={previewUrl}
                             alt="Preview"
+                            width={96}
+                            height={96}
                             className="w-full h-full object-cover"
                           />
                         ) : (

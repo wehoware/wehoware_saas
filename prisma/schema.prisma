@@ -888,7 +888,7 @@ model WehowareInvoice {
   dueDate       DateTime      @map("due_date") @db.Date
   status        InvoiceStatus @default(Draft)
   subtotal      Decimal       @default(0) @db.Decimal(12, 2)
-  taxRate       Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxRate       Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 2)
   taxAmount     Decimal       @default(0) @map("tax_amount") @db.Decimal(12, 2)
   total         Decimal       @default(0) @db.Decimal(12, 2)
   currency      String        @default("CAD") @db.VarChar(10)

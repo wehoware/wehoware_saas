@@ -38,6 +38,18 @@ const InvoiceStatusBadge = ({ status }) => {
   );
 };
 
+// Format date using UTC to avoid timezone shifts
+const formatDate = (dateStr) => {
+  if (!dateStr) return "—";
+  try {
+    const date = new Date(dateStr + 'T00:00:00');
+    if (isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString();
+  } catch (e) {
+    return "—";
+  }
+};
+
 export default function ViewInvoicePage() {
   const router = useRouter();
   const params = useParams();
@@ -113,10 +125,10 @@ export default function ViewInvoicePage() {
             <div className="mt-4 sm:mt-0 text-left sm:text-right">
               <InvoiceStatusBadge status={invoice.status} />
               {invoice.invoice_date && (
-                <p className="text-sm text-gray-500 mt-2">Issued: {new Date(invoice.invoice_date).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500 mt-2">Issued: {formatDate(invoice.invoice_date)}</p>
               )}
               {invoice.due_date && (
-                <p className="text-sm text-gray-500">Due: {new Date(invoice.due_date).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500">Due: {formatDate(invoice.due_date)}</p>
               )}
             </div>
           </div>
@@ -131,8 +143,8 @@ export default function ViewInvoicePage() {
             <div className="text-left md:text-right">
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Invoice Details:</h3>
               <p className="text-gray-600">Invoice: {invoice.invoice_number}</p>
-              <p className="text-gray-600">Date: {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : "—"}</p>
-              <p className="text-gray-600">Due: {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"}</p>
+              <p className="text-gray-600">Date: {formatDate(invoice.invoice_date)}</p>
+              <p className="text-gray-600">Due: {formatDate(invoice.due_date)}</p>
             </div>
           </div>
 

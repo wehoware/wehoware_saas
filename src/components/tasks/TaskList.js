@@ -39,14 +39,37 @@ import {
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
-    const date = new Date(dateString); // API provides full ISO string
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    // Handle different date formats
+    let dateStr = dateString;
+    
+    // If it's already a full ISO string, use as-is
+    if (dateString.includes('T') && dateString.includes('Z')) {
+      dateStr = dateString;
+    } else if (dateString.includes('T')) {
+      // Already has time component
+      dateStr = dateString;
+    } else {
+      // Add time component to avoid timezone issues
+      dateStr = dateString + 'T00:00:00';
+    }
+    
+    const date = new Date(dateStr);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return "Invalid Date";
+    }
+    
+    // Use UTC methods to avoid timezone shifts
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    
+    return `${month} ${day}, ${year}`;
   } catch (e) {
-    return dateString;
+    console.error('Date formatting error:', e, 'for dateString:', dateString);
+    return "Invalid Date";
   }
 };
 
@@ -216,8 +239,25 @@ const TaskList = ({
             </TableHeader>
             <TableBody>
               {tasks.map((task) => {
-                const dueDate = task.due_date ? new Date(task.due_date) : null;
-                const isOverdue = dueDate && dueDate < today && task.status !== "Done";
+                let dueDate = null;
+                if (task.dueDate) {
+                  try {
+                    let dateStr = task.dueDate;
+                    if (!task.dueDate.includes('T')) {
+                      dateStr = task.dueDate + 'T00:00:00';
+                    }
+                    dueDate = new Date(dateStr);
+                    if (isNaN(dueDate.getTime())) {
+                      dueDate = null;
+                    }
+                  } catch (e) {
+                    dueDate = null;
+                  }
+                }
+                // Use UTC date for comparison to avoid timezone issues
+                const todayUTC = new Date();
+                todayUTC.setUTCHours(0, 0, 0, 0);
+                const isOverdue = dueDate && dueDate < todayUTC && task.status !== "Done";
                 const assignee = task.assignee;
 
                 return (
@@ -265,7 +305,7 @@ const TaskList = ({
                       )}
                     </TableCell>
                     <TableCell className={isOverdue ? "text-destructive" : ""}>
-                      {formatDate(task.due_date)}
+                      {formatDate(task.dueDate)}
                     </TableCell>
                     <TableCell onClick={stopPropagation}>
                       <DropdownMenu>

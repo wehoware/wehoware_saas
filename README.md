@@ -23,16 +23,12 @@ DATABASE_URL="mysql://user:pass@host:3306/wehoware"
 
 # NextAuth
 NEXTAUTH_SECRET="run: openssl rand -base64 32"
-NEXTAUTH_URL="http://localhost:3000"
+
 
 # Default tenant ID (optional, used by public-facing routes)
 NEXT_PUBLIC_CLIENT_ID="your-default-client-uuid"
 
-# --- Transitional only, remove once Supabase is fully ripped out ---
-NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
-SUPABASE_SERVICE_ROLE_KEY="..."
-```
+
 
 ### 3. Push schema & seed admin user
 
@@ -113,7 +109,6 @@ any Node host. Required runtime env vars:
 
 - `DATABASE_URL`
 - `NEXTAUTH_SECRET`
-- `NEXTAUTH_URL` (must match the public URL)
 - Supabase keys (until fully removed)
 
 Run `npm run db:push` + `npm run db:seed` once against the production DB

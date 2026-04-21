@@ -106,6 +106,18 @@ export default function InvoicesPage() {
     }
   };
 
+  // Format date using UTC to avoid timezone shifts
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "—";
+    try {
+      const date = new Date(dateStr + 'T00:00:00');
+      if (isNaN(date.getTime())) return "—";
+      return date.toLocaleDateString();
+    } catch (e) {
+      return "—";
+    }
+  };
+
   // Client-side search filter
   const filtered = useMemo(() => {
     if (!searchTerm) return invoices;
@@ -252,14 +264,10 @@ export default function InvoicesPage() {
                       </TableCell>
                       <TableCell>{STATUS_BADGE[invoice.status] ?? <Badge>{invoice.status}</Badge>}</TableCell>
                       <TableCell>
-                        {invoice.invoice_date
-                          ? new Date(invoice.invoice_date).toLocaleDateString()
-                          : "—"}
+                        {formatDate(invoice.invoice_date)}
                       </TableCell>
                       <TableCell>
-                        {invoice.due_date
-                          ? new Date(invoice.due_date).toLocaleDateString()
-                          : "—"}
+                        {formatDate(invoice.due_date)}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

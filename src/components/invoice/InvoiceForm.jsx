@@ -16,6 +16,8 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
   );
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState("Pending"); // Default status
+  const [currency, setCurrency] = useState("CAD"); // Default currency
+  const [taxRate, setTaxRate] = useState(13); // Default tax rate 13%
   const [items, setItems] = useState([
     { description: "", quantity: 1, unitPrice: 0 },
   ]);
@@ -23,24 +25,57 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
 
   useEffect(() => {
     if (initialData) {
-      setClientName(initialData.clientName || "");
-      setClientEmail(initialData.clientEmail || "");
+      setClientName(initialData.client_name || "");
+      setClientEmail(initialData.client_email || "");
+      
+      // Safe date parsing with validation
+      const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        try {
+          let dateToParse = dateStr;
+          if (!dateStr.includes('T')) {
+            dateToParse = dateStr + 'T00:00:00';
+          }
+          const date = new Date(dateToParse);
+          if (isNaN(date.getTime())) {
+            return null;
+          }
+          return date;
+        } catch (e) {
+          return null;
+        }
+      };
+      
+      const invoiceDateObj = parseDate(initialData.invoice_date);
       setInvoiceDate(
-        initialData.invoiceDate
-          ? new Date(initialData.invoiceDate).toISOString().split("T")[0]
+        invoiceDateObj
+          ? invoiceDateObj.toISOString().split("T")[0]
           : new Date().toISOString().split("T")[0]
       );
+      
+      const dueDateObj = parseDate(initialData.due_date);
       setDueDate(
-        initialData.dueDate
-          ? new Date(initialData.dueDate).toISOString().split("T")[0]
+        dueDateObj
+          ? dueDateObj.toISOString().split("T")[0]
           : ""
       );
+      
       setStatus(initialData.status || "Pending");
+      setCurrency(initialData.currency || "CAD");
+      setTaxRate(initialData.tax_rate !== undefined ? Number(initialData.tax_rate) : 13);
+      
+      // Handle line items from API response
+      const lineItems = initialData.line_items || initialData.items || [];
       setItems(
-        initialData.items && initialData.items.length > 0
-          ? initialData.items
+        lineItems.length > 0
+          ? lineItems.map(item => ({
+              description: item.description || "",
+              quantity: Number(item.quantity) || 1,
+              unitPrice: Number(item.unit_price || item.unitPrice || 0)
+            }))
           : [{ description: "", quantity: 1, unitPrice: 0 }]
       );
+      
       setNotes(initialData.notes || "");
     }
   }, [initialData]);
@@ -64,23 +99,43 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
     setItems(newItems);
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return items
       .reduce((total, item) => total + item.quantity * item.unitPrice, 0)
       .toFixed(2);
   };
 
+  const calculateTaxAmount = () => {
+    const subtotal = parseFloat(calculateSubtotal());
+    const tax = subtotal * (taxRate / 100);
+    return tax.toFixed(2);
+  };
+
+  const calculateTotal = () => {
+    const subtotal = parseFloat(calculateSubtotal());
+    const tax = parseFloat(calculateTaxAmount());
+    return (subtotal + tax).toFixed(2);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const formData = {
-      clientName,
-      clientEmail,
-      invoiceDate,
-      dueDate,
+      client_name: clientName,
+      client_email: clientEmail,
+      invoice_date: invoiceDate,
+      due_date: dueDate,
       status,
-      items,
+      currency,
+      tax_rate: taxRate,
+      line_items: items.map((it) => ({
+        description: it.description,
+        quantity: Number(it.quantity) || 0,
+        unit_price: Number(it.unitPrice) || 0,
+      })),
       notes,
-      totalAmount: parseFloat(calculateTotal()),
+      subtotal: parseFloat(calculateSubtotal()),
+      tax_amount: parseFloat(calculateTaxAmount()),
+      total_amount: parseFloat(calculateTotal()),
       id: initialData?.id, // Include ID if editing
     };
     onSubmit(formData);
@@ -168,26 +223,47 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
         </div>
       </div>
 
-      {/* Status */}
-      <div>
-        <Label
-          htmlFor="status"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Status
-        </Label>
-        <SelectInput
-          id="status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          options={[
-            { value: "Pending", label: "Pending" },
-            { value: "Paid", label: "Paid" },
-            { value: "Overdue", label: "Overdue" },
-            { value: "Draft", label: "Draft" },
-            { value: "Cancelled", label: "Cancelled" },
-          ]}
-        />
+      {/* Status and Currency */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label
+            htmlFor="status"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Status
+          </Label>
+          <SelectInput
+            id="status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            options={[
+              { value: "Pending", label: "Pending" },
+              { value: "Paid", label: "Paid" },
+              { value: "Overdue", label: "Overdue" },
+              { value: "Draft", label: "Draft" },
+              { value: "Cancelled", label: "Cancelled" },
+            ]}
+          />
+        </div>
+        <div>
+          <Label
+            htmlFor="currency"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Currency
+          </Label>
+          <SelectInput
+            id="currency"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            options={[
+              { value: "CAD", label: "CAD (Canadian Dollar)" },
+              { value: "USD", label: "USD (US Dollar)" },
+              { value: "EUR", label: "EUR (Euro)" },
+              { value: "GBP", label: "GBP (British Pound)" },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Invoice Items */}
@@ -291,6 +367,28 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
         </Button>
       </div>
 
+      {/* Tax Rate */}
+      <div>
+        <Label
+          htmlFor="taxRate"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          Tax Rate (%)
+        </Label>
+        <Input
+          id="taxRate"
+          type="number"
+          value={taxRate}
+          onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+          placeholder="13"
+          min="0"
+          max="100"
+          step="0.1"
+          className="w-full"
+        />
+        <p className="text-xs text-gray-500 mt-1">Enter tax rate as percentage (e.g., 13 for 13%)</p>
+      </div>
+
       {/* Notes */}
       <div>
         <Label
@@ -310,10 +408,19 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
       </div>
 
       {/* Total Amount */}
-      <div className="text-right mt-6">
-        <p className="text-xl font-semibold text-gray-800">
-          Total: ${calculateTotal()}
-        </p>
+      <div className="bg-gray-50 p-4 rounded-lg mt-6">
+        <div className="flex justify-between mb-2">
+          <span className="text-gray-600">Subtotal:</span>
+          <span className="font-medium">{currency} {calculateSubtotal()}</span>
+        </div>
+        <div className="flex justify-between mb-2">
+          <span className="text-gray-600">Tax ({taxRate}%):</span>
+          <span className="font-medium">{currency} {calculateTaxAmount()}</span>
+        </div>
+        <div className="flex justify-between pt-2 border-t border-gray-300">
+          <span className="text-lg font-semibold text-gray-800">Total:</span>
+          <span className="text-lg font-bold text-gray-900">{currency} {calculateTotal()}</span>
+        </div>
       </div>
 
       {/* Actions */}

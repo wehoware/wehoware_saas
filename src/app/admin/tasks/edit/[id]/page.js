@@ -61,6 +61,34 @@ export default function EditTaskPage() {
   const [comments, setComments] = useState([]);
   const [otherActivities, setOtherActivities] = useState([]);
 
+  // Extract activity processing logic to avoid duplication
+  const processActivities = useCallback((feedData, usersList) => {
+    const commentsData = [];
+    const otherActivitiesData = [];
+
+    (feedData || []).forEach(item => {
+      if (item.feed_type === 'comment') {
+        commentsData.push({
+          id: item.id,
+          text: item.content,
+          user: item.user,
+          timestamp: item.created_at
+        });
+      } else if (item.feed_type === 'activity') {
+        // Exclude 'commented' activity_type from the general activity log
+        if (item.activity_type === 'commented') return;
+
+        let activityText = formatActivity(item, usersList);
+        otherActivitiesData.push({
+          ...item,
+          text: activityText 
+        });
+      }
+    });
+    
+    return { commentsData, otherActivitiesData };
+  }, []);
+
   const fetchData = useCallback(async () => {
     if (!taskId) return;
     
@@ -71,7 +99,7 @@ export default function EditTaskPage() {
         fetch(`/api/v1/tasks/${taskId}`),
         fetch('/api/v1/users'),
         fetch(`/api/v1/tasks/${taskId}/activities`),
-        fetch('/api/v1/clients') // Fetch clients
+        fetch('/api/v1/clients')
       ]);
 
       if (!taskResponse.ok) {
@@ -80,52 +108,29 @@ export default function EditTaskPage() {
       const taskData = await taskResponse.json();
       setTask(taskData);
 
+      let usersList = [];
       if (usersResponse.ok) {
         const usersData = await usersResponse.json();
-        setUsers(usersData.users || []); // Correctly extract the array
+        usersList = usersData.users || [];
+        setUsers(usersList);
       } else {
         console.warn('Could not fetch users.');
       }
 
       if (feedResponse.ok) {
         const feedData = await feedResponse.json();
-        setAllActivities(feedData); // Store all fetched activities
-
-        // Filter for comments and other activities from the combined feed
-        const commentsData = [];
-        const otherActivitiesData = [];
-        // Sort feedData to ensure oldest is first for chat-style display if TaskComments doesn't reverse
-        // However, API already sends newest first, and TaskComments reverses, so newest will be at bottom.
-
-        (feedData || []).forEach(item => {
-          if (item.feed_type === 'comment') {
-            commentsData.push({
-              id: item.id,
-              text: item.content,
-              user: item.user,
-              timestamp: item.created_at
-            });
-          } else if (item.feed_type === 'activity') {
-            // Exclude 'commented' activity_type from the general activity log if they are also feed_type: 'activity'
-            if (item.activity_type === 'commented') return;
-
-            let activityText = formatActivity(item, users);
-            otherActivitiesData.push({
-              ...item,
-              text: activityText 
-            });
-          }
-        });
+        setAllActivities(feedData);
+        
+        const { commentsData, otherActivitiesData } = processActivities(feedData, usersList);
         setComments(commentsData);
         setOtherActivities(otherActivitiesData);
-
       } else {
         console.warn('Could not fetch activity feed.');
       }
 
       if (clientsResponse.ok) {
         const clientsData = await clientsResponse.json();
-        setClients(clientsData.clients); // Assuming API returns { clients: [...] }
+        setClients(clientsData.clients);
       } else {
         console.warn('Could not fetch clients.');
       }
@@ -136,7 +141,7 @@ export default function EditTaskPage() {
     } finally {
       setIsFetching(false);
     }
-  }, [taskId, users]);
+  }, [taskId, processActivities]);
 
   useEffect(() => {
     fetchData();
@@ -186,35 +191,18 @@ export default function EditTaskPage() {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to post comment');
       }
-      // Refetch all activities to update both comments and activity log
+      
+      // Only refetch activities, use extracted processing logic
       const feedResponse = await fetch(`/api/v1/tasks/${taskId}/activities`);
       if (feedResponse.ok) {
         const feedData = await feedResponse.json();
         setAllActivities(feedData);
-        // Re-filter comments and activities from the combined feed
-        const commentsData = [];
-        const otherActivitiesData = [];
-        (feedData || []).forEach(item => {
-          if (item.feed_type === 'comment') {
-            commentsData.push({
-              id: item.id,
-              text: item.content,
-              user: item.user,
-              timestamp: item.created_at
-            });
-          } else if (item.feed_type === 'activity') {
-            if (item.activity_type === 'commented') return;
-
-            let activityText = formatActivity(item, users);
-            otherActivitiesData.push({
-              ...item,
-              text: activityText
-            });
-          }
-        });
+        
+        const { commentsData, otherActivitiesData } = processActivities(feedData, users);
         setComments(commentsData);
         setOtherActivities(otherActivitiesData);
       }
+      
       toast.success('Comment added!');
     } catch (err) {
       toast.error(err.message || 'Could not add comment.');

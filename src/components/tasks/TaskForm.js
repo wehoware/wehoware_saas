@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import SelectInput from "@/components/ui/select";
+import DatePicker from "@/components/ui/date-picker";
 
 const TaskForm = ({
   initialData = null,
@@ -47,32 +48,28 @@ const TaskForm = ({
       setFormData({
         title: initialData.title || "",
         description: initialData.description || "",
-        client_id: initialData.client_id ? String(initialData.client_id) : "", // Ensure string from initialData
-        assignee_id:
-          initialData.assignee_id ? String(initialData.assignee_id) :
-          (initialData.assignee && initialData.assignee.id ? String(initialData.assignee.id) : ""), // Ensure string from initialData
-        due_date: initialData.due_date
-          ? new Date(initialData.due_date).toISOString().split("T")[0]
+        client_id: initialData.clientId ? String(initialData.clientId) : "",
+        assignee_id: initialData.assigneeId ? String(initialData.assigneeId) : "",
+        due_date: initialData.dueDate
+          ? new Date(initialData.dueDate).toISOString().split("T")[0]
           : "",
-        priority: initialData.priority || "High", // Already string or default
-        status: initialData.status || "To Do", // Already string or default
+        priority: initialData.priority || "High",
+        status: initialData.status || "To Do",
       });
     }
   }, [initialData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Identify fields that come from SelectInput and need string conversion for their values
-    const selectFieldNames = ["client_id", "assignee_id", "priority", "status"];
     let processedValue = value;
 
-    if (selectFieldNames.includes(name)) {
-      processedValue = String(value);
-    } else if (name === "due_date" && value === "") {
-      // Allow clearing the date field, ensure it's an empty string not null
-      processedValue = "";
+    // Handle date field specifically
+    if (name === "due_date") {
+      processedValue = value || "";
+    } else if (name === "client_id" || name === "assignee_id") {
+      // Handle select fields - ensure they're strings
+      processedValue = value ? String(value) : "";
     }
-    // For other standard inputs, 'value' is used as is.
 
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
@@ -120,15 +117,15 @@ const TaskForm = ({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
         <Label htmlFor="client_id" className="sm:text-right sm:col-span-1">
-          Client *
+          Client
         </Label>
         <SelectInput
           id="client_id"
           name="client_id"
           value={formData.client_id || ''}
-          onChange={handleChange} // Use unified handleChange
+          onChange={handleChange}
           options={clientOptions}
-          required
+          placeholder="Select a client"
         />
       </div>
 
@@ -167,12 +164,12 @@ const TaskForm = ({
         <Label htmlFor="due_date" className="sm:text-right sm:col-span-1">
           Due Date
         </Label>
-        <Input
+        <DatePicker
           id="due_date"
           name="due_date"
-          type="date"
-          value={formData.due_date || ''} // Ensure value is always a string for consistency, though type date handles it
+          value={formData.due_date}
           onChange={handleChange}
+          placeholder="Select a due date"
           className="sm:col-span-3"
         />
       </div>

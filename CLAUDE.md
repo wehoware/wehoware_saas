@@ -105,7 +105,7 @@ src/
 
 **Config:** package.json (87 packages), tailwind.config.js, next.config.mjs
 
-**Environment:** DATABASE_URL (MySQL), NEXTAUTH_SECRET, NEXTAUTH_URL
+**Environment:** DATABASE_URL (MySQL), NEXTAUTH_SECRET
 
 **Scripts:** dev (Turbopack), build, start, lint, db:push, db:seed, db:studio
 

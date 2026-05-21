@@ -3,11 +3,13 @@
 import { useEffect, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Download, Tags, Check} from 'lucide-react';
-import { toast } from 'react-hot-toast';        
+import { toast } from 'react-hot-toast';
+import { useAuth } from "@/contexts/auth-context";
 
 export default function FormSubmissions({ params }) {
   const router = useRouter();
   const { formId } = use(params);
+  const { activeClient } = useAuth();
   const [submissions, setSubmissions] = useState([]);
   const [formTemplate, setFormTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ export default function FormSubmissions({ params }) {
   useEffect(() => {
     fetchFormTemplate();
     fetchSubmissions();
-  }, [formId, fetchFormTemplate, fetchSubmissions]);
+  }, [formId, fetchFormTemplate, fetchSubmissions, activeClient?.id]);
 
   function openSubmissionDetails(submission) {
     setSelectedSubmission(submission);

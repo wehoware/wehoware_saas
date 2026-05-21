@@ -8,9 +8,11 @@ import {
   Search,
   Settings,
   User,
+  Users,
   TrainFront,
   NotebookPen,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +35,10 @@ const AdminHeader = ({ className }) => {
     switchClient,
     isEmployee,
     isAdmin,
+    isClientOwner,
+    isManager,
+    canViewTeam,
+    activeClientRole,
   } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -128,12 +134,24 @@ const AdminHeader = ({ className }) => {
                 </DropdownMenu>
               </div>
             )}
+            {canViewTeam && (
+              <div className="hidden md:block">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => router.push("/admin/team")}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Team
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Right Section: Desktop Profile & Actions */}
           <div className="hidden items-center gap-4 md:flex">
             <span className="text-xs text-muted-foreground capitalize">
-              {user?.role || "Role"}
+              {activeClientRole ? `${activeClientRole} (client)` : (user?.role || "Role")}
             </span>
             <span className="flex items-center gap-2">
               <Avatar className="h-8 w-8">
@@ -189,7 +207,7 @@ const AdminHeader = ({ className }) => {
                             : user?.email || "User"}
                         </div>
                         <div className="text-sm text-muted-foreground capitalize">
-                          {user?.role || "Role"}
+                          {activeClientRole ? `${activeClientRole} (client)` : (user?.role || "Role")}
                         </div>
                       </div>
                     </div>

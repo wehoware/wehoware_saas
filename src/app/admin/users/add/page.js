@@ -23,7 +23,7 @@ import SelectInput from "@/components/ui/select";
 
 export default function AddUserPage() {
   const router = useRouter();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, activeClient } = useAuth();
   const [clients, setClients] = useState([]);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -72,7 +72,7 @@ export default function AddUserPage() {
     };
 
     checkUserRole();
-  }, [user, isAdmin, router]);
+  }, [user, isAdmin, activeClient?.id, router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

@@ -25,7 +25,7 @@ export default function EditUserPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, activeClient } = useAuth();
   const [clients, setClients] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editUser, setEditUser] = useState({
@@ -97,7 +97,7 @@ export default function EditUserPage() {
     };
 
     checkUserRole();
-  }, [user, isAdmin, userId, router, fetchUser, fetchClients]);
+  }, [user, isAdmin, activeClient?.id, userId, router, fetchUser, fetchClients]);
 
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;

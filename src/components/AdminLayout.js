@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
@@ -28,102 +28,223 @@ import {
   ReceiptText,
   CreditCard,
   CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  Calculator,
+  Wallet,
+  Receipt,
+  UserSquare,
+  PieChart,
+  Link2,
 } from "lucide-react";
 
-// Centralized sidebar configuration with allowed roles for each item.
-const sidebarMenu = [
+// Sidebar configuration. Each entry is either a flat link or a group with children.
+// Groups auto-expand when the current pathname matches any child href.
+const ACCOUNTING_GROUP_ID = "accounting";
+
+const sidebarSections = [
   {
+    type: "link",
     title: "Dashboard",
     href: "/admin",
     icon: <LayoutDashboard className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
+    matchExact: true,
   },
   {
+    type: "link",
     title: "Clients",
     href: "/admin/clients",
     icon: <Building className="h-5 w-5" />,
     roles: ["admin", "employee"],
   },
   {
+    type: "link",
     title: "Users",
     href: "/admin/users",
     icon: <Users className="h-5 w-5" />,
     roles: ["admin"],
   },
   {
-    title: "Invoices",
-    href: "/admin/invoices",
-    icon: <ReceiptText className="h-5 w-5" />,
-    roles: ["admin", "client"],
+    type: "group",
+    id: ACCOUNTING_GROUP_ID,
+    title: "Accounting",
+    icon: <Calculator className="h-5 w-5" />,
+    roles: ["admin", "employee", "client"],
+    children: [
+      {
+        title: "Dashboard",
+        href: "/admin/accounting",
+        icon: <PieChart className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+        matchExact: true,
+      },
+      {
+        title: "Invoices",
+        href: "/admin/accounting/invoices",
+        icon: <ReceiptText className="h-4 w-4" />,
+        roles: ["admin", "client"],
+      },
+      {
+        title: "Bills",
+        href: "/admin/accounting/bills",
+        icon: <Receipt className="h-4 w-4" />,
+        roles: ["admin", "employee"],
+      },
+      {
+        title: "Transactions",
+        href: "/admin/accounting/transactions",
+        icon: <CreditCard className="h-4 w-4" />,
+        roles: ["admin", "client"],
+      },
+      {
+        title: "Expenses",
+        href: "/admin/accounting/expenses",
+        icon: <Wallet className="h-4 w-4" />,
+        roles: ["admin", "employee"],
+      },
+      {
+        title: "Vendors",
+        href: "/admin/accounting/vendors",
+        icon: <UserSquare className="h-4 w-4" />,
+        roles: ["client", "admin"],
+      },
+      {
+        title: "Customers",
+        href: "/admin/accounting/customers",
+        icon: <Users className="h-4 w-4" />,
+        roles: ["client", "admin"],
+      },
+      {
+        title: "Reports",
+        href: "/admin/accounting/reports",
+        icon: <BarChart className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Bank Feeds",
+        href: "/admin/accounting/integrations/plaid",
+        icon: <Link2 className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Settings",
+        href: "/admin/accounting/settings",
+        icon: <Settings className="h-4 w-4" />,
+        roles: ["admin"],
+      },
+    ],
   },
   {
-    title: "Transactions",
-    href: "/admin/transactions",
-    icon: <CreditCard className="h-5 w-5" />,
-    roles: ["admin", "client"],
-  },
-  {
+    type: "link",
     title: "Tasks",
     href: "/admin/tasks",
     icon: <CheckCircle className="h-5 w-5" />,
     roles: ["admin", "employee"],
   },
   {
+    type: "link",
     title: "Appointments",
     href: "/admin/appointments",
     icon: <Calendar className="h-5 w-5" />,
     roles: ["admin", "client"],
   },
   {
+    type: "link",
     title: "Services",
     href: "/admin/services",
     icon: <Briefcase className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
+    type: "link",
     title: "Blogs",
     href: "/admin/blogs",
     icon: <FileText className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
+    type: "link",
     title: "SEO",
     href: "/admin/seo",
     icon: <Search className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
+    type: "link",
     title: "Inquiries",
     href: "/admin/inquiries",
     icon: <MessageSquare className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
+    type: "link",
     title: "Integrations",
     href: "/admin/integrations",
     icon: <LinkIcon className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
+    type: "link",
     title: "Forms",
     href: "/admin/forms",
     icon: <FormInput className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
-
   {
+    type: "link",
     title: "Reports",
     href: "/admin/reports",
     icon: <BarChart className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
   {
+    type: "link",
     title: "Settings",
     href: "/admin/settings",
     icon: <Settings className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
   },
 ];
+
+function filterSectionsByRole(sections, role) {
+  const visible = [];
+  for (const section of sections) {
+    if (!section.roles.includes(role)) continue;
+    if (section.type === "link") {
+      visible.push(section);
+      continue;
+    }
+    const allowedChildren = (section.children || []).filter((c) =>
+      c.roles.includes(role)
+    );
+    if (allowedChildren.length === 0) continue;
+    visible.push({ ...section, children: allowedChildren });
+  }
+  return visible;
+}
+
+function isLinkActive(href, pathname, matchExact) {
+  if (matchExact) return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function findActiveRoute(sections, pathname) {
+  for (const section of sections) {
+    if (section.type === "link") {
+      if (isLinkActive(section.href, pathname, section.matchExact)) {
+        return { section, child: null };
+      }
+      continue;
+    }
+    for (const child of section.children) {
+      if (isLinkActive(child.href, pathname, child.matchExact)) {
+        return { section, child };
+      }
+    }
+  }
+  return null;
+}
 
 const AdminLayout = ({ children }) => {
   // Unconditionally call all hooks.
@@ -136,22 +257,36 @@ const AdminLayout = ({ children }) => {
   // Extract current role in lowercase (or empty string if not set).
   const role = user?.role?.toLowerCase() || "";
 
-  // Filter sidebar items based on allowed roles.
-  const allowedSidebarItems = sidebarMenu.filter((item) =>
-    item.roles.includes(role)
+  // Filter sidebar items based on allowed roles (groups + nested children).
+  const allowedSections = useMemo(
+    () => filterSectionsByRole(sidebarSections, role),
+    [role]
   );
 
-  // Determine if the current route is allowed for the user's role.
-  // Find the base menu item corresponding to the current pathname.
-  const currentMenuItem = sidebarMenu.find((item) =>
-    pathname.startsWith(item.href)
+  // Find the active section/child for the current pathname.
+  const activeRoute = useMemo(
+    () => findActiveRoute(allowedSections, pathname),
+    [allowedSections, pathname]
   );
 
-  // Check if the user's role is included in the allowed roles for this menu item.
-  // Always allow the '/admin' dashboard itself.
-  const isRouteAllowed =
-    pathname === "/admin" || // Always allow dashboard
-    (currentMenuItem && currentMenuItem.roles.includes(role));
+  // Track which groups the user has manually toggled.
+  // A group is shown as expanded if the user explicitly toggled it OR
+  // if it contains the active route (computed at render time, not via effect).
+  const [groupOverrides, setGroupOverrides] = useState({});
+
+  const isGroupExpanded = (groupId) =>
+    Object.hasOwn(groupOverrides, groupId)
+      ? groupOverrides[groupId]
+      : activeRoute?.section?.id === groupId;
+
+  const toggleGroup = (groupId) => {
+    const currentlyExpanded = isGroupExpanded(groupId);
+    setGroupOverrides((prev) => ({ ...prev, [groupId]: !currentlyExpanded }));
+  };
+
+  // Always allow the '/admin' dashboard. Otherwise allow only routes that
+  // appear in the user's allowed sections.
+  const isRouteAllowed = pathname === "/admin" || Boolean(activeRoute);
 
   // Guard: if the current route isn’t allowed, show an error and redirect.
   useEffect(() => {
@@ -254,20 +389,89 @@ const AdminLayout = ({ children }) => {
             </div>
             <ScrollArea className="flex-1 overflow-auto py-2">
               <nav className="grid gap-1 px-2">
-                {allowedSidebarItems.map((item, index) => (
-                  <Link
-                    key={index}
-                    href={item.href}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
-                      pathname === item.href
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50 text-muted-foreground hover:text-accent-foreground"
-                    } ${!isSidebarOpen && "justify-center"}`}
-                  >
-                    {item.icon}
-                    {isSidebarOpen && <span>{item.title}</span>}
-                  </Link>
-                ))}
+                {allowedSections.map((section) => {
+                  if (section.type === "link") {
+                    const active = isLinkActive(
+                      section.href,
+                      pathname,
+                      section.matchExact
+                    );
+                    return (
+                      <Link
+                        key={section.href}
+                        href={section.href}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${
+                          active
+                            ? "bg-accent text-accent-foreground"
+                            : "hover:bg-accent/50 text-muted-foreground hover:text-accent-foreground"
+                        } ${!isSidebarOpen && "justify-center"}`}
+                      >
+                        {section.icon}
+                        {isSidebarOpen && <span>{section.title}</span>}
+                      </Link>
+                    );
+                  }
+
+                  // Group rendering
+                  const isExpanded = isGroupExpanded(section.id);
+                  const hasActiveChild = section.children.some((child) =>
+                    isLinkActive(child.href, pathname, child.matchExact)
+                  );
+                  return (
+                    <div key={section.id} className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isSidebarOpen) return;
+                          toggleGroup(section.id);
+                        }}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all w-full text-left ${
+                          hasActiveChild
+                            ? "text-accent-foreground"
+                            : "text-muted-foreground hover:text-accent-foreground"
+                        } ${!isSidebarOpen && "justify-center"} hover:bg-accent/50`}
+                        aria-expanded={isExpanded}
+                      >
+                        {section.icon}
+                        {isSidebarOpen && (
+                          <>
+                            <span className="flex-1">{section.title}</span>
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </>
+                        )}
+                      </button>
+                      {isSidebarOpen && isExpanded && (
+                        <div className="mt-1 ml-3 border-l border-border pl-3 flex flex-col gap-1">
+                          {section.children.map((child) => {
+                            const childActive = isLinkActive(
+                              child.href,
+                              pathname,
+                              child.matchExact
+                            );
+                            return (
+                              <Link
+                                key={child.href}
+                                href={child.href}
+                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all ${
+                                  childActive
+                                    ? "bg-accent text-accent-foreground"
+                                    : "hover:bg-accent/50 text-muted-foreground hover:text-accent-foreground"
+                                }`}
+                              >
+                                {child.icon}
+                                <span>{child.title}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </nav>
             </ScrollArea>
             <div className="mt-auto p-4">

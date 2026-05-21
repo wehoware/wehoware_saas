@@ -7,9 +7,11 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
+import { parseDateInput } from "@/lib/accounting";
 
 const VALID_TYPES = ["Subscription", "Service", "Refund", "Payout", "Sale", "Other"];
 const VALID_STATUSES = ["Pending", "Completed", "Failed", "Refunded"];
+const MAX_DESCRIPTION_LENGTH = 500;
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
@@ -119,12 +121,42 @@ export const PUT = withAuth(
       const data = { updatedBy: user.id };
 
       if (body.transaction_date !== undefined) {
-        data.transactionDate = body.transaction_date
-          ? new Date(body.transaction_date)
-          : null;
+        const parsed = parseDateInput(body.transaction_date);
+        if (!parsed) {
+          return NextResponse.json(
+            { error: "transaction_date is invalid" },
+            { status: 400 }
+          );
+        }
+        data.transactionDate = parsed;
       }
-      if (body.description !== undefined) data.description = body.description;
-      if (body.amount !== undefined) data.amount = Number(body.amount);
+      if (body.description !== undefined) {
+        const desc =
+          typeof body.description === "string" ? body.description.trim() : "";
+        if (!desc) {
+          return NextResponse.json(
+            { error: "description cannot be empty" },
+            { status: 400 }
+          );
+        }
+        if (desc.length > MAX_DESCRIPTION_LENGTH) {
+          return NextResponse.json(
+            { error: `description must be <= ${MAX_DESCRIPTION_LENGTH} characters` },
+            { status: 400 }
+          );
+        }
+        data.description = desc;
+      }
+      if (body.amount !== undefined) {
+        const amountNum = Number(body.amount);
+        if (!Number.isFinite(amountNum)) {
+          return NextResponse.json(
+            { error: "amount must be a number" },
+            { status: 400 }
+          );
+        }
+        data.amount = amountNum;
+      }
       if (body.reference !== undefined) data.reference = body.reference;
       if (body.currency !== undefined) data.currency = body.currency;
       if (body.notes !== undefined) data.notes = body.notes;

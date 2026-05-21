@@ -35,7 +35,7 @@ import SelectInput from "@/components/ui/select";
 
 export default function UsersPage() {
   const router = useRouter();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isEmployee, activeClient } = useAuth();
   const [users, setUsers] = useState([]);
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +46,17 @@ export default function UsersPage() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    // Global user management is for admin/employee only
+    if (!isAdmin && !isEmployee) {
+      router.push("/admin");
+    }
+  }, [user, isAdmin, isEmployee, router]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -115,7 +126,7 @@ export default function UsersPage() {
     };
 
     checkUserRole();
-  }, [user, isAdmin, router, fetchUsers, fetchClients]);
+  }, [user, isAdmin, activeClient?.id, router, fetchUsers, fetchClients]);
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);

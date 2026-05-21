@@ -1,6 +1,6 @@
 // components/ui/select.jsx
 import React from "react";
-import * as Select from "@radix-ui/react-select";
+import * as SelectPrimitive from "@radix-ui/react-select";
 import { ChevronDown, Check } from "lucide-react";
 
 /**
@@ -42,49 +42,103 @@ export default function SelectInput({
   
   return (
     <div className="space-y-2">
-      <Select.Root
+      <SelectPrimitive.Root
         value={value}
         onValueChange={handleValueChange}
         required={required}
       >
-        <Select.Trigger
+        <SelectPrimitive.Trigger
           id={id}
           name={name}
           className={`inline-flex items-center justify-between w-full px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
           {...props}
         >
           {/* Use custom placeholder if provided, otherwise generate one if name exists, else use a generic default */}
-          <Select.Value placeholder={customPlaceholder || (name ? `Select a ${name.toLowerCase()}` : 'Select an option')} />
-          <Select.Icon>
+          <SelectPrimitive.Value placeholder={customPlaceholder || (name ? `Select a ${name.toLowerCase()}` : 'Select an option')} />
+          <SelectPrimitive.Icon>
             <ChevronDown className="text-gray-500" size={20} />
-          </Select.Icon>
-        </Select.Trigger>
+          </SelectPrimitive.Icon>
+        </SelectPrimitive.Trigger>
 
-        <Select.Portal>
-          <Select.Content className="bg-white rounded-lg shadow-lg mt-1 overflow-hidden z-50">
-            <Select.ScrollUpButton className="flex items-center justify-center h-6 cursor-default">
+        <SelectPrimitive.Portal>
+          <SelectPrimitive.Content className="bg-white rounded-lg shadow-lg mt-1 overflow-hidden z-50">
+            <SelectPrimitive.ScrollUpButton className="flex items-center justify-center h-6 cursor-default">
               ↑
-            </Select.ScrollUpButton>
-            <Select.Viewport>
+            </SelectPrimitive.ScrollUpButton>
+            <SelectPrimitive.Viewport>
               {normalizedOptions.map((opt) => (
-                <Select.Item
+                <SelectPrimitive.Item
                   key={opt.value}
                   value={opt.value}
                   className="px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-100"
                 >
-                  <Select.ItemText>{opt.label}</Select.ItemText>
-                  <Select.ItemIndicator>
+                  <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemIndicator>
                     <Check className="text-blue-500" size={16} />
-                  </Select.ItemIndicator>
-                </Select.Item>
+                  </SelectPrimitive.ItemIndicator>
+                </SelectPrimitive.Item>
               ))}
-            </Select.Viewport>
-            <Select.ScrollDownButton className="flex items-center justify-center h-6 cursor-default">
+            </SelectPrimitive.Viewport>
+            <SelectPrimitive.ScrollDownButton className="flex items-center justify-center h-6 cursor-default">
               ↓
-            </Select.ScrollDownButton>
-          </Select.Content>
-        </Select.Portal>
-      </Select.Root>
+            </SelectPrimitive.ScrollDownButton>
+          </SelectPrimitive.Content>
+        </SelectPrimitive.Portal>
+      </SelectPrimitive.Root>
     </div>
   );
 }
+
+const Select = SelectPrimitive.Root;
+const SelectValue = SelectPrimitive.Value;
+
+const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Trigger
+    ref={ref}
+    className={`inline-flex items-center justify-between w-full px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
+    {...props}
+  >
+    {children}
+    <SelectPrimitive.Icon asChild>
+      <ChevronDown className="text-gray-500" size={20} />
+    </SelectPrimitive.Icon>
+  </SelectPrimitive.Trigger>
+));
+SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
+
+const SelectContent = React.forwardRef(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Portal>
+    <SelectPrimitive.Content
+      ref={ref}
+      className={`bg-white rounded-lg shadow-lg mt-1 overflow-hidden z-50 ${className || ''}`}
+      {...props}
+    >
+      <SelectPrimitive.ScrollUpButton className="flex items-center justify-center h-6 cursor-default">
+        ↑
+      </SelectPrimitive.ScrollUpButton>
+      <SelectPrimitive.Viewport>
+        {children}
+      </SelectPrimitive.Viewport>
+      <SelectPrimitive.ScrollDownButton className="flex items-center justify-center h-6 cursor-default">
+        ↓
+      </SelectPrimitive.ScrollDownButton>
+    </SelectPrimitive.Content>
+  </SelectPrimitive.Portal>
+));
+SelectContent.displayName = SelectPrimitive.Content.displayName;
+
+const SelectItem = React.forwardRef(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Item
+    ref={ref}
+    className={`px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-100 ${className || ''}`}
+    {...props}
+  >
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    <SelectPrimitive.ItemIndicator>
+      <Check className="text-blue-500" size={16} />
+    </SelectPrimitive.ItemIndicator>
+  </SelectPrimitive.Item>
+));
+SelectItem.displayName = SelectPrimitive.Item.displayName;
+
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue };

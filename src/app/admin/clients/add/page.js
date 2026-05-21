@@ -25,6 +25,7 @@ export default function AddClientPage() {
     website: "",
     industry: "",
     domain: "",
+    public_slug: "",
     active: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,6 +187,18 @@ export default function AddClientPage() {
             name="domain"
             placeholder="example.com"
             value={newClient.domain}
+            onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <label htmlFor="public_slug" className="block mb-1">
+            Public Booking Slug <span className="text-gray-400 text-xs">(for /book/&lt;slug&gt;)</span>
+          </label>
+          <Input
+            id="public_slug"
+            name="public_slug"
+            placeholder="e.g. acme-corp"
+            value={newClient.public_slug}
             onChange={handleInputChange}
           />
         </div>

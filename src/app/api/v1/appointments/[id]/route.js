@@ -13,6 +13,9 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
+import { triggerAppointmentNotification } from "@/lib/notification-service";
+import { syncAppointmentToCalendars, removeAppointmentFromCalendars } from "@/lib/calendar-sync";
+import { generateMeetingLink } from "@/lib/video-meeting-service";
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId;
@@ -194,12 +197,72 @@ export const PUT = withAuth(
         );
       }
 
+      // Auto-generate Zoom meeting link if location switched to video and no link
+      const hasNoMeetingLink = !existing.meetingLink && !data.meetingLink && !body.meeting_link;
+      const isVideoLocation =
+        data.location &&
+        ["video", "zoom", "google meet", "teams", "virtual", "online"].some(
+          (v) => data.location.toLowerCase().includes(v)
+        );
+      if (hasNoMeetingLink && isVideoLocation) {
+        const zoomResult = await generateMeetingLink(
+          { scheduledAt: data.scheduledAt || existing.scheduledAt, guestName: data.guestName || existing.guestName, guestEmail: data.guestEmail || existing.guestEmail, notes: data.notes || existing.notes, timezone: data.timezone || existing.timezone, appointmentTypeId: data.appointmentTypeId || existing.appointmentTypeId },
+          existing.clientId
+        );
+        if (zoomResult?.link) {
+          data.meetingLink = zoomResult.link;
+        }
+      }
+
       data.updatedBy = user.id;
+
+      // Track status and schedule changes for notifications
+      const oldStatus = existing.status;
+      const oldScheduledAt = existing.scheduledAt;
+      const newStatus = data.status;
+      const newScheduledAt = data.scheduledAt;
 
       const updated = await prisma.wehowareAppointment.update({
         where: { id },
         data,
         include: { appointmentType: APPOINTMENT_TYPE_SELECT },
+      });
+
+      // Trigger notifications based on changes
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: existing.clientId },
+        select: { name: true },
+      });
+
+      if (client) {
+        const serialized = serialize(updated);
+
+        // Status change notifications
+        if (newStatus && newStatus !== oldStatus) {
+          if (newStatus === "Confirmed") {
+            triggerAppointmentNotification('confirmed', serialized, existing.clientId, client.name).catch(err => {
+              console.error('[PUT /api/v1/appointments/[id]] notification error:', err);
+            });
+          } else if (newStatus === "Cancelled") {
+            triggerAppointmentNotification('cancelled', serialized, existing.clientId, client.name).catch(err => {
+              console.error('[PUT /api/v1/appointments/[id]] notification error:', err);
+            });
+          }
+        }
+
+        // Reschedule notification
+        if (newScheduledAt && newScheduledAt.getTime() !== oldScheduledAt.getTime()) {
+          triggerAppointmentNotification('rescheduled', serialized, existing.clientId, client.name, {
+            oldDate: oldScheduledAt.toISOString(),
+          }).catch(err => {
+            console.error('[PUT /api/v1/appointments/[id]] notification error:', err);
+          });
+        }
+      }
+
+      // Sync updates to connected calendars (non-blocking)
+      syncAppointmentToCalendars(updated, existing.clientId).catch(err => {
+        console.error('[PUT /api/v1/appointments/[id]] calendar sync error:', err);
       });
 
       return NextResponse.json(serialize(updated));
@@ -242,6 +305,23 @@ export const DELETE = withAuth(
           { status: 404 }
         );
       }
+
+      // Trigger cancellation notification before deleting
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: existing.clientId },
+        select: { name: true },
+      });
+
+      if (client) {
+        triggerAppointmentNotification('cancelled', serialize(existing), existing.clientId, client.name).catch(err => {
+          console.error('[DELETE /api/v1/appointments/[id]] notification error:', err);
+        });
+      }
+
+      // Remove from connected calendars (non-blocking)
+      removeAppointmentFromCalendars(existing.id, existing.clientId).catch(err => {
+        console.error('[DELETE /api/v1/appointments/[id]] calendar removal error:', err);
+      });
 
       await prisma.wehowareAppointment.delete({ where: { id } });
       return NextResponse.json({ success: true });

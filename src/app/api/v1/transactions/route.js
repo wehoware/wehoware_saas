@@ -6,6 +6,9 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
+import { parseDateInput } from "@/lib/accounting";
+
+const MAX_DESCRIPTION_LENGTH = 500;
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -149,19 +152,48 @@ export const POST = withAuth(
       }
 
       // Required fields
-      const transactionDate = body?.transaction_date;
       const amount = body?.amount;
       const type = body?.type;
 
-      if (!transactionDate) {
+      if (!body?.transaction_date) {
         return NextResponse.json(
           { error: "transaction_date is required" },
           { status: 400 }
         );
       }
+      const parsedDate = parseDateInput(body.transaction_date);
+      if (!parsedDate) {
+        return NextResponse.json(
+          { error: "transaction_date is invalid" },
+          { status: 400 }
+        );
+      }
+
+      const description =
+        typeof body.description === "string" ? body.description.trim() : "";
+      if (!description) {
+        return NextResponse.json(
+          { error: "description is required" },
+          { status: 400 }
+        );
+      }
+      if (description.length > MAX_DESCRIPTION_LENGTH) {
+        return NextResponse.json(
+          { error: `description must be <= ${MAX_DESCRIPTION_LENGTH} characters` },
+          { status: 400 }
+        );
+      }
+
       if (amount === undefined || amount === null) {
         return NextResponse.json(
           { error: "amount is required" },
+          { status: 400 }
+        );
+      }
+      const amountNum = Number(amount);
+      if (!Number.isFinite(amountNum)) {
+        return NextResponse.json(
+          { error: "amount must be a number" },
           { status: 400 }
         );
       }
@@ -207,9 +239,9 @@ export const POST = withAuth(
       const transaction = await prisma.wehowareTransaction.create({
         data: {
           clientId,
-          transactionDate: new Date(transactionDate),
-          description: body.description ?? null,
-          amount: Number(amount),
+          transactionDate: parsedDate,
+          description,
+          amount: amountNum,
           type,
           status,
           reference: body.reference ?? null,

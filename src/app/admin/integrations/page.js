@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Edit, FolderSync, Pause, Play, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function IntegrationsPage() {
+  const { activeClient } = useAuth();
   const [integrations, setIntegrations] = useState([]);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,7 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeClient?.id]);
 
   async function toggleIntegrationStatus(id, currentStatus) {
     const newStatus = currentStatus === "Active" ? "Paused" : "Active";

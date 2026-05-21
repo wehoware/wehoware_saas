@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Edit, Trash, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function FormTemplatesPage() {
+  const { activeClient } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +28,7 @@ export default function FormTemplatesPage() {
 
   useEffect(() => {
     fetchFormTemplates();
-  }, []);
+  }, [activeClient?.id]);
 
   async function deleteFormTemplate(id) {
     if (!confirm('Are you sure you want to delete this form template?')) return;

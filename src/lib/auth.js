@@ -16,7 +16,7 @@ const ROLES_WITH_CLIENT_ACCESS = ["employee", "admin", "client"];
  */
 async function getAccessibleClients(userId) {
   const rows = await prisma.wehowareUserClient.findMany({
-    where: { userId },
+    where: { userId, active: true },
     include: {
       client: {
         select: {
@@ -35,6 +35,7 @@ async function getAccessibleClients(userId) {
     domain: row.client.domain,
     website: row.client.website,
     isPrimary: row.isPrimary,
+    role: row.role,
   }));
 }
 
@@ -89,7 +90,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         let profile;
         try {
           profile = await prisma.wehowareProfile.findUnique({
-            where: { email: String(email) },
+            where: { email: typeof email === "string" ? email : "" },
             select: {
               id: true,
               email: true,
@@ -107,12 +108,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        if (!profile || !profile.passwordHash) {
+        if (!profile?.passwordHash) {
           return null;
         }
 
         const isValid = await bcrypt.compare(
-          String(password),
+          typeof password === "string" ? password : "",
           profile.passwordHash
         );
 

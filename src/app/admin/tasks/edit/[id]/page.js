@@ -10,6 +10,7 @@ import TaskActivityLog from '@/components/tasks/TaskActivityLog'; // Use TaskAct
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'react-hot-toast';
+import { useAuth } from "@/contexts/auth-context";
 
 const formatActivity = (activity, usersList) => {
   const { activity_type, details, user } = activity;
@@ -49,6 +50,7 @@ const formatActivity = (activity, usersList) => {
 export default function EditTaskPage() {
   const router = useRouter();
   const params = useParams();
+  const { activeClient } = useAuth();
   const taskId = params.id;
 
   const [task, setTask] = useState(null);
@@ -145,7 +147,7 @@ export default function EditTaskPage() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, activeClient?.id]);
 
   const handleUpdateTask = async (formData) => {
     setIsLoading(true);

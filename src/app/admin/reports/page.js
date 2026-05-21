@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { File, Download, Plus, Edit, Eye, Share, Trash , Clock} from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function ReportsPage() {
+  const { activeClient } = useAuth();
   const [reports, setReports] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ export default function ReportsPage() {
     } else {
       fetchTemplates();
     }
-  }, [activeTab]);
+  }, [activeClient?.id, activeTab]);
 
   async function fetchReports() {
     try {

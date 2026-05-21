@@ -8,6 +8,25 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 
+const VALID_STATUSES = new Set([
+  "Draft",
+  "Pending",
+  "Paid",
+  "Overdue",
+  "Cancelled",
+]);
+
+function parseDateInput(dateStr) {
+  if (!dateStr) return null;
+  const normalized = dateStr.includes("T")
+    ? dateStr
+    : `${dateStr}T00:00:00`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getUTCFullYear() < 1000) return null;
+  return parsed;
+}
+
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
   if (["employee", "admin"].includes(user.role)) {
@@ -32,6 +51,14 @@ function serializeInvoice(inv) {
     id: inv.id,
     client_id: inv.clientId,
     invoice_number: inv.invoiceNumber,
+    customer_id: inv.customerId,
+    customer: inv.customer ? {
+      id: inv.customer.id,
+      name: inv.customer.name,
+      email: inv.customer.email,
+      contact_person: inv.customer.contactPerson,
+      phone: inv.customer.phone,
+    } : null,
     client_name: inv.clientName,
     client_email: inv.clientEmail,
     invoice_date: inv.invoiceDate,
@@ -56,7 +83,9 @@ function serializeInvoice(inv) {
 
 function computeTotals(lineItems, taxRate) {
   const subtotal = lineItems.reduce((sum, li) => {
-    return sum + (Number(li.quantity) || 0) * (Number(li.unit_price) || 0);
+    const quantity = Number(li.quantity) || 0;
+    const unitPrice = Number(li.unit_price ?? li.unitPrice) || 0;
+    return sum + quantity * unitPrice;
   }, 0);
   const taxAmount = subtotal * (Number(taxRate) || 0) / 100;
   const total = subtotal + taxAmount;
@@ -66,7 +95,7 @@ function computeTotals(lineItems, taxRate) {
 function buildLineItemData(lineItems, invoiceId, clientId) {
   return lineItems.map((li, idx) => {
     const qty = Number(li.quantity) || 1;
-    const unitPrice = Number(li.unit_price) || 0;
+    const unitPrice = Number(li.unit_price ?? li.unitPrice) || 0;
     return {
       invoiceId,
       clientId,
@@ -98,7 +127,10 @@ export const GET = withAuth(
 
       const invoice = await prisma.wehowareInvoice.findFirst({
         where: { id, clientId },
-        include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          lineItems: { orderBy: { sortOrder: "asc" } },
+          customer: { select: { id: true, name: true, email: true, contactPerson: true, phone: true } },
+        },
       });
 
       if (!invoice) {
@@ -117,7 +149,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["client", "employee", "admin"] }
+  { allowedRoles: ["client", "admin"] }
 );
 
 // -------------------------------------------------------------------
@@ -162,13 +194,71 @@ export const PUT = withAuth(
 
       if (body.client_name !== undefined) data.clientName = body.client_name;
       if (body.client_email !== undefined) data.clientEmail = body.client_email;
+
+      if (body.customer_id !== undefined) {
+        if (body.customer_id === null) {
+          data.customerId = null;
+        } else {
+          const customer = await prisma.wehowareCustomer.findFirst({
+            where: { id: body.customer_id, clientId },
+            select: { id: true },
+          });
+          if (!customer) {
+            return NextResponse.json(
+              { error: "customer_id is invalid or does not belong to this client" },
+              { status: 400 }
+            );
+          }
+          data.customerId = body.customer_id;
+        }
+      }
       if (body.invoice_date !== undefined) {
-        data.invoiceDate = body.invoice_date ? new Date(body.invoice_date) : null;
+        if (!body.invoice_date) {
+          return NextResponse.json(
+            { error: "invoice_date is required" },
+            { status: 400 }
+          );
+        }
+        const parsedInvoiceDate = parseDateInput(body.invoice_date);
+        if (!parsedInvoiceDate) {
+          return NextResponse.json(
+            { error: "invoice_date is invalid" },
+            { status: 400 }
+          );
+        }
+        data.invoiceDate = parsedInvoiceDate;
       }
       if (body.due_date !== undefined) {
-        data.dueDate = body.due_date ? new Date(body.due_date) : null;
+        if (!body.due_date) {
+          return NextResponse.json(
+            { error: "due_date is required" },
+            { status: 400 }
+          );
+        }
+        const parsedDueDate = parseDateInput(body.due_date);
+        if (!parsedDueDate) {
+          return NextResponse.json(
+            { error: "due_date is invalid" },
+            { status: 400 }
+          );
+        }
+        data.dueDate = parsedDueDate;
       }
-      if (body.status !== undefined) data.status = body.status;
+      if (body.status !== undefined) {
+        if (!body.status) {
+          return NextResponse.json(
+            { error: "status is required" },
+            { status: 400 }
+          );
+        }
+        if (!VALID_STATUSES.has(body.status)) {
+          return NextResponse.json(
+            { error: "status is invalid" },
+            { status: 400 }
+          );
+        }
+        data.status = body.status;
+      }
       if (body.currency !== undefined) data.currency = body.currency;
       if (body.notes !== undefined) data.notes = body.notes;
       if (body.paid_at !== undefined) {
@@ -183,12 +273,11 @@ export const PUT = withAuth(
         const taxRate =
           body.tax_rate !== undefined
             ? Number(body.tax_rate)
-            : existing.taxRate;
-        const itemsForCalc = hasLineItems ? rawLineItems : [];
+            : Number(existing.taxRate);
 
         if (hasLineItems) {
           const { subtotal, taxAmount, total } = computeTotals(
-            itemsForCalc,
+            rawLineItems,
             taxRate
           );
           data.taxRate = taxRate;
@@ -197,12 +286,12 @@ export const PUT = withAuth(
           data.total = total;
         } else {
           // Only tax_rate changed — recalculate from existing subtotal
+          const subtotalNum = Number(existing.subtotal) || 0;
+          const taxAmount = (subtotalNum * taxRate) / 100;
           data.taxRate = taxRate;
-          data.taxAmount = existing.subtotal * taxRate / 100;
-          data.total = existing.subtotal + data.taxAmount;
+          data.taxAmount = taxAmount;
+          data.total = subtotalNum + taxAmount;
         }
-      } else if (body.tax_rate !== undefined) {
-        data.taxRate = Number(body.tax_rate);
       }
 
       if (Object.keys(data).length === 1) {
@@ -230,7 +319,10 @@ export const PUT = withAuth(
 
         return tx.wehowareInvoice.findUnique({
           where: { id },
-          include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+          include: {
+            lineItems: { orderBy: { sortOrder: "asc" } },
+            customer: { select: { id: true, name: true, email: true, contactPerson: true, phone: true } },
+          },
         });
       });
 
@@ -249,7 +341,7 @@ export const PUT = withAuth(
       );
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["client", "admin"] }
 );
 
 // -------------------------------------------------------------------
@@ -295,5 +387,5 @@ export const DELETE = withAuth(
       );
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["client", "admin"] }
 );

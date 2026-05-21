@@ -394,7 +394,7 @@ export default function ServicesPage() {
                               )}
                               {service.duration && (
                                 <div className="text-xs text-gray-500">
-                                  {service.duration} mins
+                                  {service.duration}
                                 </div>
                               )}
                             </td>

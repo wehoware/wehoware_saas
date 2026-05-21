@@ -37,6 +37,7 @@ function serializeUser(profile) {
     wehoware_user_clients: userClients.map((uc) => ({
       client_id: uc.clientId,
       is_primary: uc.isPrimary,
+      role: uc.role,
     })),
     client_ids: userClients.map((uc) => uc.clientId),
     primary_client_id:
@@ -65,7 +66,7 @@ export const GET = withAuth(
         select: {
           ...USER_SELECT,
           userClients: {
-            select: { clientId: true, isPrimary: true },
+            select: { clientId: true, isPrimary: true, role: true },
           },
         },
       });
@@ -92,6 +93,84 @@ export const GET = withAuth(
 // -------------------------------------------------------------------
 // PUT (admin-only)
 // -------------------------------------------------------------------
+async function buildProfileUpdateData(body, existing) {
+  const {
+    email,
+    first_name,
+    last_name,
+    avatar_url,
+    role,
+    password,
+    client_ids: clientIdsRaw,
+    primary_client_id: primaryClientIdRaw,
+  } = body ?? {};
+
+  const profileData = {};
+  const updates = [];
+
+  if (email !== undefined) profileData.email = String(email).trim().toLowerCase();
+  if (first_name !== undefined) profileData.firstName = String(first_name).trim() || null;
+  if (last_name !== undefined) profileData.lastName = String(last_name).trim() || null;
+  if (avatar_url !== undefined) profileData.avatarUrl = avatar_url || null;
+  if (role !== undefined) profileData.role = role;
+  if (password !== undefined && password.length >= 6) {
+    profileData.passwordHash = await bcrypt.hash(password, 10);
+    updates.push("password");
+  }
+
+  const effectiveRole = role ?? existing.role;
+  const shouldUpdateClients = Array.isArray(clientIdsRaw);
+  let primaryClientIdForProfile = null;
+
+  if (shouldUpdateClients) {
+    if (effectiveRole === "client") {
+      primaryClientIdForProfile = primaryClientIdRaw || clientIdsRaw[0] || null;
+      profileData.clientId = primaryClientIdForProfile;
+    } else {
+      profileData.clientId = null;
+    }
+  }
+
+  return { profileData, updates, effectiveRole, shouldUpdateClients, primaryClientIdForProfile, email, firstName: first_name, lastName: last_name, avatarUrl: avatar_url, role };
+}
+
+async function runUpdateTransaction(tx, userId, payload) {
+  const { profileData, updates, shouldUpdateClients, primaryClientIdForProfile, clientIdsRaw, email, firstName, lastName, avatarUrl, role } = payload;
+
+  if (Object.keys(profileData).length > 0) {
+    await tx.wehowareProfile.update({
+      where: { id: userId },
+      data: profileData,
+    });
+    if (email !== undefined) updates.push("email");
+    if (firstName !== undefined || lastName !== undefined || avatarUrl !== undefined || role !== undefined) {
+      updates.push("profile");
+    }
+  }
+
+  if (shouldUpdateClients) {
+    await tx.wehowareUserClient.deleteMany({ where: { userId } });
+    if (clientIdsRaw.length > 0) {
+      await tx.wehowareUserClient.createMany({
+        data: clientIdsRaw.map((cid) => ({
+          userId,
+          clientId: cid,
+          isPrimary: cid === primaryClientIdForProfile,
+        })),
+      });
+    }
+    updates.push("client_associations");
+  }
+
+  return tx.wehowareProfile.findUnique({
+    where: { id: userId },
+    select: {
+      ...USER_SELECT,
+      userClients: { select: { clientId: true, isPrimary: true } },
+    },
+  });
+}
+
 export const PUT = withAuth(
   async (request, { params }) => {
     try {
@@ -106,118 +185,32 @@ export const PUT = withAuth(
       }
 
       const body = await request.json();
-      const {
-        email,
-        password,
-        role,
-        first_name: firstName,
-        last_name: lastName,
-        avatar_url: avatarUrl,
-        client_ids: clientIdsRaw,
-        primary_client_id: primaryClientIdRaw,
-      } = body ?? {};
+      const { role, client_ids: clientIdsRaw } = body ?? {};
 
-      // Verify the user exists before doing any writes
       const existing = await prisma.wehowareProfile.findUnique({
         where: { id: userId },
-        select: { id: true, role: true },
+        select: { id: true, email: true, role: true, passwordHash: true, clientId: true },
       });
       if (!existing) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      if (role === "admin" && !["employee", "admin"].includes(existing.role)) {
         return NextResponse.json(
-          { error: "User not found" },
-          { status: 404 }
+          { error: "Cannot downgrade a non-admin to admin via PUT" },
+          { status: 400 }
         );
       }
 
-      const updates = [];
-      const profileData = {};
-
-      if (email !== undefined) profileData.email = email;
-      if (firstName !== undefined) profileData.firstName = firstName;
-      if (lastName !== undefined) profileData.lastName = lastName;
-      if (avatarUrl !== undefined) profileData.avatarUrl = avatarUrl;
-      if (role !== undefined) profileData.role = role;
-
-      if (password) {
-        profileData.passwordHash = await bcrypt.hash(password, 10);
-        updates.push("password");
-      }
-
-      // Client associations may be updated for any role. `clientId` on the
-      // profile row only matters for the `client` role's session context; we
-      // leave it null for admin/employee so their sessions aren't pinned to
-      // a single client.
-      const effectiveRole = role ?? existing.role;
-      const shouldUpdateClients = Array.isArray(clientIdsRaw);
-
-      let primaryClientIdForProfile = null;
-      if (shouldUpdateClients) {
-        if (effectiveRole === "client") {
-          primaryClientIdForProfile =
-            primaryClientIdRaw || clientIdsRaw[0] || null;
-          profileData.clientId = primaryClientIdForProfile;
-        } else {
-          // Admin/employee: clear profile.clientId; accessible clients live
-          // in WehowareUserClient rows only.
-          profileData.clientId = null;
-        }
-      }
-
-      // Transaction so the profile row and its associations stay in sync
-      const updated = await prisma.$transaction(async (tx) => {
-        if (Object.keys(profileData).length > 0) {
-          await tx.wehowareProfile.update({
-            where: { id: userId },
-            data: profileData,
-          });
-          if (email !== undefined) updates.push("email");
-          if (
-            firstName !== undefined ||
-            lastName !== undefined ||
-            avatarUrl !== undefined ||
-            role !== undefined
-          ) {
-            updates.push("profile");
-          }
-        }
-
-        if (shouldUpdateClients) {
-          // Simple diff-by-replace: delete then recreate. The @@unique on
-          // (userId, clientId) makes an upsert path unnecessary here.
-          await tx.wehowareUserClient.deleteMany({
-            where: { userId },
-          });
-
-          if (clientIdsRaw.length > 0) {
-            await tx.wehowareUserClient.createMany({
-              data: clientIdsRaw.map((cid) => ({
-                userId,
-                clientId: cid,
-                isPrimary: cid === primaryClientIdForProfile,
-              })),
-            });
-          }
-          updates.push("client_associations");
-        }
-
-        const profile = await tx.wehowareProfile.findUnique({
-          where: { id: userId },
-          select: {
-            ...USER_SELECT,
-            userClients: {
-              select: { clientId: true, isPrimary: true },
-            },
-          },
-        });
-
-        return profile;
-      });
+      const payload = await buildProfileUpdateData(body, existing);
+      payload.clientIdsRaw = clientIdsRaw;
+      const updated = await prisma.$transaction((tx) => runUpdateTransaction(tx, userId, payload));
 
       return NextResponse.json(
         {
           message: "User updated successfully",
           userId,
-          updates,
+          updates: payload.updates,
           user: serializeUser(updated),
         },
         { status: 200 }
@@ -225,21 +218,12 @@ export const PUT = withAuth(
     } catch (err) {
       console.error("[PUT /api/v1/users/[userId]] error:", err);
       if (err?.code === "P2002") {
-        return NextResponse.json(
-          { error: "A user with this email already exists" },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 });
       }
       if (err?.code === "P2003") {
-        return NextResponse.json(
-          { error: "One or more client IDs are invalid" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "One or more client IDs are invalid" }, { status: 400 });
       }
-      return NextResponse.json(
-        { error: "Failed to update user" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
     }
   },
   { allowedRoles: ["admin"] }

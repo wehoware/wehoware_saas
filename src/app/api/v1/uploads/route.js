@@ -27,6 +27,7 @@ const ALLOWED_ENTITY_TYPES = new Set([
   "services",
   "avatars",
   "general",
+  "invoices",
 ]);
 
 export const POST = withAuth(

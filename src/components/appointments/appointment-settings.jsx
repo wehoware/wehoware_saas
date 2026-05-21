@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import {
   Save,
@@ -10,6 +10,9 @@ import {
   Bell,
   ExternalLink,
   Video,
+  Loader2,
+  Upload,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -20,51 +23,144 @@ import { Switch } from "@/components/ui/switch";
 import SelectInput from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox.jsx";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/auth-context";
+
+const DEFAULT_SETTINGS = {
+  defaultAvailability: {
+    monday: { enabled: true, start: "09:00", end: "17:00" },
+    tuesday: { enabled: true, start: "09:00", end: "17:00" },
+    wednesday: { enabled: true, start: "09:00", end: "17:00" },
+    thursday: { enabled: true, start: "09:00", end: "17:00" },
+    friday: { enabled: true, start: "09:00", end: "17:00" },
+    saturday: { enabled: false, start: "10:00", end: "15:00" },
+    sunday: { enabled: false, start: "10:00", end: "15:00" },
+  },
+  timeZone: "America/New_York",
+  bufferTime: 15,
+  minimumNotice: 24,
+  futureLimit: 60,
+  notifications: {
+    emailNotifications: true,
+    smsNotifications: false,
+    sendReminders: true,
+    reminderTiming: [24, 1],
+  },
+  integrations: {
+    googleCalendar: false,
+    outlookCalendar: false,
+    zoom: false,
+    googleMeet: true,
+    teams: false,
+  },
+  bookingPage: {
+    slug: "",
+    brandColor: "#4f46e5",
+    logo: "/path/to/logo.png",
+    welcomeMessage: "",
+    redirectUrl: "",
+  },
+};
 
 export function AppointmentSettings() {
-  const [settings, setSettings] = useState({
-    // General settings
-    defaultAvailability: {
-      monday: { enabled: true, start: "09:00", end: "17:00" },
-      tuesday: { enabled: true, start: "09:00", end: "17:00" },
-      wednesday: { enabled: true, start: "09:00", end: "17:00" },
-      thursday: { enabled: true, start: "09:00", end: "17:00" },
-      friday: { enabled: true, start: "09:00", end: "17:00" },
-      saturday: { enabled: false, start: "10:00", end: "15:00" },
-      sunday: { enabled: false, start: "10:00", end: "15:00" },
-    },
-    timeZone: "America/New_York",
-    bufferTime: 15,
-    minimumNotice: 24,
-    futureLimit: 60, // Days
-
-    // Notification settings
-    notifications: {
-      emailNotifications: true,
-      smsNotifications: false,
-      sendReminders: true,
-      reminderTiming: [24, 1], // Hours before appointment
-    },
-
-    // Integration settings
-    integrations: {
-      googleCalendar: false,
-      outlookCalendar: false,
-      zoom: false,
-      googleMeet: true,
-      teams: false,
-    },
-
-    // Booking page settings
-    bookingPage: {
-      slug: "acme-company",
-      brandColor: "#4f46e5",
-      logo: "/path/to/logo.png",
-      welcomeMessage:
-        "Thanks for scheduling with Acme Company. Please select an appointment type below.",
-      redirectUrl: "",
-    },
+  const { activeClient } = useAuth();
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [loading, setLoading] = useState(true);
+  const [oauthDialogOpen, setOauthDialogOpen] = useState(false);
+  const [oauthIntegration, setOauthIntegration] = useState(null);
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [realIntegrations, setRealIntegrations] = useState({
+    googleCalendar: null,
+    outlookCalendar: null,
+    zoom: null,
   });
+  const [syncStatus, setSyncStatus] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          "/api/v1/settings/group/appointments?format=keyValue"
+        );
+        if (!res.ok) throw new Error("Failed to load settings");
+        const json = await res.json();
+        const raw = json.data?.appointment_settings;
+        if (raw && !cancelled) {
+          try {
+            const parsed = JSON.parse(raw);
+            setSettings((prev) => ({
+              ...prev,
+              ...parsed,
+              defaultAvailability: {
+                ...prev.defaultAvailability,
+                ...parsed.defaultAvailability,
+              },
+              notifications: {
+                ...prev.notifications,
+                ...parsed.notifications,
+              },
+              integrations: {
+                ...prev.integrations,
+                ...parsed.integrations,
+              },
+              bookingPage: {
+                ...prev.bookingPage,
+                ...parsed.bookingPage,
+              },
+            }));
+          } catch {
+            // ignore parse errors, keep defaults
+          }
+        }
+      } catch (err) {
+        console.error("[AppointmentSettings] load error:", err);
+      }
+
+      // Load real integrations from DB
+      try {
+        const intRes = await fetch("/api/v1/integrations");
+        if (intRes.ok) {
+          const intJson = await intRes.json();
+          const list = intJson.data || [];
+          const google = list.find((i) => i.provider?.name === "Google Calendar" || i.name === "Google Calendar");
+          const outlook = list.find((i) => i.provider?.name === "Outlook Calendar" || i.name === "Outlook Calendar");
+          const zoom = list.find((i) => i.provider?.name === "Zoom" || i.name === "Zoom");
+          if (!cancelled) {
+            setRealIntegrations({
+              googleCalendar: google || null,
+              outlookCalendar: outlook || null,
+              zoom: zoom || null,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[AppointmentSettings] integrations load error:", err);
+      }
+
+      // Load sync status
+      try {
+        const statusRes = await fetch("/api/v1/integrations/sync-status");
+        if (statusRes.ok) {
+          const statusJson = await statusRes.json();
+          if (!cancelled) {
+            setSyncStatus(statusJson.data || []);
+          }
+        }
+      } catch (err) {
+        console.error("[AppointmentSettings] sync status load error:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeClient?.id]);
 
   const weekdays = [
     { id: "monday", label: "Monday" },
@@ -127,27 +223,145 @@ export function AppointmentSettings() {
 
   const handleSaveSettings = async () => {
     try {
-      // Persist availability settings to the generic settings API
-      const res = await fetch("/api/v1/settings", {
-        method: "POST",
+      const res = await fetch("/api/v1/settings/group/appointments", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          settings: [
+          keyValues: [
             {
-              setting_key: "appointment_settings",
-              setting_value: JSON.stringify(settings),
-              setting_group: "appointments",
+              settingKey: "appointment_settings",
+              settingValue: JSON.stringify(settings),
             },
           ],
         }),
       });
       if (!res.ok) throw new Error("Failed to save settings");
-      toast.success("Appointment settings saved!");
+      toast.success("Settings saved successfully");
     } catch (err) {
-      console.error("Error saving appointment settings:", err);
-      toast.error("Failed to save settings");
+      toast.error(err.message || "Failed to save settings");
     }
   };
+
+  const toggleVideoConfig = async (integrationName, configKey, value) => {
+    let record = null;
+    if (integrationName === "Google Meet") {
+      record = realIntegrations.googleCalendar;
+    } else if (integrationName === "Microsoft Teams") {
+      record = realIntegrations.outlookCalendar;
+    }
+    if (!record?.id) {
+      toast.error(`Please connect ${integrationName === "Google Meet" ? "Google Calendar" : "Outlook Calendar"} first`);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/integrations/${record.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config: { ...record.config, [configKey]: value },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      toast.success(`${integrationName} ${value ? "enabled" : "disabled"}`);
+      // Refresh integrations
+      const intRes = await fetch("/api/v1/integrations");
+      if (intRes.ok) {
+        const intJson = await intRes.json();
+        const list = intJson.data || [];
+        const google = list.find((i) => i.provider?.name === "Google Calendar" || i.name === "Google Calendar");
+        const outlook = list.find((i) => i.provider?.name === "Outlook Calendar" || i.name === "Outlook Calendar");
+        const zoom = list.find((i) => i.provider?.name === "Zoom" || i.name === "Zoom");
+        setRealIntegrations({
+          googleCalendar: google || null,
+          outlookCalendar: outlook || null,
+          zoom: zoom || null,
+        });
+      }
+    } catch (err) {
+      toast.error(err.message || `Failed to toggle ${integrationName}`);
+    }
+  };
+
+  const handleOAuthConnect = (integrationKey, integrationName) => {
+    if (integrationName === "Google Calendar") {
+      globalThis.location.href = "/api/v1/integrations/google/calendar/auth";
+      return;
+    }
+    if (integrationName === "Outlook Calendar") {
+      globalThis.location.href = "/api/v1/integrations/microsoft/calendar/auth";
+      return;
+    }
+    if (integrationName === "Zoom") {
+      globalThis.location.href = "/api/v1/integrations/zoom/auth";
+      return;
+    }
+    // Dialog only for Meet/Teams config toggles (no separate OAuth)
+    setOauthIntegration(integrationName);
+    setOauthDialogOpen(true);
+  };
+
+  const handleDisconnect = async (integrationName) => {
+    const keyMap = {
+      "Google Calendar": "googleCalendar",
+      "Outlook Calendar": "outlookCalendar",
+      "Zoom": "zoom",
+    };
+    const record = realIntegrations[keyMap[integrationName]];
+    if (!record?.id) {
+      toast.error("No active integration found");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/integrations/${record.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      toast.success(`${integrationName} disconnected`);
+      setRealIntegrations((prev) => ({
+        ...prev,
+        [keyMap[integrationName]]: null,
+      }));
+    } catch (err) {
+      toast.error(err.message || `Failed to disconnect ${integrationName}`);
+    }
+  };
+
+  const handleOAuthConfirm = async () => {
+    if (!oauthIntegration) return;
+    setOauthLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const integrationKeyMap = {
+        "Zoom": "zoom",
+        "Google Meet": "googleMeet",
+        "Microsoft Teams": "teams",
+      };
+      const key = integrationKeyMap[oauthIntegration];
+      if (key) {
+        setSettings((prev) => ({
+          ...prev,
+          integrations: {
+            ...prev.integrations,
+            [key]: true,
+          },
+        }));
+      }
+      toast.success(`${oauthIntegration} connected successfully!`);
+      setOauthDialogOpen(false);
+    } catch (err) {
+      toast.error(`Failed to connect ${oauthIntegration}`);
+    } finally {
+      setOauthLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -428,12 +642,33 @@ export function AppointmentSettings() {
               <p className="text-sm text-gray-500">
                 Sync appointments with your Google Calendar
               </p>
+              {realIntegrations.googleCalendar && syncStatus.length > 0 && (
+                (() => {
+                  const s = syncStatus.find((st) => st.name === "Google Calendar" || st.provider === "Google Calendar");
+                  if (!s) return null;
+                  return (
+                    <p className={`text-xs mt-0.5 ${s.errorCount > 0 ? "text-red-500" : "text-green-600"}`}>
+                      {s.errorCount > 0 ? `${s.errorCount} sync error${s.errorCount > 1 ? "s" : ""} in last 24h` : "Sync healthy — last synced recently"}
+                    </p>
+                  );
+                })()
+              )}
             </div>
             <div className="flex items-center space-x-2">
-              {settings.integrations.googleCalendar ? (
-                <Badge>Connected</Badge>
+              {realIntegrations.googleCalendar ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDisconnect("Google Calendar")}
+                >
+                  Disconnect
+                </Button>
               ) : (
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOAuthConnect("googleCalendar", "Google Calendar")}
+                >
                   Connect <ExternalLink className="ml-2 h-3 w-3" />
                 </Button>
               )}
@@ -446,12 +681,33 @@ export function AppointmentSettings() {
               <p className="text-sm text-gray-500">
                 Sync appointments with your Outlook Calendar
               </p>
+              {realIntegrations.outlookCalendar && syncStatus.length > 0 && (
+                (() => {
+                  const s = syncStatus.find((st) => st.name === "Outlook Calendar" || st.provider === "Outlook Calendar");
+                  if (!s) return null;
+                  return (
+                    <p className={`text-xs mt-0.5 ${s.errorCount > 0 ? "text-red-500" : "text-green-600"}`}>
+                      {s.errorCount > 0 ? `${s.errorCount} sync error${s.errorCount > 1 ? "s" : ""} in last 24h` : "Sync healthy — last synced recently"}
+                    </p>
+                  );
+                })()
+              )}
             </div>
             <div className="flex items-center space-x-2">
-              {settings.integrations.outlookCalendar ? (
-                <Badge>Connected</Badge>
+              {realIntegrations.outlookCalendar ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDisconnect("Outlook Calendar")}
+                >
+                  Disconnect
+                </Button>
               ) : (
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOAuthConnect("outlookCalendar", "Outlook Calendar")}
+                >
                   Connect <ExternalLink className="ml-2 h-3 w-3" />
                 </Button>
               )}
@@ -466,16 +722,33 @@ export function AppointmentSettings() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Video className="h-4 w-4" />
-                  <Label>Zoom</Label>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Video className="h-4 w-4" />
+                    <Label>Zoom</Label>
+                  </div>
+                  {realIntegrations.zoom && (
+                    <p className="text-xs text-muted-foreground mt-0.5 ml-6">
+                      Connected — meetings auto-generated for video appointments
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2">
-                  {settings.integrations.zoom ? (
-                    <Badge>Connected</Badge>
+                  {realIntegrations.zoom ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDisconnect("Zoom")}
+                    >
+                      Disconnect
+                    </Button>
                   ) : (
-                    <Button variant="outline" size="sm">
-                      Connect
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOAuthConnect("zoom", "Zoom")}
+                    >
+                      Connect <ExternalLink className="ml-2 h-3 w-3" />
                     </Button>
                   )}
                 </div>
@@ -487,11 +760,21 @@ export function AppointmentSettings() {
                   <Label>Google Meet</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {settings.integrations.googleMeet ? (
-                    <Badge>Connected</Badge>
+                  {realIntegrations.googleCalendar?.config?.enableMeet ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleVideoConfig("Google Meet", "enableMeet", false)}
+                    >
+                      Disable
+                    </Button>
                   ) : (
-                    <Button variant="outline" size="sm">
-                      Connect
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleVideoConfig("Google Meet", "enableMeet", true)}
+                    >
+                      Enable
                     </Button>
                   )}
                 </div>
@@ -503,11 +786,21 @@ export function AppointmentSettings() {
                   <Label>Microsoft Teams</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {settings.integrations.teams ? (
-                    <Badge>Connected</Badge>
+                  {realIntegrations.outlookCalendar?.config?.enableTeams ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleVideoConfig("Microsoft Teams", "enableTeams", false)}
+                    >
+                      Disable
+                    </Button>
                   ) : (
-                    <Button variant="outline" size="sm">
-                      Connect
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleVideoConfig("Microsoft Teams", "enableTeams", true)}
+                    >
+                      Enable
                     </Button>
                   )}
                 </div>
@@ -524,6 +817,85 @@ export function AppointmentSettings() {
         </h3>
 
         <div className="space-y-4">
+          <div>
+            <Label>Logo</Label>
+            <div className="mt-2 border rounded-lg p-4 bg-gray-50">
+              {settings.bookingPage.logo ? (
+                <div className="flex items-start gap-4">
+                  <div className="w-24 h-24 bg-white border rounded-lg flex items-center justify-center overflow-hidden">
+                    <img src={settings.bookingPage.logo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                    setSettings({
+                      ...settings,
+                      bookingPage: {
+                        ...settings.bookingPage,
+                        logo: "",
+                      },
+                    });
+                      }}
+                    >
+                      Remove Logo
+                    </Button>
+                    <p className="text-xs text-gray-500">
+                      Current logo: {settings.bookingPage.logo}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="file"
+                    id="logo-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const formData = new FormData();
+                      formData.append("file", file);
+                      formData.append("entityType", "general");
+                      try {
+                        toast.loading("Uploading logo...", { id: "logo-upload" });
+                        const res = await fetch("/api/v1/uploads", {
+                          method: "POST",
+                          body: formData,
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || "Upload failed");
+                        setSettings({
+                          ...settings,
+                          bookingPage: {
+                            ...settings.bookingPage,
+                            logo: data.url,
+                          },
+                        });
+                        toast.success("Logo uploaded!", { id: "logo-upload" });
+                      } catch (err) {
+                        toast.error(err.message || "Upload failed", { id: "logo-upload" });
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById("logo-upload")?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Logo
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Recommended: PNG or JPG, max 10MB
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="slug">Booking Page URL</Label>
@@ -545,6 +917,36 @@ export function AppointmentSettings() {
                   }
                 />
               </div>
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <Label>Public Booking Link</Label>
+              <div className="flex items-center gap-2 mt-1">
+                <code className="text-sm bg-gray-100 px-2 py-1 rounded flex-1 overflow-auto">
+                  {globalThis.window?.location?.origin ? `${globalThis.window.location.origin}/book/${settings.bookingPage.slug}` : `/book/${settings.bookingPage.slug}`}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const url = globalThis.window?.location?.origin ? `${globalThis.window.location.origin}/book/${settings.bookingPage.slug}` : `/book/${settings.bookingPage.slug}`;
+                    navigator.clipboard.writeText(url);
+                    toast.success("URL copied!");
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <Label>Embed Code (iframe)</Label>
+              <textarea
+                readOnly
+                className="w-full text-sm bg-gray-100 p-2 rounded mt-1 font-mono"
+                rows={3}
+                value={`<iframe src="${globalThis.window?.location?.origin || ""}/book/${settings.bookingPage.slug}" width="100%" height="700" frameborder="0" allowfullscreen></iframe>`}
+              />
             </div>
 
             <div>
@@ -611,6 +1013,36 @@ export function AppointmentSettings() {
           </div>
         </div>
       </Card>
+
+      {/* OAuth Connection Dialog */}
+      <Dialog open={oauthDialogOpen} onOpenChange={setOauthDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connect {oauthIntegration}</DialogTitle>
+            <DialogDescription>
+              You will be redirected to {oauthIntegration} to authorize access to your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600">
+              This will allow the application to sync appointments and generate meeting links automatically.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setOauthDialogOpen(false)}
+              disabled={oauthLoading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleOAuthConfirm} disabled={oauthLoading}>
+              {oauthLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              {oauthLoading ? "Connecting..." : "Authorize"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

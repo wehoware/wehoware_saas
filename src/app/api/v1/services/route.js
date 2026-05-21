@@ -48,7 +48,6 @@ function serialize(s) {
     tags: s.tags,
     active: s.active,
     featured: s.featured,
-    sort_order: s.sortOrder,
     views: s.views,
     created_at: s.createdAt,
     updated_at: s.updatedAt,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/auth-context";
 import { format, parseISO, isToday, isTomorrow, isFuture } from "date-fns";
 import { toast } from "react-hot-toast";
 import {
@@ -16,6 +17,15 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /** Map API appointment shape → component display shape */
 function mapAppointment(a) {
@@ -35,6 +45,7 @@ function mapAppointment(a) {
 }
 
 export function UpcomingAppointments() {
+  const { activeClient } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -43,24 +54,31 @@ export function UpcomingAppointments() {
   const [appointmentToCancel, setAppointmentToCancel] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
-  async function fetchAppointments() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/v1/appointments?limit=100");
-      if (!res.ok) throw new Error("Failed to load appointments");
-      const json = await res.json();
-      setAppointments((json.appointments || json.data || []).map(mapAppointment));
-    } catch (err) {
-      console.error("Error fetching appointments:", err);
-      toast.error("Failed to load appointments");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    fetchAppointments();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/v1/appointments?limit=100");
+        if (!res.ok) throw new Error("Failed to load appointments");
+        const json = await res.json();
+        if (!cancelled) {
+          setAppointments((json.appointments || json.data || []).map(mapAppointment));
+        }
+      } catch (err) {
+        console.error("Error fetching appointments:", err);
+        if (!cancelled) {
+          toast.error("Failed to load appointments");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeClient?.id]);
 
   const handleConfirm = async (id) => {
     try {
@@ -112,8 +130,44 @@ export function UpcomingAppointments() {
     }
   };
 
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+
   const handleReschedule = () => {
-    toast.error("Reschedule feature coming soon");
+    if (!selectedAppointment) return;
+    setRescheduleDate(
+      format(parseISO(selectedAppointment.date), "yyyy-MM-dd'T'HH:mm")
+    );
+    setRescheduleDialogOpen(true);
+  };
+
+  const confirmReschedule = async () => {
+    if (!selectedAppointment || !rescheduleDate) return;
+    try {
+      setRescheduleLoading(true);
+      const res = await fetch(`/api/v1/appointments/${selectedAppointment.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduled_at: rescheduleDate }),
+      });
+      if (!res.ok) throw new Error("Failed to reschedule");
+      const updated = await res.json();
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === selectedAppointment.id
+            ? { ...a, date: updated.data?.scheduled_at || rescheduleDate }
+            : a
+        )
+      );
+      setSelectedAppointment(null);
+      setRescheduleDialogOpen(false);
+      toast.success("Appointment rescheduled");
+    } catch (err) {
+      toast.error(err.message || "Failed to reschedule");
+    } finally {
+      setRescheduleLoading(false);
+    }
   };
 
   const filteredAppointments = appointments.filter((appointment) => {
@@ -183,7 +237,11 @@ export function UpcomingAppointments() {
           <p className="text-gray-500 max-w-md">
             {filter === "all"
               ? "You don't have any upcoming appointments."
-              : `No appointments ${filter === "pending" ? "pending" : filter}.`}
+              : (() => {
+                  let label = filter;
+                  if (filter === "pending") label = "pending";
+                  return `No appointments ${label}.`;
+                })()}
           </p>
         </Card>
       ) : (
@@ -342,6 +400,36 @@ export function UpcomingAppointments() {
         loadingLabel="Cancelling..."
         variant="destructive"
       />
+
+      <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reschedule Appointment</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reschedule-date">New Date &amp; Time</Label>
+            <Input
+              id="reschedule-date"
+              type="datetime-local"
+              value={rescheduleDate}
+              onChange={(e) => setRescheduleDate(e.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRescheduleDialogOpen(false)}
+              disabled={rescheduleLoading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmReschedule} disabled={rescheduleLoading}>
+              {rescheduleLoading ? "Saving..." : "Confirm Reschedule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

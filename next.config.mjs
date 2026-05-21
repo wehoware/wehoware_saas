@@ -18,6 +18,8 @@ const nextConfig = {
   },
   // Disable X-Powered-By header
   poweredByHeader: false,
+  // Allow LAN IP access to dev resources
+  allowedDevOrigins: ['172.7.10.104'],
 };
 
 export default nextConfig;

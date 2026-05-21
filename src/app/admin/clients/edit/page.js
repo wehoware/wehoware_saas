@@ -10,11 +10,13 @@ import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import AdminPageHeader from "@/components/AdminPageHeader";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function EditClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientId = searchParams.get("id");
+  const { activeClient } = useAuth();
 
   const [client, setClient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +46,7 @@ export default function EditClientPage() {
     };
 
     fetchClient();
-  }, [clientId, router]);
+  }, [clientId, activeClient?.id, router]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -175,6 +177,18 @@ export default function EditClientPage() {
             name="domain"
             value={client?.domain || ""}
             onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <label htmlFor="public_slug" className="block mb-1">
+            Public Booking Slug <span className="text-gray-400 text-xs">(for /book/&lt;slug&gt;)</span>
+          </label>
+          <Input
+            id="public_slug"
+            name="public_slug"
+            value={client?.public_slug || ""}
+            onChange={handleInputChange}
+            placeholder="e.g. acme-corp"
           />
         </div>
         <div className="flex items-center">

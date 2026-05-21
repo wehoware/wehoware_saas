@@ -15,6 +15,7 @@ import { Plus, ListChecks } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
 import { CheckCircle, Clock, Loader, List } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 // Stats Card Component for Task Metrics
 function StatsCard({ title, value, icon }) {
@@ -32,6 +33,7 @@ function StatsCard({ title, value, icon }) {
 }
 
 export default function TasksPage() {
+  const { activeClient } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [clients, setClients] = useState([]);
@@ -83,8 +85,10 @@ export default function TasksPage() {
   }, [pagination.page, pagination.limit, sort.field, sort.order, filters]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    if (activeClient?.id) {
+      fetchTasks();
+    }
+  }, [activeClient?.id, fetchTasks]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -116,7 +120,7 @@ export default function TasksPage() {
       }
     };
     fetchInitialData();
-  }, []);
+  }, [activeClient?.id]);
 
   const handleFilterChange = (newFilters) => {
     setPagination((prev) => ({ ...prev, page: 1 }));

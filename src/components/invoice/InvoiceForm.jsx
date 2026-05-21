@@ -1,84 +1,95 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // Corrected import for App Router
-import { Button } from "@/components/ui/button"; // Assuming you have a Button component
-import { Input } from "@/components/ui/input"; // Assuming you have an Input component
-import { Label } from "@/components/ui/label"; // Assuming you have a Label component
-import { Textarea } from "@/components/ui/textarea"; // Assuming you have a Textarea component
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PlusCircleIcon, Trash2Icon } from "lucide-react";
 import SelectInput from "@/components/ui/select";
+import DatePicker from "@/components/ui/date-picker";
+import { toIsoDateOnly } from "@/lib/invoiceFormat";
+import CustomerPicker from "./CustomerPicker";
 
-const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
+const DEFAULT_CURRENCY = "CAD";
+const DEFAULT_TAX_RATE = 0;
+const DEFAULT_STATUS = "Draft";
+
+const todayIso = () => new Date().toISOString().split("T")[0];
+
+const createEmptyItem = () => ({ description: "", quantity: 1, unitPrice: 0 });
+
+/**
+ * Reusable invoice form (create + edit).
+ *
+ * Props
+ *   initialData : invoice payload from /api/v1/invoices/[id] (snake_case)
+ *   defaults    : invoice settings defaults (currency, tax rate, notes) for new invoices
+ *   onSubmit    : (formData) => Promise<void>
+ *   isEditing   : boolean — switches submit label and skips defaults application
+ */
+const InvoiceForm = ({
+  initialData,
+  defaults,
+  onSubmit,
+  isEditing = false,
+}) => {
   const router = useRouter();
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [customerId, setCustomerId] = useState(null);
+  const [invoiceDate, setInvoiceDate] = useState(todayIso);
   const [dueDate, setDueDate] = useState("");
-  const [status, setStatus] = useState("Pending"); // Default status
-  const [currency, setCurrency] = useState("CAD"); // Default currency
-  const [taxRate, setTaxRate] = useState(13); // Default tax rate 13%
-  const [items, setItems] = useState([
-    { description: "", quantity: 1, unitPrice: 0 },
-  ]);
+  const [status, setStatus] = useState(DEFAULT_STATUS);
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
+  const [items, setItems] = useState(() => [createEmptyItem()]);
   const [notes, setNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Hydrate from initialData (edit / clone) — runs whenever the upstream
+  // payload changes so a parent-driven "clone" reset reflows the form.
   useEffect(() => {
-    if (initialData) {
-      setClientName(initialData.client_name || "");
-      setClientEmail(initialData.client_email || "");
-      
-      // Safe date parsing with validation
-      const parseDate = (dateStr) => {
-        if (!dateStr) return null;
-        try {
-          let dateToParse = dateStr;
-          if (!dateStr.includes('T')) {
-            dateToParse = dateStr + 'T00:00:00';
-          }
-          const date = new Date(dateToParse);
-          if (isNaN(date.getTime())) {
-            return null;
-          }
-          return date;
-        } catch (e) {
-          return null;
-        }
-      };
-      
-      const invoiceDateObj = parseDate(initialData.invoice_date);
-      setInvoiceDate(
-        invoiceDateObj
-          ? invoiceDateObj.toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0]
-      );
-      
-      const dueDateObj = parseDate(initialData.due_date);
-      setDueDate(
-        dueDateObj
-          ? dueDateObj.toISOString().split("T")[0]
-          : ""
-      );
-      
-      setStatus(initialData.status || "Pending");
-      setCurrency(initialData.currency || "CAD");
-      setTaxRate(initialData.tax_rate !== undefined ? Number(initialData.tax_rate) : 13);
-      
-      // Handle line items from API response
-      const lineItems = initialData.line_items || initialData.items || [];
-      setItems(
-        lineItems.length > 0
-          ? lineItems.map(item => ({
-              description: item.description || "",
-              quantity: Number(item.quantity) || 1,
-              unitPrice: Number(item.unit_price || item.unitPrice || 0)
-            }))
-          : [{ description: "", quantity: 1, unitPrice: 0 }]
-      );
-      
-      setNotes(initialData.notes || "");
+    if (!initialData) return;
+    setClientName(initialData.client_name ?? "");
+    setClientEmail(initialData.client_email ?? "");
+    setCustomerId(initialData.customer_id ?? null);
+    setInvoiceDate(
+      toIsoDateOnly(initialData.invoice_date) || todayIso()
+    );
+    setDueDate(toIsoDateOnly(initialData.due_date) || "");
+    setStatus(initialData.status || DEFAULT_STATUS);
+    setCurrency(initialData.currency || DEFAULT_CURRENCY);
+    if (initialData.tax_rate !== undefined && initialData.tax_rate !== null) {
+      setTaxRate(Number(initialData.tax_rate));
     }
+    const lineItems = initialData.line_items || initialData.items || [];
+    setItems(
+      lineItems.length > 0
+        ? lineItems.map((item) => ({
+            description: item.description || "",
+            quantity: Number(item.quantity) || 1,
+            unitPrice: Number(item.unit_price ?? item.unitPrice ?? 0),
+          }))
+        : [createEmptyItem()]
+    );
+    setNotes(initialData.notes ?? "");
   }, [initialData]);
+
+  // Apply settings defaults only on create (no initialData) and only when
+  // the user hasn't typed anything yet. Won't overwrite an in-progress edit.
+  useEffect(() => {
+    if (isEditing || initialData || !defaults) return;
+    if (defaults.default_currency) setCurrency(defaults.default_currency);
+    if (defaults.default_tax_rate !== undefined && defaults.default_tax_rate !== null) {
+      setTaxRate(Number(defaults.default_tax_rate));
+    }
+    if (defaults.default_notes) setNotes(defaults.default_notes);
+    // Only run on first defaults load; subsequent changes shouldn't clobber
+    // a user's edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaults?.default_currency, defaults?.default_tax_rate, defaults?.default_notes]);
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
@@ -117,28 +128,35 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
     return (subtotal + tax).toFixed(2);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const formData = {
+      customer_id: customerId,
       client_name: clientName,
       client_email: clientEmail,
       invoice_date: invoiceDate,
       due_date: dueDate,
-      status,
+      status: status || DEFAULT_STATUS,
       currency,
-      tax_rate: taxRate,
+      tax_rate: Number(taxRate) || 0,
       line_items: items.map((it) => ({
         description: it.description,
         quantity: Number(it.quantity) || 0,
         unit_price: Number(it.unitPrice) || 0,
       })),
       notes,
-      subtotal: parseFloat(calculateSubtotal()),
-      tax_amount: parseFloat(calculateTaxAmount()),
-      total_amount: parseFloat(calculateTotal()),
-      id: initialData?.id, // Include ID if editing
+      subtotal: Number.parseFloat(calculateSubtotal()),
+      tax_amount: Number.parseFloat(calculateTaxAmount()),
+      total_amount: Number.parseFloat(calculateTotal()),
+      id: initialData?.id,
     };
-    onSubmit(formData);
+    try {
+      setIsSubmitting(true);
+      await onSubmit(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -149,6 +167,29 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
       <h2 className="text-xl md:text-2xl font-semibold text-gray-800 mb-6">
         {isEditing ? "Edit Invoice" : "Create New Invoice"}
       </h2>
+
+      {/* Customer Picker */}
+      <div className="mb-4">
+        <Label className="block text-sm font-medium text-gray-700 mb-1">
+          Customer
+        </Label>
+        <CustomerPicker
+          value={customerId}
+          onChange={(customer) => {
+            if (customer) {
+              setCustomerId(customer.id);
+              setClientName(customer.name || "");
+              setClientEmail(customer.email || "");
+            } else {
+              setCustomerId(null);
+            }
+          }}
+          disabled={isSubmitting}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Select a customer to auto-fill details, or enter manually below.
+        </p>
+      </div>
 
       {/* Client Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -197,13 +238,12 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
           >
             Invoice Date
           </Label>
-          <Input
+          <DatePicker
             id="invoiceDate"
-            type="date"
+            name="invoiceDate"
             value={invoiceDate}
             onChange={(e) => setInvoiceDate(e.target.value)}
-            required
-            className="w-full"
+            placeholder="Pick invoice date"
           />
         </div>
         <div>
@@ -213,12 +253,12 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
           >
             Due Date
           </Label>
-          <Input
+          <DatePicker
             id="dueDate"
-            type="date"
+            name="dueDate"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
-            className="w-full"
+            placeholder="Pick due date"
           />
         </div>
       </div>
@@ -435,9 +475,16 @@ const InvoiceForm = ({ initialData, onSubmit, isEditing = false }) => {
         </Button>
         <Button
           type="submit"
+          disabled={isSubmitting}
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
-          {isEditing ? "Save Changes" : "Create Invoice"}
+          {isSubmitting
+            ? isEditing
+              ? "Saving..."
+              : "Creating..."
+            : isEditing
+              ? "Save Changes"
+              : "Create Invoice"}
         </Button>
       </div>
     </form>

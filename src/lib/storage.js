@@ -26,7 +26,13 @@ import path from "node:path";
 
 const STORAGE_ROOT_RELATIVE = "public/uploads";
 const PUBLIC_URL_PREFIX = "/uploads";
-const VALID_ENTITY_TYPES = new Set(["services", "blogs", "general", "avatars"]);
+const VALID_ENTITY_TYPES = new Set([
+  "services",
+  "blogs",
+  "general",
+  "avatars",
+  "invoices",
+]);
 
 // ----------------------------------------------------------------
 // S3 config (optional — we only use S3 if all four are set)

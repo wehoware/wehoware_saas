@@ -45,6 +45,7 @@ function serializeUser(profile) {
     wehoware_user_clients: userClients.map((uc) => ({
       client_id: uc.clientId,
       is_primary: uc.isPrimary,
+      role: uc.role,
     })),
     client_ids: userClients.map((uc) => uc.clientId),
     primary_client_id:
@@ -72,7 +73,7 @@ export const GET = withAuth(
         select: {
           ...USER_SELECT,
           userClients: {
-            select: { clientId: true, isPrimary: true },
+            select: { clientId: true, isPrimary: true, role: true },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -175,13 +176,14 @@ export const POST = withAuth(
               userId: profile.id,
               clientId: cid,
               isPrimary: cid === primaryClientId,
+              role: "client",
             })),
           });
         }
 
         const userClients = await tx.wehowareUserClient.findMany({
           where: { userId: profile.id },
-          select: { clientId: true, isPrimary: true },
+          select: { clientId: true, isPrimary: true, role: true },
         });
 
         return { ...profile, userClients };

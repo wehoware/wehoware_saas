@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { toast } from "react-hot-toast";
 import SelectInput from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function GenerateReportPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function GenerateReportPage() {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+  const { activeClient } = useAuth();
   const [report, setReport] = useState({
     title: "",
     description: "",
@@ -47,7 +49,7 @@ export default function GenerateReportPage() {
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [activeClient?.id]);
 
   useEffect(() => {
     if (templateId && templates.length > 0) {

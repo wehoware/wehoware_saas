@@ -19,8 +19,8 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  // Handle admin paths specially
-  const isAdminPage = pathname.startsWith('/admin');
+  // Handle admin and print paths specially
+  const isAdminPage = pathname.startsWith('/admin') || pathname.startsWith('/print');
 
   useEffect(() => {
     const handleScroll = () => {

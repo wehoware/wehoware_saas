@@ -29,11 +29,12 @@ function addSecurityHeaders(response) {
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-eval needed for Next.js dev
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.plaid.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https:",
+      "frame-src 'self' https://cdn.plaid.com",
       "frame-ancestors 'none'",
     ].join("; ")
   );
@@ -78,6 +79,20 @@ export function proxy(request) {
   if (isLoginPath && sessionToken) {
     const response = NextResponse.redirect(new URL("/admin", request.url));
     return addSecurityHeaders(response);
+  }
+
+  // Public booking pages must be embeddable on client websites
+  if (pathname.startsWith("/book/")) {
+    const response = NextResponse.next();
+    const h = response.headers;
+    h.set("X-Content-Type-Options", "nosniff");
+    h.set("X-XSS-Protection", "1; mode=block");
+    h.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    h.set(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors *"
+    );
+    return response;
   }
 
   // Add security headers to all other responses

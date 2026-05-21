@@ -19,8 +19,8 @@
 //              Kept for backward compatibility; browser flow uses signOut().
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import {
+  auth,
   getAccessibleClients,
   getClientDetails,
   ROLES_WITH_CLIENT_ACCESS,
@@ -38,7 +38,7 @@ const SESSION_COOKIE_NAMES = [
 // Shared: build the enriched user object returned to the frontend.
 // Uses a single Prisma query + two optional helpers — no N+1.
 // ----------------------------------------------------------------
-async function buildUserResponse(userId) {
+async function buildUserResponse(userId, activeClientId) {
   const profile = await prisma.wehowareProfile.findUnique({
     where: { id: userId },
     select: {
@@ -56,6 +56,7 @@ async function buildUserResponse(userId) {
 
   let accessibleClients = [];
   let clientDetails = null;
+  let activeClientRole = null;
 
   if (ROLES_WITH_CLIENT_ACCESS.includes(profile.role)) {
     accessibleClients = await getAccessibleClients(profile.id);
@@ -63,6 +64,15 @@ async function buildUserResponse(userId) {
 
   if (profile.role === "client" && profile.clientId) {
     clientDetails = await getClientDetails(profile.clientId);
+  }
+
+  // Resolve per-client role for the active client context
+  if (activeClientId && ROLES_WITH_CLIENT_ACCESS.includes(profile.role)) {
+    const uc = await prisma.wehowareUserClient.findFirst({
+      where: { userId: profile.id, clientId: activeClientId, active: true },
+      select: { role: true },
+    });
+    activeClientRole = uc?.role ?? null;
   }
 
   return {
@@ -73,6 +83,7 @@ async function buildUserResponse(userId) {
     lastName: profile.lastName ?? "",
     avatarUrl: profile.avatarUrl ?? "",
     clientId: profile.clientId ?? null,
+    activeClientRole,
     accessibleClients,
     clientDetails,
   };
@@ -85,7 +96,7 @@ async function buildUserResponse(userId) {
 // Returns { user: UserObject } or { user: null } — never 4xx on
 // missing session (the frontend decides what to do with null).
 // ----------------------------------------------------------------
-export async function GET() {
+export async function GET(request) {
   let session;
   try {
     session = await auth();
@@ -99,7 +110,9 @@ export async function GET() {
   }
 
   try {
-    const user = await buildUserResponse(session.user.id);
+    const activeClientId =
+      request?.cookies?.get?.("wehoware_active_client_id")?.value ?? null;
+    const user = await buildUserResponse(session.user.id, activeClientId);
     return NextResponse.json({ user });
   } catch (err) {
     console.error("[GET /api/v1/auth] DB error:", err);
@@ -158,7 +171,7 @@ export async function POST(request) {
     );
   }
 
-  if (!profile || !profile.passwordHash) {
+  if (!profile?.passwordHash) {
     // Use the same generic message for missing user and wrong password
     // to prevent user-enumeration attacks
     return NextResponse.json(

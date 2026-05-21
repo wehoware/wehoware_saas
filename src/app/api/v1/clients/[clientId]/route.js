@@ -17,6 +17,7 @@ function serializeClient(c) {
     website: c.website,
     industry: c.industry,
     domain: c.domain,
+    public_slug: c.publicSlug,
     active: c.active,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
@@ -96,6 +97,8 @@ async function updateClient(request, { params }) {
     if (body.website !== undefined) data.website = body.website;
     if (body.industry !== undefined) data.industry = body.industry;
     if (body.domain !== undefined) data.domain = body.domain;
+    if (body.publicSlug !== undefined) data.publicSlug = body.publicSlug;
+    else if (body.public_slug !== undefined) data.publicSlug = body.public_slug;
     if (body.active !== undefined) data.active = body.active;
 
     const client = await prisma.wehowareClient.update({

@@ -38,7 +38,7 @@ import SelectInput from "@/components/ui/select";
 export default function EditBlogPage() {
   const router = useRouter();
   const params = useParams();
-  const { user } = useAuth();
+  const { user, activeClient } = useAuth();
   const [id, setId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -146,7 +146,7 @@ export default function EditBlogPage() {
     if (id) {
       fetchData();
     }
-  }, [id, fetchBlogPost]);
+  }, [id, activeClient?.id, fetchBlogPost]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, InfoIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import SelectInput from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function AddIntegrationPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function AddIntegrationPage() {
   const [providers, setProviders] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState(null);
 
+  const { activeClient } = useAuth();
   const [integration, setIntegration] = useState({
     name: "",
     provider_id: providerId || "",
@@ -44,7 +46,7 @@ export default function AddIntegrationPage() {
 
   useEffect(() => {
     fetchProviders();
-  }, []);
+  }, [activeClient?.id]);
 
   useEffect(() => {
     if (providerId && providers.length > 0) {

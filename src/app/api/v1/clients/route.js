@@ -23,6 +23,7 @@ function serializeClient(c) {
     website: c.website,
     industry: c.industry,
     domain: c.domain,
+    public_slug: c.publicSlug,
     active: c.active,
     created_at: c.createdAt,
     updated_at: c.updatedAt,
@@ -121,6 +122,7 @@ async function createClient(request) {
         website: body.website ?? null,
         industry: body.industry ?? null,
         domain: body.domain ?? null,
+        publicSlug: body.public_slug ?? body.publicSlug ?? null,
         active: body.active ?? true,
       },
     });

@@ -20,6 +20,7 @@ import {
 import AdminPageHeader from "@/components/AdminPageHeader";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Card,
   CardContent,
@@ -30,6 +31,7 @@ import {
 
 export default function ClientsPage() {
   const router = useRouter();
+  const { activeClient } = useAuth();
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -56,8 +58,11 @@ export default function ClientsPage() {
 
   // Trigger fetch when sort changes
   useEffect(() => {
-    fetchClients();
-  }, [sortField, sortOrder, fetchClients]);
+    const doFetch = async () => {
+      await fetchClients();
+    };
+    doFetch();
+  }, [activeClient?.id, sortField, sortOrder, fetchClients]);
 
   // Filter clients based on the search term (Client-side filtering)
   const filteredClients = clients.filter((client) => {
@@ -67,6 +72,7 @@ export default function ClientsPage() {
       client.email?.toLowerCase().includes(term) ||
       client.contact_number?.toLowerCase().includes(term) ||
       client.domain?.toLowerCase().includes(term) ||
+      client.public_slug?.toLowerCase().includes(term) ||
       client.contact_person?.toLowerCase().includes(term)
     );
   });
@@ -167,9 +173,9 @@ export default function ClientsPage() {
                       </th>
                       <th
                         className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
-                        onClick={() => handleSort("created_at")}
+                        onClick={() => handleSort("public_slug")}
                       >
-                        Created <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+                        Public Slug <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                       </th>
                       <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
                         Actions
@@ -207,7 +213,11 @@ export default function ClientsPage() {
                             {client.domain || "-"}
                           </td>
                           <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 text-muted-foreground">
-                            {new Date(client.created_at).toLocaleDateString()}
+                            {client.public_slug ? (
+                              <a href={`/book/${client.public_slug}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{client.public_slug}</a>
+                            ) : (
+                              "-"
+                            )}
                           </td>
                           <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 text-right">
                             <div className="flex justify-end space-x-1">

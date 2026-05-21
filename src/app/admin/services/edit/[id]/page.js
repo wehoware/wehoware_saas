@@ -123,7 +123,7 @@ export default function EditServicePage({ params }) {
     };
 
     fetchService();
-  }, [id, router]);
+  }, [id, activeClient?.id, router]);
 
   useEffect(() => {
     const fetchCategories = async () => {

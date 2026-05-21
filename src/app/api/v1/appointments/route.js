@@ -8,6 +8,9 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
+import { triggerAppointmentNotification } from "@/lib/notification-service";
+import { syncAppointmentToCalendars } from "@/lib/calendar-sync";
+import { generateMeetingLink } from "@/lib/video-meeting-service";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -253,6 +256,23 @@ export const POST = withAuth(
         }
       }
 
+      // Auto-generate Zoom meeting link if video location and no link provided
+      let autoMeetingLink = meeting_link ?? null;
+      const isVideoLocation =
+        location &&
+        ["video", "zoom", "google meet", "teams", "virtual", "online"].some(
+          (v) => location.toLowerCase().includes(v)
+        );
+      if (!autoMeetingLink && isVideoLocation) {
+        const zoomResult = await generateMeetingLink(
+          { scheduledAt: scheduledDate, guestName: guest_name, guestEmail: guest_email, notes, timezone, appointmentTypeId: appointment_type_id },
+          clientId
+        );
+        if (zoomResult?.link) {
+          autoMeetingLink = zoomResult.link;
+        }
+      }
+
       const created = await prisma.wehowareAppointment.create({
         data: {
           clientId,
@@ -263,13 +283,29 @@ export const POST = withAuth(
           scheduledAt: scheduledDate,
           status: status ?? "Pending",
           location: location ?? null,
-          meetingLink: meeting_link ?? null,
+          meetingLink: autoMeetingLink,
           address: address ?? null,
           notes: notes ?? null,
           timezone: timezone ?? null,
           createdBy: user.id,
         },
         include: { appointmentType: APPOINTMENT_TYPE_SELECT },
+      });
+
+      // Trigger notification (non-blocking)
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: clientId },
+        select: { name: true },
+      });
+      if (client) {
+        triggerAppointmentNotification('created', serialize(created), clientId, client.name).catch(err => {
+          console.error('[POST /api/v1/appointments] notification error:', err);
+        });
+      }
+
+      // Sync to connected calendars (non-blocking)
+      syncAppointmentToCalendars(created, clientId).catch(err => {
+        console.error('[POST /api/v1/appointments] calendar sync error:', err);
       });
 
       return NextResponse.json(serialize(created), { status: 201 });

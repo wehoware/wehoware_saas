@@ -8,6 +8,10 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
+import {
+  DEFAULT_INVOICE_FORMAT,
+  formatInvoiceNumber,
+} from "@/lib/invoiceNumber";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -18,6 +22,25 @@ const VALID_SORT_FIELDS = {
   total: "total",
   status: "status",
 };
+
+const VALID_STATUSES = new Set([
+  "Draft",
+  "Pending",
+  "Paid",
+  "Overdue",
+  "Cancelled",
+]);
+
+function parseDateInput(dateStr) {
+  if (!dateStr) return null;
+  const normalized = dateStr.includes("T")
+    ? dateStr
+    : `${dateStr}T00:00:00`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getUTCFullYear() < 1000) return null;
+  return parsed;
+}
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
@@ -43,6 +66,14 @@ function serializeInvoice(inv) {
     id: inv.id,
     client_id: inv.clientId,
     invoice_number: inv.invoiceNumber,
+    customer_id: inv.customerId,
+    customer: inv.customer ? {
+      id: inv.customer.id,
+      name: inv.customer.name,
+      email: inv.customer.email,
+      contact_person: inv.customer.contactPerson,
+      phone: inv.customer.phone,
+    } : null,
     client_name: inv.clientName,
     client_email: inv.clientEmail,
     invoice_date: inv.invoiceDate,
@@ -71,7 +102,9 @@ function serializeInvoice(inv) {
  */
 function computeTotals(lineItems, taxRate) {
   const subtotal = lineItems.reduce((sum, li) => {
-    return sum + (Number(li.quantity) || 0) * (Number(li.unit_price) || 0);
+    const quantity = Number(li.quantity) || 0;
+    const unitPrice = Number(li.unit_price ?? li.unitPrice) || 0;
+    return sum + quantity * unitPrice;
   }, 0);
   const taxAmount = subtotal * (Number(taxRate) || 0) / 100;
   const total = subtotal + taxAmount;
@@ -85,7 +118,7 @@ function computeTotals(lineItems, taxRate) {
 function buildLineItemData(lineItems, invoiceId, clientId) {
   return lineItems.map((li, idx) => {
     const qty = Number(li.quantity) || 1;
-    const unitPrice = Number(li.unit_price) || 0;
+    const unitPrice = Number(li.unit_price ?? li.unitPrice) || 0;
     return {
       invoiceId,
       clientId,
@@ -136,13 +169,14 @@ export const GET = withAuth(
         url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
       const where = { clientId };
-      if (status) where.status = status;
+      if (status && VALID_STATUSES.has(status)) where.status = status;
 
       const [items, totalItems] = await Promise.all([
         prisma.wehowareInvoice.findMany({
           where,
           include: {
             lineItems: { orderBy: { sortOrder: "asc" } },
+            customer: { select: { id: true, name: true, email: true, contactPerson: true, phone: true } },
           },
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
@@ -168,7 +202,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["client", "employee", "admin"] }
+  { allowedRoles: ["client", "admin"] }
 );
 
 // -------------------------------------------------------------------
@@ -202,6 +236,21 @@ export const POST = withAuth(
       const invoiceDate = body?.invoice_date;
       const dueDate = body?.due_date;
 
+      // Validate customer_id if provided
+      let customerId = body?.customer_id ?? null;
+      if (customerId) {
+        const customer = await prisma.wehowareCustomer.findFirst({
+          where: { id: customerId, clientId },
+          select: { id: true },
+        });
+        if (!customer) {
+          return NextResponse.json(
+            { error: "customer_id is invalid or does not belong to this client" },
+            { status: 400 }
+          );
+        }
+      }
+
       if (!clientName) {
         return NextResponse.json(
           { error: "client_name is required" },
@@ -221,29 +270,69 @@ export const POST = withAuth(
         );
       }
 
+      const parsedInvoiceDate = parseDateInput(invoiceDate);
+      if (!parsedInvoiceDate) {
+        return NextResponse.json(
+          { error: "invoice_date is invalid" },
+          { status: 400 }
+        );
+      }
+      const parsedDueDate = parseDateInput(dueDate);
+      if (!parsedDueDate) {
+        return NextResponse.json(
+          { error: "due_date is invalid" },
+          { status: 400 }
+        );
+      }
+
       const rawLineItems = Array.isArray(body.line_items) ? body.line_items : [];
       const taxRate = Number(body.tax_rate) || 0;
       const { subtotal, taxAmount, total } = computeTotals(rawLineItems, taxRate);
       const currency = body.currency ?? "CAD";
-      const status = body.status ?? "Draft";
-
-      // Generate invoice number: INV-{YYYY}-{sequence padded to 4 digits}
-      const year = new Date().getFullYear();
-      const existingCount = await prisma.wehowareInvoice.count({
-        where: { clientId },
-      });
-      const sequence = String(existingCount + 1).padStart(4, "0");
-      const invoiceNumber = `INV-${year}-${sequence}`;
+      let status = "Draft";
+      if (body.status) {
+        if (!VALID_STATUSES.has(body.status)) {
+          return NextResponse.json(
+            { error: "status is invalid" },
+            { status: 400 }
+          );
+        }
+        status = body.status;
+      }
 
       const invoice = await prisma.$transaction(async (tx) => {
+        // Atomically read settings (auto-create on first invoice) and
+        // bump the sequence so concurrent requests can't collide.
+        let settings = await tx.wehowareInvoiceSettings.findUnique({
+          where: { clientId },
+        });
+        if (!settings) {
+          settings = await tx.wehowareInvoiceSettings.create({
+            data: { clientId },
+          });
+        }
+
+        const sequence = settings.nextInvoiceNumber;
+        const invoiceNumber = formatInvoiceNumber(
+          settings.invoiceFormat || DEFAULT_INVOICE_FORMAT,
+          sequence,
+          parsedInvoiceDate
+        );
+
+        await tx.wehowareInvoiceSettings.update({
+          where: { clientId },
+          data: { nextInvoiceNumber: sequence + 1 },
+        });
+
         const created = await tx.wehowareInvoice.create({
           data: {
             clientId,
             invoiceNumber,
+            customerId,
             clientName,
             clientEmail: body.client_email ?? null,
-            invoiceDate: new Date(invoiceDate),
-            dueDate: new Date(dueDate),
+            invoiceDate: parsedInvoiceDate,
+            dueDate: parsedDueDate,
             status,
             subtotal,
             taxRate,
@@ -264,7 +353,10 @@ export const POST = withAuth(
 
         return tx.wehowareInvoice.findUnique({
           where: { id: created.id },
-          include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+          include: {
+            lineItems: { orderBy: { sortOrder: "asc" } },
+            customer: { select: { id: true, name: true, email: true, contactPerson: true, phone: true } },
+          },
         });
       });
 
@@ -277,5 +369,5 @@ export const POST = withAuth(
       );
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["client", "admin"] }
 );

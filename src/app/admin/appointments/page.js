@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, LayoutGrid, Settings } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppointmentCalendarView } from '@/components/appointments/calendar-view';
 import { UpcomingAppointments } from '@/components/appointments/upcoming-appointments';
@@ -10,25 +11,47 @@ import { AppointmentSettings } from '@/components/appointments/appointment-setti
 import toast from 'react-hot-toast';
 
 export default function AppointmentsPage() {
+  const { activeClient } = useAuth();
   const [activeTab, setActiveTab] = useState("calendar");
   const [appointments, setAppointments] = useState([]);
+  const [appointmentSettings, setAppointmentSettings] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchAppointments() {
+    async function fetchData() {
+      setLoading(true);
       try {
-        const res = await fetch('/api/v1/appointments');
-        if (!res.ok) throw new Error('Failed to fetch appointments');
-        const json = await res.json();
-        const mapped = (json.data || []).map((a) => ({
-          id: a.id,
-          name: a.guest_name,
-          email: a.guest_email,
-          type: a.appointment_type?.name ?? null,
-          date: a.scheduled_at,
-          status: a.status,
-        }));
-        setAppointments(mapped);
+        const [apptRes, settingsRes] = await Promise.all([
+          fetch('/api/v1/appointments'),
+          fetch('/api/v1/settings/group/appointments?format=keyValue'),
+        ]);
+
+        if (apptRes.ok) {
+          const apptJson = await apptRes.json();
+          const mapped = (apptJson.data || []).map((a) => ({
+            id: a.id,
+            name: a.guest_name,
+            email: a.guest_email,
+            type: a.appointment_type?.name ?? null,
+            date: a.scheduled_at,
+            status: a.status,
+          }));
+          setAppointments(mapped);
+        } else {
+          toast.error('Could not load appointments');
+        }
+
+        if (settingsRes.ok) {
+          const settingsJson = await settingsRes.json();
+          const raw = settingsJson.data?.appointment_settings;
+          if (raw) {
+            try {
+              setAppointmentSettings(JSON.parse(raw));
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
       } catch (err) {
         console.error(err);
         toast.error('Could not load appointments');
@@ -37,8 +60,8 @@ export default function AppointmentsPage() {
       }
     }
 
-    fetchAppointments();
-  }, []);
+    fetchData();
+  }, [activeClient?.id]);
 
   const handleSlotSelect = (dateTime) => {
     console.log('Selected slot:', dateTime);
@@ -77,6 +100,7 @@ export default function AppointmentsPage() {
             <AppointmentCalendarView
               appointments={appointments}
               onSlotSelect={handleSlotSelect}
+              availabilitySettings={appointmentSettings?.defaultAvailability}
             />
           </TabsContent>
 

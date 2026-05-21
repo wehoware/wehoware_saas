@@ -94,6 +94,21 @@ function resolveInitialActiveClient(user) {
   return null;
 }
 
+function syncActiveClientStorage(initialActiveClient) {
+  try {
+    if (initialActiveClient) {
+      const savedId = localStorage.getItem(ACTIVE_CLIENT_ID_KEY);
+      if (savedId !== initialActiveClient.id) {
+        localStorage.setItem(ACTIVE_CLIENT_ID_KEY, initialActiveClient.id);
+      }
+    } else {
+      localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -106,6 +121,41 @@ export function AuthProvider({ children }) {
   // Initialize auth state — runs on mount and on pathname change.
   // Reads the NextAuth JWT session via GET /api/v1/auth.
   // ------------------------------------------------------------------
+  function clearAuthState() {
+    setUser(null);
+    setActiveClient(null);
+    setClientUrl(null);
+    writeActiveClientCookie(null);
+  }
+
+  function redirectIfNeeded(targetPath) {
+    if (!isPublicPath(targetPath)) {
+      router.replace("/login");
+    }
+  }
+
+  function handleAuthenticatedUser(fetchedUser) {
+    setUser(fetchedUser);
+    const initialActiveClient = resolveInitialActiveClient(fetchedUser);
+    setActiveClient(initialActiveClient);
+    setClientUrl(initialActiveClient?.website ?? null);
+    writeActiveClientCookie(initialActiveClient?.id ?? null);
+    syncActiveClientStorage(initialActiveClient);
+    if (pathname === "/login") {
+      router.replace("/admin");
+    }
+  }
+
+  function handleUnauthenticatedUser() {
+    clearAuthState();
+    redirectIfNeeded(pathname);
+  }
+
+  function handleAuthError() {
+    clearAuthState();
+    redirectIfNeeded(pathname);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -117,51 +167,18 @@ export function AuthProvider({ children }) {
         if (cancelled) return;
 
         if (fetchedUser) {
-          setUser(fetchedUser);
-
-          const initialActiveClient = resolveInitialActiveClient(fetchedUser);
-          setActiveClient(initialActiveClient);
-          setClientUrl(initialActiveClient?.website ?? null);
-          writeActiveClientCookie(initialActiveClient?.id ?? null);
-
-          try {
-            if (initialActiveClient) {
-              const savedId = localStorage.getItem(ACTIVE_CLIENT_ID_KEY);
-              if (savedId !== initialActiveClient.id) {
-                localStorage.setItem(ACTIVE_CLIENT_ID_KEY, initialActiveClient.id);
-              }
-            } else {
-              localStorage.removeItem(ACTIVE_CLIENT_ID_KEY);
-            }
-          } catch {
-            // non-fatal
-          }
-
-          if (pathname === "/login") {
-            router.replace("/admin");
-          }
+          handleAuthenticatedUser(fetchedUser);
         } else {
-          setUser(null);
-          setActiveClient(null);
-          setClientUrl(null);
-          writeActiveClientCookie(null);
-
-          if (!isPublicPath(pathname)) {
-            router.replace("/login");
-          }
+          handleUnauthenticatedUser();
         }
       } catch (error) {
         if (cancelled) return;
         console.error("Error initializing auth:", error);
-        setUser(null);
-        setActiveClient(null);
-        setClientUrl(null);
-
-        if (!isPublicPath(pathname)) {
-          router.replace("/login");
-        }
+        handleAuthError();
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -170,7 +187,7 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------------
   // login — delegates credential verification to NextAuth, then fetches
@@ -283,6 +300,19 @@ export function AuthProvider({ children }) {
   const isEmployee = user?.role === "employee";
   const isClient = user?.role === "client";
 
+  // Per-client role helpers (from activeClientRole resolved server-side)
+  const activeClientRole = user?.activeClientRole ?? null;
+  const isClientOwner = activeClientRole === "client";
+  const isManager = activeClientRole === "manager";
+  const isEditor = activeClientRole === "editor";
+  const isViewer = activeClientRole === "viewer";
+
+  // Coarse permission helpers
+  const canInvite = isAdmin || isEmployee || isClientOwner || isManager;
+  const canManageUsers = isAdmin || isEmployee || isClientOwner;
+  const canViewTeam = isAdmin || isEmployee || isClientOwner || isManager;
+  const canEditContent = isAdmin || isEmployee || isClientOwner || isManager || isEditor;
+
   const value = {
     user,
     loading,
@@ -291,6 +321,15 @@ export function AuthProvider({ children }) {
     isAdmin,
     isEmployee,
     isClient,
+    activeClientRole,
+    isClientOwner,
+    isManager,
+    isEditor,
+    isViewer,
+    canInvite,
+    canManageUsers,
+    canViewTeam,
+    canEditContent,
     clientUrl,
     login,
     logout,

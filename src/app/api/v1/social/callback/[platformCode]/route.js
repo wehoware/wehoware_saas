@@ -1,5 +1,5 @@
 /**
- * GET /api/v1/social/platforms/[platformCode]/callback
+ * GET /api/v1/social/callback/[platformCode]
  * Handles OAuth callback from social media platforms.
  */
 import { NextResponse } from "next/server";
@@ -150,7 +150,7 @@ export async function GET(request, { params }) {
     if (!platform) throw new Error("Platform not found");
 
     const redirectUri = process.env[`${platformCode.toUpperCase()}_CALLBACK_URL`]
-      || `${appOrigin}/api/v1/social/platforms/${platformCode}/callback`;
+      || `${appOrigin}/api/v1/social/callback/${platformCode}`;
 
     let tokenData, profile;
     switch (platformCode) {

@@ -25,7 +25,7 @@ export const GET = withAuth(async (request, { params }) => {
 
     const appOrigin = new URL(request.url).origin;
     const redirectUri = process.env[`${platform.platformCode.toUpperCase()}_CALLBACK_URL`]
-      || `${appOrigin}/api/v1/social/platforms/${platform.platformCode}/callback`;
+      || `${appOrigin}/api/v1/social/callback/${platform.platformCode}`;
 
     const state = Buffer.from(
       JSON.stringify({ clientId, userId: user.id, platformId: id, platformCode: platform.platformCode })

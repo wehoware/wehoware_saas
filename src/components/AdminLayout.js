@@ -37,7 +37,6 @@ import {
   PieChart,
   Link2,
   Target,
-  Trophy,
   ClipboardList,
 } from "lucide-react";
 
@@ -151,7 +150,6 @@ const sidebarSections = [
         href: "/admin/tasks",
         icon: <ClipboardList className="h-4 w-4" />,
         roles: ["admin", "employee"],
-        matchExact: true,
       },
       {
         title: "Reports",

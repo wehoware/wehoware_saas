@@ -137,7 +137,19 @@ export const GET = withAuth(async (request) => {
       if (user.activeClientId) {
         where.clientId = user.activeClientId;
       }
-      if (assigneeFilter) where.assigneeId = assigneeFilter;
+      if (assigneeFilter) {
+        where.assigneeId = assigneeFilter;
+      } else {
+        // Admins only see tasks assigned to employees or admins (not clients)
+        const adminAndEmployeeUsers = await prisma.wehowareProfile.findMany({
+          where: {
+            role: { in: ["admin", "employee"] }
+          },
+          select: { id: true }
+        });
+        const adminAndEmployeeIds = adminAndEmployeeUsers.map(u => u.id);
+        where.assigneeId = { in: adminAndEmployeeIds };
+      }
     }
 
     if (searchQuery) {

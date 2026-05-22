@@ -7,6 +7,7 @@ import AdminPageHeader from '@/components/AdminPageHeader';
 import TaskForm from '@/components/tasks/TaskForm';
 import TaskComments from '@/components/tasks/TaskComments'; // Use TaskComments
 import TaskActivityLog from '@/components/tasks/TaskActivityLog'; // Use TaskActivityLog
+import SubtaskList from '@/components/tasks/SubtaskList'; // Use SubtaskList
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'react-hot-toast';
@@ -50,7 +51,7 @@ const formatActivity = (activity, usersList) => {
 export default function EditTaskPage() {
   const router = useRouter();
   const params = useParams();
-  const { activeClient } = useAuth();
+  const { activeClient, user } = useAuth();
   const taskId = params.id;
 
   const [task, setTask] = useState(null);
@@ -268,7 +269,7 @@ export default function EditTaskPage() {
           <CardDescription>Modify the task information below.</CardDescription>
         </CardHeader>
         <CardContent>
-          <TaskForm 
+          <TaskForm
             initialData={task}
             onSubmit={handleUpdateTask}
             users={users}
@@ -276,6 +277,16 @@ export default function EditTaskPage() {
             isLoading={isLoading}
             submitButtonText="Save Changes"
           />
+        </CardContent>
+      </Card>
+      {/* Sub-tasks Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sub-tasks</CardTitle>
+          <CardDescription>Break down this task into smaller sub-tasks.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SubtaskList taskId={task.id} userRole={user?.role} />
         </CardContent>
       </Card>
       {/* Comments Section */}

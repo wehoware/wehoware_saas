@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Sheet,
   SheetContent,
@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import SubtaskList from "./SubtaskList";
 import TimeTrackerPanel from "./TimeTrackerPanel";
-import TaskComments from "./TaskComments";
+import CommentForm from "./CommentForm";
 
 const STATUS_VARIANT = {
   "To Do": "secondary",
@@ -31,6 +31,57 @@ const PRIORITY_VARIANT = {
 function formatDate(d) {
   if (!d) return "Not set";
   try { return format(new Date(d), "MMM d, yyyy"); } catch { return d; }
+}
+
+function TaskCommentsPanel({ taskId }) {
+  const [feed, setFeed] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchFeed = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/v1/tasks/${taskId}/activities`);
+      if (res.ok) {
+        const data = await res.json();
+        setFeed(data.feed ?? []);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [taskId]);
+
+  useEffect(() => { fetchFeed(); }, [fetchFeed]);
+
+  return (
+    <div className="space-y-4">
+      <CommentForm taskId={taskId} onCommentAdded={fetchFeed} />
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Loading...</p>
+      ) : feed.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No comments or activity yet.</p>
+      ) : (
+        <ul className="space-y-3">
+          {feed.map((item) => (
+            <li key={item.id} className="text-sm border-b pb-2 last:border-b-0">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                <span className="font-medium text-foreground">
+                  {item.user ? `${item.user.first_name} ${item.user.last_name}` : "System"}
+                </span>
+                <span>·</span>
+                <span>{new Date(item.created_at).toLocaleString()}</span>
+                {item.feed_type === "comment" && <span className="text-blue-500">comment</span>}
+              </div>
+              {item.feed_type === "comment" ? (
+                <p>{item.content}</p>
+              ) : (
+                <p className="text-muted-foreground">{item.activity_type?.replace(/_/g, " ")}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default function TaskDetailsSheet({ task, isOpen, onOpenChange, userRole, onUpdateTask }) {
@@ -140,7 +191,7 @@ export default function TaskDetailsSheet({ task, isOpen, onOpenChange, userRole,
 
           {/* Comments tab */}
           <TabsContent value="comments" className="mt-3">
-            <TaskComments taskId={task.id} />
+            <TaskCommentsPanel taskId={task.id} />
           </TabsContent>
         </Tabs>
 

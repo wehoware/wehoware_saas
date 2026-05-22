@@ -65,6 +65,8 @@ model WehowareClient {
   customers            WehowareCustomer[]
   goals                WehowareGoal[]
   achievements         WehowareAchievement[]
+  socialAccounts       WehowareSocialAccount[]
+  socialPosts          WehowareSocialPost[]
 
   @@map("wehoware_clients")
 }
@@ -132,6 +134,10 @@ model WehowareProfile {
   assignedSubtasks         WehowareSubtask[]           @relation("SubtaskAssignee")
   createdSubtasks          WehowareSubtask[]           @relation("SubtaskCreator")
   timeEntries              WehowareTaskTimeEntry[]
+  createdSocialAccounts    WehowareSocialAccount[]     @relation("SocialAccountCreator")
+  updatedSocialAccounts    WehowareSocialAccount[]     @relation("SocialAccountUpdater")
+  createdSocialPosts       WehowareSocialPost[]        @relation("SocialPostCreator")
+  updatedSocialPosts       WehowareSocialPost[]        @relation("SocialPostUpdater")
 
   @@index([role])
   @@index([clientId])
@@ -1616,4 +1622,157 @@ enum KrStatus {
   In_Progress @map("In Progress")
   Completed
   Failed
+}
+
+// ─── Social Media Manager ────────────────────────────────────────────────────
+
+model WehowareSocialPlatform {
+  id           String                  @id @default(uuid()) @db.VarChar(36)
+  name         String                  @db.VarChar(100)
+  platformCode String                  @unique @map("platform_code") @db.VarChar(50)
+  logoUrl      String?                 @map("logo_url") @db.VarChar(500)
+  oauthConfig  Json                    @map("oauth_config")
+  rateLimits   Json                    @map("rate_limits")
+  active       Boolean                 @default(true)
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
+  accounts     WehowareSocialAccount[]
+
+  @@map("wehoware_social_platforms")
+}
+
+model WehowareSocialAccount {
+  id             String                    @id @default(uuid()) @db.VarChar(36)
+  clientId       String                    @map("client_id") @db.VarChar(36)
+  platformId     String                    @map("platform_id") @db.VarChar(36)
+  accountName    String                    @map("account_name") @db.VarChar(255)
+  accountHandle  String?                   @map("account_handle") @db.VarChar(255)
+  accountId      String                    @map("account_id") @db.VarChar(255)
+  accessToken    String?                   @map("access_token") @db.Text
+  refreshToken   String?                   @map("refresh_token") @db.Text
+  tokenExpiresAt DateTime?                 @map("token_expires_at")
+  profileData    Json                      @map("profile_data")
+  status         SocialAccountStatus       @default(Active)
+  lastSyncedAt   DateTime?                 @map("last_synced_at")
+  syncError      String?                   @map("sync_error") @db.Text
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+  createdBy      String?                   @map("created_by") @db.VarChar(36)
+  updatedBy      String?                   @map("updated_by") @db.VarChar(36)
+  accountPosts   WehowareSocialAccountPost[]
+  client         WehowareClient            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform       WehowareSocialPlatform    @relation(fields: [platformId], references: [id])
+  creator        WehowareProfile?          @relation("SocialAccountCreator", fields: [createdBy], references: [id])
+  updater        WehowareProfile?          @relation("SocialAccountUpdater", fields: [updatedBy], references: [id])
+
+  @@unique([clientId, platformId, accountId])
+  @@index([clientId])
+  @@index([platformId])
+  @@index([status])
+  @@index([createdBy], map: "wehoware_social_accounts_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_social_accounts_updated_by_fkey")
+  @@map("wehoware_social_accounts")
+}
+
+model WehowareSocialPost {
+  id             String                    @id @default(uuid()) @db.VarChar(36)
+  clientId       String                    @map("client_id") @db.VarChar(36)
+  title          String?                   @db.VarChar(500)
+  content        String                    @db.Text
+  mediaUrls      Json                      @map("media_urls")
+  hashtags       Json
+  scheduledFor   DateTime?                 @map("scheduled_for")
+  publishedAt    DateTime?                 @map("published_at")
+  status         SocialPostStatus          @default(Draft)
+  postType       SocialPostType            @default(Text)
+  targetAccounts Json                      @map("target_accounts")
+  publishResults Json                      @map("publish_results")
+  errorDetails   Json                      @map("error_details")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+  createdBy      String?                   @map("created_by") @db.VarChar(36)
+  updatedBy      String?                   @map("updated_by") @db.VarChar(36)
+  accountPosts   WehowareSocialAccountPost[]
+  client         WehowareClient            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator        WehowareProfile?          @relation("SocialPostCreator", fields: [createdBy], references: [id])
+  updater        WehowareProfile?          @relation("SocialPostUpdater", fields: [updatedBy], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([publishedAt])
+  @@index([createdBy], map: "wehoware_social_posts_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_social_posts_updated_by_fkey")
+  @@map("wehoware_social_posts")
+}
+
+model WehowareSocialAccountPost {
+  id             String                      @id @default(uuid()) @db.VarChar(36)
+  postId         String                      @map("post_id") @db.VarChar(36)
+  accountId      String                      @map("account_id") @db.VarChar(36)
+  platformPostId String?                     @map("platform_post_id") @db.VarChar(255)
+  platformUrl    String?                     @map("platform_url") @db.VarChar(500)
+  status         SocialAccountPostStatus     @default(Pending)
+  publishedAt    DateTime?                   @map("published_at")
+  errorDetails   Json                        @map("error_details")
+  metrics        Json
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  updatedAt      DateTime                    @updatedAt @map("updated_at")
+  analytics      WehowareSocialPostAnalytics[]
+  post           WehowareSocialPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account        WehowareSocialAccount       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, accountId])
+  @@index([postId])
+  @@index([accountId])
+  @@index([status])
+  @@map("wehoware_social_account_posts")
+}
+
+model WehowareSocialPostAnalytics {
+  id            String                    @id @default(uuid()) @db.VarChar(36)
+  accountPostId String                    @map("account_post_id") @db.VarChar(36)
+  metricType    String                    @map("metric_type") @db.VarChar(50)
+  metricValue   Int                       @map("metric_value")
+  recordedAt    DateTime                  @default(now()) @map("recorded_at")
+  accountPost   WehowareSocialAccountPost @relation(fields: [accountPostId], references: [id], onDelete: Cascade)
+
+  @@index([accountPostId])
+  @@index([metricType])
+  @@index([recordedAt])
+  @@map("wehoware_social_post_analytics")
+}
+
+enum SocialAccountStatus {
+  Active
+  Disconnected
+  Error
+  Paused
+}
+
+enum SocialPostStatus {
+  Draft
+  Scheduled
+  Publishing
+  Published
+  PartiallyPublished @map("Partially_Published")
+  Failed
+  Cancelled
+}
+
+enum SocialPostType {
+  Text
+  Image
+  Video
+  Carousel
+  Story
+  Reel
+}
+
+enum SocialAccountPostStatus {
+  Pending
+  Publishing
+  Published
+  Failed
+  Retrying
 }

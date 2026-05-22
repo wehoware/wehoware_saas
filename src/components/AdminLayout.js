@@ -38,12 +38,14 @@ import {
   Link2,
   Target,
   ClipboardList,
+  Share2,
 } from "lucide-react";
 
 // Sidebar configuration. Each entry is either a flat link or a group with children.
 // Groups auto-expand when the current pathname matches any child href.
 const ACCOUNTING_GROUP_ID = "accounting";
 const TASKS_GROUP_ID = "tasks";
+const SOCIAL_MEDIA_GROUP_ID = "social-media";
 
 const sidebarSections = [
   {
@@ -215,6 +217,47 @@ const sidebarSections = [
     href: "/admin/forms",
     icon: <FormInput className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
+  },
+  {
+    type: "group",
+    id: SOCIAL_MEDIA_GROUP_ID,
+    title: "Social Media",
+    icon: <Share2 className="h-5 w-5" />,
+    roles: ["admin", "employee", "client"],
+    clientRoles: ["client", "manager", "editor", "viewer"],
+    children: [
+      {
+        title: "Overview",
+        href: "/admin/social-media",
+        icon: <LayoutDashboard className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+        matchExact: true,
+      },
+      {
+        title: "Accounts",
+        href: "/admin/social-media/accounts",
+        icon: <Users className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Posts",
+        href: "/admin/social-media/posts",
+        icon: <FileText className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Calendar",
+        href: "/admin/social-media/calendar",
+        icon: <Calendar className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Analytics",
+        href: "/admin/social-media/analytics",
+        icon: <BarChart className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+    ],
   },
   {
     type: "link",

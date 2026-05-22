@@ -9,7 +9,7 @@
  * Access control mirrors /api/v1/tasks/[id]:
  *   admin    — scoped to activeClientId when set; otherwise all clients.
  *   employee — task must be assigned to the requesting user.
- *   client   — blocked (allowedRoles excludes "client").
+ *   client   — scoped to their client; viewers blocked on writes, editors blocked on DELETE.
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
@@ -80,7 +80,11 @@ function shapeSubtask(s) {
 async function canAccessTask(prisma, user, taskId) {
   const where = { id: taskId };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") where.assigneeId = user.id;
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -135,7 +139,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // ---------------------------------------------------------------------------
@@ -156,6 +160,11 @@ export const PUT = withAuth(
     try {
       const { prisma, user } = request;
       const { id: taskId, subtask_id: subtaskId } = await params;
+
+      // Viewers may not update subtasks
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       const allowed = await canAccessTask(prisma, user, taskId);
       if (!allowed) {
@@ -333,7 +342,7 @@ export const PUT = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // ---------------------------------------------------------------------------
@@ -344,6 +353,11 @@ export const DELETE = withAuth(
     try {
       const { prisma, user } = request;
       const { id: taskId, subtask_id: subtaskId } = await params;
+
+      // Viewers and editors may not delete subtasks
+      if (user.role === "client" && ["viewer", "editor"].includes(user.activeClientRole)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       const allowed = await canAccessTask(prisma, user, taskId);
       if (!allowed) {
@@ -413,5 +427,5 @@ export const DELETE = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

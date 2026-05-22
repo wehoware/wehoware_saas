@@ -48,7 +48,11 @@ function shapeEntry(e) {
 async function canAccessTask(prisma, user, taskId) {
   const where = { id: taskId };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") where.assigneeId = user.id;
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -86,13 +90,15 @@ export const GET = withAuth(
         if (endDate) where.trackedDate.lte = new Date(endDate);
       }
 
-      // Only admins may filter by a specific user; employees always see all
-      // entries for the task (not just their own) so the full log is visible.
+      // Only admins and client managers/owners may filter by a specific user.
       const userIdFilter = searchParams.get("user_id");
       if (userIdFilter) {
-        if (user.role !== "admin") {
+        const canFilterByUser =
+          user.role === "admin" ||
+          (user.role === "client" && ["client", "manager"].includes(user.activeClientRole));
+        if (!canFilterByUser) {
           return NextResponse.json(
-            { error: "Forbidden - Only admins may filter by user_id" },
+            { error: "Forbidden - Only admins and client managers may filter by user_id" },
             { status: 403 }
           );
         }
@@ -146,7 +152,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // ---------------------------------------------------------------------------
@@ -157,6 +163,11 @@ export const POST = withAuth(
     try {
       const { prisma, user } = request;
       const { id: taskId } = await params;
+
+      // Viewers may not log time
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       // Parse and validate body.
       let body;
@@ -280,5 +291,5 @@ export const POST = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

@@ -34,7 +34,11 @@ function serializeComment(c) {
 async function canAccessTask(prisma, user, taskId) {
   const where = { id: taskId };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") where.assigneeId = user.id;
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -61,6 +65,11 @@ export const POST = withAuth(
           { error: "Comment content is required" },
           { status: 400 }
         );
+      }
+
+      // Viewers may not post comments
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
 
       const allowed = await canAccessTask(prisma, user, taskId);
@@ -118,5 +127,5 @@ export const POST = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

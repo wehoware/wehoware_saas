@@ -67,7 +67,7 @@ const sidebarSections = [
     href: "/admin/users",
     icon: <Users className="h-5 w-5" />,
     roles: ["admin", "client"],
-    clientRoles: ["manager"],
+    clientRoles: ["client", "manager"],
   },
   {
     type: "group",
@@ -144,13 +144,14 @@ const sidebarSections = [
     id: TASKS_GROUP_ID,
     title: "Tasks",
     icon: <CheckCircle className="h-5 w-5" />,
-    roles: ["admin", "employee"],
+    roles: ["admin", "employee", "client"],
+    clientRoles: ["client", "manager", "editor", "viewer"],
     children: [
       {
         title: "All Tasks",
         href: "/admin/tasks",
         icon: <ClipboardList className="h-4 w-4" />,
-        roles: ["admin", "employee"],
+        roles: ["admin", "employee", "client"],
       },
       {
         title: "Reports",
@@ -243,9 +244,11 @@ function filterSectionsByRole(sections, role, activeClientRole) {
       visible.push(section);
       continue;
     }
-    const allowedChildren = (section.children || []).filter((c) =>
-      c.roles.includes(role)
-    );
+    const allowedChildren = (section.children || []).filter((c) => {
+      if (!c.roles.includes(role)) return false;
+      if (role === "client" && c.clientRoles && !c.clientRoles.includes(activeClientRole)) return false;
+      return true;
+    });
     if (allowedChildren.length === 0) continue;
     visible.push({ ...section, children: allowedChildren });
   }

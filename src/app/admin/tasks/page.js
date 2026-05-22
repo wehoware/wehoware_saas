@@ -33,7 +33,9 @@ function StatsCard({ title, value, icon }) {
 }
 
 export default function TasksPage() {
-  const { activeClient } = useAuth();
+  const { activeClient, user, isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer } = useAuth();
+  const canCreate = isAdmin || isEmployee || isClientOwner || isManager || isEditor;
+  const isReadOnly = isViewer;
   const [tasks, setTasks] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [clients, setClients] = useState([]);
@@ -93,9 +95,12 @@ export default function TasksPage() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const usersResponse = await fetch(
-          "/api/v1/users?role=employee&role=admin"
-        );
+        // Admins/employees see staff for assignment; client roles see their client's users
+        const usersUrl =
+          isAdmin || isEmployee
+            ? "/api/v1/users?role=employee&role=admin"
+            : "/api/v1/users";
+        const usersResponse = await fetch(usersUrl);
         const usersData = await usersResponse.json();
         if (usersData.users) setAssignableUsers(usersData.users);
         const clientsResponse = await fetch("/api/v1/clients");
@@ -196,9 +201,11 @@ export default function TasksPage() {
       <AdminPageHeader
         title="Tasks Management"
         description="Manage all your company tasks and track payments."
-        actionLabel="Create New Task"
-        actionIcon={<Plus className="mr-2 h-4 w-4" />}
-        onAction={() => setIsAssignSheetOpen(true)}
+        {...(canCreate && {
+          actionLabel: "Create New Task",
+          actionIcon: <Plus className="mr-2 h-4 w-4" />,
+          onAction: () => setIsAssignSheetOpen(true),
+        })}
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -244,11 +251,12 @@ export default function TasksPage() {
             error={error}
             pagination={pagination}
             setPagination={setPagination}
-            onUpdateTask={handleTaskUpdate} // Corrected prop name
+            onUpdateTask={handleTaskUpdate}
             onTaskDelete={handleTaskDelete}
             sort={sort}
             handleSort={handleSort}
-            userRole={currentUser?.role} // Pass userRole
+            userRole={currentUser?.role}
+            isReadOnly={isReadOnly}
           />
         </CardContent>
       </Card>

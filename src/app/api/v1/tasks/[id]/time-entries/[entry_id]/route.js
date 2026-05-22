@@ -47,7 +47,11 @@ function shapeEntry(e) {
 async function canAccessTask(prisma, user, taskId) {
   const where = { id: taskId };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") where.assigneeId = user.id;
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -67,6 +71,11 @@ export const PUT = withAuth(
       const { prisma, user } = request;
       const { id: taskId, entry_id: entryId } = await params;
 
+      // Viewers may not update time entries
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
       // Verify task access.
       const taskAccessible = await canAccessTask(prisma, user, taskId);
       if (!taskAccessible) {
@@ -84,8 +93,11 @@ export const PUT = withAuth(
         );
       }
 
-      // Only the owner or an admin may update.
-      if (user.role !== "admin" && existing.userId !== user.id) {
+      // Only the owner, an admin, or a client manager/owner may update.
+      const isPrivilegedUser =
+        user.role === "admin" ||
+        (user.role === "client" && ["client", "manager"].includes(user.activeClientRole));
+      if (!isPrivilegedUser && existing.userId !== user.id) {
         return NextResponse.json(
           { error: "Forbidden - You can only update your own time entries" },
           { status: 403 }
@@ -215,7 +227,7 @@ export const PUT = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // ---------------------------------------------------------------------------
@@ -226,6 +238,11 @@ export const DELETE = withAuth(
     try {
       const { prisma, user } = request;
       const { id: taskId, entry_id: entryId } = await params;
+
+      // Viewers may not delete time entries
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       // Verify task access.
       const taskAccessible = await canAccessTask(prisma, user, taskId);
@@ -244,8 +261,11 @@ export const DELETE = withAuth(
         );
       }
 
-      // Only the owner or an admin may delete.
-      if (user.role !== "admin" && existing.userId !== user.id) {
+      // Only the owner, an admin, or a client manager/owner may delete.
+      const isPrivilegedUser =
+        user.role === "admin" ||
+        (user.role === "client" && ["client", "manager"].includes(user.activeClientRole));
+      if (!isPrivilegedUser && existing.userId !== user.id) {
         return NextResponse.json(
           { error: "Forbidden - You can only delete your own time entries" },
           { status: 403 }
@@ -321,5 +341,5 @@ export const DELETE = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

@@ -15,7 +15,11 @@ import { withAuth } from "../../../../utils/auth-middleware";
 async function canAccessTask(prisma, user, taskId) {
   const where = { id: taskId };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") where.assigneeId = user.id;
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -138,5 +142,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

@@ -21,7 +21,11 @@ function baseWhere(user) {
   if (user.role === "employee") {
     where.assigneeId = user.id;
   } else if (user.role === "client") {
-    where.clientId = user.clientId ?? "__none__";
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") {
+      where.assigneeId = user.id;
+    }
   } else if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -52,5 +56,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

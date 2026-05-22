@@ -57,9 +57,9 @@ function getRoleDisplayLabel(systemRole, clientRole) {
 
 export default function UsersPage() {
   const router = useRouter();
-  const { user, isAdmin, isEmployee, isManager, activeClient } = useAuth();
-  const canAccess = isAdmin || isEmployee || isManager;
-  const canCreate = isAdmin || isManager;
+  const { user, isAdmin, isEmployee, isManager, isClientOwner, activeClient } = useAuth();
+  const canAccess = isAdmin || isEmployee || isManager || isClientOwner;
+  const canCreate = isAdmin || isManager || isClientOwner;
 
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -162,6 +162,7 @@ export default function UsersPage() {
       ]
     : [
         { value: "all", label: "All Roles" },
+        { value: "client", label: "Client Owners" },
         { value: "manager", label: "Managers" },
         { value: "editor", label: "Editors" },
         { value: "viewer", label: "Viewers" },

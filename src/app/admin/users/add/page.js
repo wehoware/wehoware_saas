@@ -45,8 +45,9 @@ const MANAGER_CLIENT_ROLE_OPTIONS = [
 
 export default function AddUserPage() {
   const router = useRouter();
-  const { user, isAdmin, isManager, activeClient } = useAuth();
-  const canAccess = isAdmin || isManager;
+  const { user, isAdmin, isManager, isClientOwner, activeClient } = useAuth();
+  const canAccess = isAdmin || isManager || isClientOwner;
+  const isManagerOrOwner = isManager || isClientOwner;
 
   const [clients, setClients] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
@@ -83,8 +84,8 @@ export default function AddUserPage() {
       router.push("/admin");
       return;
     }
-    // Managers: pre-set role and client
-    if (isManager && !isAdmin) {
+    // Managers / client owners: pre-set role and client
+    if (isManagerOrOwner && !isAdmin) {
       setNewUser((prev) => ({
         ...prev,
         role: "client",
@@ -165,6 +166,7 @@ export default function AddUserPage() {
 
   const roleOptions = isAdmin ? ADMIN_ROLE_OPTIONS : MANAGER_ROLE_OPTIONS;
   const clientRoleOptions = isAdmin ? ADMIN_CLIENT_ROLE_OPTIONS : MANAGER_CLIENT_ROLE_OPTIONS;
+  // isManagerOrOwner used for UI conditions that used to check `isManager && !isAdmin`
   const showClientRoleField = newUser.role === "client";
   const showClientSelection = isAdmin && newUser.role === "client";
 
@@ -262,9 +264,9 @@ export default function AddUserPage() {
                 options={roleOptions}
                 value={newUser.role}
                 onChange={handleRoleChange}
-                disabled={isManager && !isAdmin}
+                disabled={isManagerOrOwner && !isAdmin}
               />
-              {isManager && !isAdmin && (
+              {isManagerOrOwner && !isAdmin && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Team members are always created as Client users.
                 </p>
@@ -327,7 +329,7 @@ export default function AddUserPage() {
               </div>
             )}
 
-            {isManager && !isAdmin && activeClient && (
+            {isManagerOrOwner && !isAdmin && activeClient && (
               <div className="my-4 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
                 This user will be added to: <strong>{activeClient.companyName || activeClient.name || "your organization"}</strong>
               </div>

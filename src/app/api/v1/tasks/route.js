@@ -130,8 +130,12 @@ export const GET = withAuth(async (request) => {
       // Employees ONLY see tasks assigned to them
       where.assigneeId = user.id;
     } else if (user.role === "client") {
-      // Clients see tasks for their own client(s)
-      where.clientId = user.clientId;
+      const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+      where.clientId = clientId;
+      // Editors only see tasks assigned to them
+      if (user.activeClientRole === "editor") {
+        where.assigneeId = user.id;
+      }
     } else if (user.role === "admin") {
       // Admin scoped to active client context (if any); optional assignee filter
       if (user.activeClientId) {
@@ -203,6 +207,12 @@ export const POST = withAuth(
   async (request) => {
     try {
       const { prisma, user } = request;
+
+      // Viewers may not create tasks
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
       const body = await request.json();
       const {
         title,
@@ -271,5 +281,5 @@ export const POST = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

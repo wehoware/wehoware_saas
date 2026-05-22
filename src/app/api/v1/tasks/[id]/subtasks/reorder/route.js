@@ -13,7 +13,7 @@
  * Access control mirrors /api/v1/tasks/[id]:
  *   admin    — scoped to activeClientId when set; otherwise all clients.
  *   employee — task must be assigned to the requesting user.
- *   client   — blocked (allowedRoles excludes "client").
+ *   client   — scoped to their client; viewers blocked.
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
@@ -74,7 +74,11 @@ function shapeSubtask(s) {
 async function canAccessTask(prisma, user, taskId) {
   const where = { id: taskId };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    if (user.activeClientRole === "editor") where.assigneeId = user.id;
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -103,6 +107,11 @@ export const PATCH = withAuth(
     try {
       const { prisma, user } = request;
       const { id: taskId } = await params;
+
+      // Viewers may not reorder subtasks
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       // Validate subtask_ids
       const { subtask_ids } = body ?? {};
@@ -187,5 +196,5 @@ export const PATCH = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

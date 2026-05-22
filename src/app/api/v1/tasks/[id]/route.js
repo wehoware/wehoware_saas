@@ -78,7 +78,14 @@ function shapeTask(task) {
 async function loadTask(prisma, user, id) {
   const where = { id };
   if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") where.clientId = user.clientId ?? "__none__";
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
+    where.clientId = clientId;
+    // Editors may only see tasks assigned to them
+    if (user.activeClientRole === "editor") {
+      where.assigneeId = user.id;
+    }
+  }
   if (user.role === "admin" && user.activeClientId) {
     where.clientId = user.activeClientId;
   }
@@ -111,7 +118,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // -------------------------------------------------------------------
@@ -122,6 +129,11 @@ export const PUT = withAuth(
     try {
       const { prisma, user } = request;
       const { id } = await params;
+
+      // Viewers may not edit tasks
+      if (user.role === "client" && user.activeClientRole === "viewer") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       const existing = await loadTask(prisma, user, id);
       if (!existing) {
@@ -230,7 +242,7 @@ export const PUT = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // -------------------------------------------------------------------
@@ -241,6 +253,11 @@ export const DELETE = withAuth(
     try {
       const { prisma, user } = request;
       const { id } = await params;
+
+      // Viewers and editors may not delete tasks
+      if (user.role === "client" && ["viewer", "editor"].includes(user.activeClientRole)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
 
       const existing = await loadTask(prisma, user, id);
       if (!existing) {
@@ -278,5 +295,5 @@ export const DELETE = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );

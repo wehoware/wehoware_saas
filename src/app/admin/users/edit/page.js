@@ -43,8 +43,9 @@ export default function EditUserPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
-  const { user, isAdmin, isManager, activeClient } = useAuth();
-  const canAccess = isAdmin || isManager;
+  const { user, isAdmin, isManager, isClientOwner, activeClient } = useAuth();
+  const canAccess = isAdmin || isManager || isClientOwner;
+  const isManagerOrOwner = isManager || isClientOwner;
 
   const [clients, setClients] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -147,7 +148,7 @@ export default function EditUserPage() {
           payload.client_role = editUser.client_role;
         }
       } else {
-        // Managers can only change client_role (not system role or client_ids)
+        // Managers and client owners can only change client_role (not system role or client_ids)
         payload.client_role = editUser.client_role;
       }
 
@@ -174,7 +175,7 @@ export default function EditUserPage() {
 
   const showClientRoleField = isAdmin
     ? editUser.role === "client"
-    : true; // Managers always see client_role (they only edit client users)
+    : true; // Managers/owners always see client_role (they only edit client users)
 
   const clientRoleOptions = isAdmin ? ADMIN_CLIENT_ROLE_OPTIONS : MANAGER_CLIENT_ROLE_OPTIONS;
 
@@ -283,7 +284,7 @@ export default function EditUserPage() {
               </div>
             )}
 
-            {isManager && !isAdmin && activeClient && (
+            {isManagerOrOwner && !isAdmin && activeClient && (
               <div className="p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
                 Client: <strong>{activeClient.companyName || activeClient.name || "your organization"}</strong>
               </div>

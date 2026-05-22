@@ -1,18 +1,17 @@
 /**
  * /api/v1/users
  *
- * Prisma/MySQL-backed replacement for the old Supabase auth.admin + profiles
- * handler. NextAuth v5 + bcryptjs now own credential storage, so the password
- * is hashed here and persisted to wehoware_profiles.password_hash.
- *
- * GET   — list users (optionally filtered by role), with client associations
- * POST  — create a new user (admin-only)
+ * GET  — list users; admins/employees see all, client managers see their client's users only
+ * POST — create a new user; admins create any role, client managers create client-role users only
  */
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { withAuth } from "../../utils/auth-middleware";
 
-// Fields returned for user listings. Explicitly omit passwordHash.
+const VALID_USER_ROLES = ["admin", "employee", "client"];
+const VALID_CLIENT_ROLES = ["client", "manager", "editor", "viewer"];
+const MANAGER_ASSIGNABLE_ROLES = ["manager", "editor", "viewer"];
+
 const USER_SELECT = {
   id: true,
   email: true,
@@ -25,12 +24,9 @@ const USER_SELECT = {
   updatedAt: true,
 };
 
-/**
- * Reshape a Prisma profile + userClients join back into the snake_case
- * payload the old Supabase API returned. Keeps frontend consumers working.
- */
 function serializeUser(profile) {
   const userClients = profile.userClients ?? [];
+  const primaryClient = userClients.find((uc) => uc.isPrimary) ?? userClients[0];
   return {
     id: profile.id,
     email: profile.email,
@@ -38,10 +34,10 @@ function serializeUser(profile) {
     last_name: profile.lastName,
     avatar_url: profile.avatarUrl,
     role: profile.role,
+    client_role: primaryClient?.role ?? null,
     client_id: profile.clientId,
     created_at: profile.createdAt,
     updated_at: profile.updatedAt,
-    // Backward-compat shape expected by admin UI
     wehoware_user_clients: userClients.map((uc) => ({
       client_id: uc.clientId,
       is_primary: uc.isPrimary,
@@ -59,12 +55,31 @@ function serializeUser(profile) {
 export const GET = withAuth(
   async (request) => {
     try {
-      const { prisma } = request;
+      const { prisma, user } = request;
       const url = new URL(request.url);
       const roles = url.searchParams.getAll("role");
-
       const where = {};
-      if (roles.length > 0) {
+
+      if (user.role === "client") {
+        if (user.activeClientRole !== "manager") {
+          return NextResponse.json(
+            { error: "Forbidden - Only client managers can access this" },
+            { status: 403 }
+          );
+        }
+        const managerClientId = user.activeClientId ?? user.clientId;
+        if (!managerClientId) {
+          return NextResponse.json(
+            { error: "No active client context found" },
+            { status: 400 }
+          );
+        }
+        // Managers only see client-role users belonging to their client
+        where.role = "client";
+        where.userClients = {
+          some: { clientId: managerClientId, active: true },
+        };
+      } else if (roles.length > 0) {
         where.role = { in: roles };
       }
 
@@ -79,27 +94,22 @@ export const GET = withAuth(
         orderBy: { createdAt: "desc" },
       });
 
-      const users = profiles.map(serializeUser);
-
-      return NextResponse.json({ users }, { status: 200 });
+      return NextResponse.json({ users: profiles.map(serializeUser) }, { status: 200 });
     } catch (err) {
       console.error("[GET /api/v1/users] error:", err);
-      return NextResponse.json(
-        { error: "Failed to fetch users" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin", "employee", "client"] }
 );
 
 // -------------------------------------------------------------------
-// POST /api/v1/users  (admin-only)
+// POST /api/v1/users
 // -------------------------------------------------------------------
 export const POST = withAuth(
   async (request) => {
     try {
-      const { prisma } = request;
+      const { prisma, user } = request;
       const body = await request.json();
 
       const {
@@ -110,9 +120,9 @@ export const POST = withAuth(
         last_name: lastName,
         avatar_url: avatarUrl,
         client_ids: clientIdsRaw,
+        client_role: clientRole,
       } = body ?? {};
 
-      // Validate required fields
       if (!email || !password || !role) {
         return NextResponse.json(
           { error: "Email, password, and role are required" },
@@ -125,12 +135,53 @@ export const POST = withAuth(
           { status: 400 }
         );
       }
+      if (!VALID_USER_ROLES.includes(role)) {
+        return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+      }
 
-      const clientIds = Array.isArray(clientIdsRaw) ? clientIdsRaw : [];
+      let clientIds = Array.isArray(clientIdsRaw) ? clientIdsRaw : [];
+      let effectiveClientRole = clientRole ?? "viewer";
 
-      // Client role must have at least one associated client. Admin &
-      // employee may optionally have client associations for multi-tenant
-      // access control.
+      if (user.role === "admin") {
+        if (role === "client") {
+          if (clientIds.length === 0) {
+            return NextResponse.json(
+              { error: "Client role requires at least one client association" },
+              { status: 400 }
+            );
+          }
+          if (!VALID_CLIENT_ROLES.includes(effectiveClientRole)) {
+            return NextResponse.json({ error: "Invalid client_role" }, { status: 400 });
+          }
+        }
+      } else if (user.role === "client" && user.activeClientRole === "manager") {
+        if (role !== "client") {
+          return NextResponse.json(
+            { error: "You can only create client users" },
+            { status: 403 }
+          );
+        }
+        if (!MANAGER_ASSIGNABLE_ROLES.includes(effectiveClientRole)) {
+          return NextResponse.json(
+            { error: "You can only assign manager, editor, or viewer roles" },
+            { status: 403 }
+          );
+        }
+        const managerClientId = user.activeClientId ?? user.clientId;
+        if (!managerClientId) {
+          return NextResponse.json(
+            { error: "No active client context found" },
+            { status: 400 }
+          );
+        }
+        clientIds = [managerClientId];
+      } else {
+        return NextResponse.json(
+          { error: "Insufficient permissions to create users" },
+          { status: 403 }
+        );
+      }
+
       if (role === "client" && clientIds.length === 0) {
         return NextResponse.json(
           { error: "Client role requires at least one client association" },
@@ -138,7 +189,6 @@ export const POST = withAuth(
         );
       }
 
-      // Enforce unique email up-front for a nicer error than P2002
       const existing = await prisma.wehowareProfile.findUnique({
         where: { email },
         select: { id: true },
@@ -151,11 +201,8 @@ export const POST = withAuth(
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-      // Primary client column on the profile only matters for `client` role
-      // sessions; for admin/employee it stays null.
       const primaryClientId = role === "client" ? clientIds[0] : null;
 
-      // Use a transaction so the profile + associations are atomic
       const created = await prisma.$transaction(async (tx) => {
         const profile = await tx.wehowareProfile.create({
           data: {
@@ -176,7 +223,7 @@ export const POST = withAuth(
               userId: profile.id,
               clientId: cid,
               isPrimary: cid === primaryClientId,
-              role: "client",
+              role: role === "client" ? effectiveClientRole : "client",
             })),
           });
         }
@@ -211,11 +258,8 @@ export const POST = withAuth(
           { status: 400 }
         );
       }
-      return NextResponse.json(
-        { error: "Failed to create user" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

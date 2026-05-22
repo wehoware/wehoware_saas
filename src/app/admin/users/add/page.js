@@ -12,30 +12,52 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Lock, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-
 import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import SelectInput from "@/components/ui/select";
 
+const ADMIN_ROLE_OPTIONS = [
+  { value: "admin", label: "Administrator" },
+  { value: "employee", label: "Employee" },
+  { value: "client", label: "Client" },
+];
+
+const MANAGER_ROLE_OPTIONS = [
+  { value: "client", label: "Client" },
+];
+
+const ADMIN_CLIENT_ROLE_OPTIONS = [
+  { value: "client", label: "Client Owner" },
+  { value: "manager", label: "Manager" },
+  { value: "editor", label: "Editor" },
+  { value: "viewer", label: "Viewer" },
+];
+
+const MANAGER_CLIENT_ROLE_OPTIONS = [
+  { value: "manager", label: "Manager" },
+  { value: "editor", label: "Editor" },
+  { value: "viewer", label: "Viewer" },
+];
+
 export default function AddUserPage() {
   const router = useRouter();
-  const { user, isAdmin, activeClient } = useAuth();
+  const { user, isAdmin, isManager, activeClient } = useAuth();
+  const canAccess = isAdmin || isManager;
+
   const [clients, setClients] = useState([]);
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // New user form state
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
     first_name: "",
     last_name: "",
     role: "client",
+    client_role: "viewer",
     client_ids: [],
   });
 
@@ -52,46 +74,53 @@ export default function AddUserPage() {
   };
 
   useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        if (!user) {
-          router.push("/login");
-          return;
-        }
-        if (!isAdmin) {
-          toast.error("Access Denied: Only employees can access this page");
-          router.push("/admin");
-          return;
-        }
-        fetchClients();
-      } catch (error) {
-        console.error("Error checking user role:", error);
-        toast.error("Failed to verify your access permissions");
-        router.push("/admin");
-      }
-    };
-
-    checkUserRole();
-  }, [user, isAdmin, activeClient?.id, router]);
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (!canAccess) {
+      toast.error("Access Denied");
+      router.push("/admin");
+      return;
+    }
+    // Managers: pre-set role and client
+    if (isManager && !isAdmin) {
+      setNewUser((prev) => ({
+        ...prev,
+        role: "client",
+        client_role: "viewer",
+        client_ids: activeClient?.id ? [activeClient.id] : [],
+      }));
+    } else {
+      fetchClients();
+    }
+  }, [user, canAccess, isManager, isAdmin, activeClient?.id, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleRoleChange = (e) => {
+    const role = e.target.value;
+    setNewUser((prev) => ({
+      ...prev,
+      role,
+      // Reset client_role and client_ids when switching away from client role
+      client_role: role === "client" ? (prev.client_role || "viewer") : prev.client_role,
+      client_ids: role === "client" ? prev.client_ids : [],
+    }));
+  };
+
   const handleClientCheckboxChange = (clientId, checked) => {
     setNewUser((prev) => {
-      const currentClientIds = prev.client_ids || [];
-      if (checked) {
-        // Add client ID if checked and not already present
-        return { ...prev, client_ids: [...currentClientIds, clientId] };
-      } else {
-        // Remove client ID if unchecked
-        return {
-          ...prev,
-          client_ids: currentClientIds.filter((id) => id !== clientId),
-        };
-      }
+      const current = prev.client_ids || [];
+      return {
+        ...prev,
+        client_ids: checked
+          ? [...current, clientId]
+          : current.filter((id) => id !== clientId),
+      };
     });
   };
 
@@ -99,47 +128,31 @@ export default function AddUserPage() {
     e.preventDefault();
 
     if (!newUser.email || !newUser.password) {
-      toast.error("Email and password are required to create a user.");
+      toast.error("Email and password are required");
       return;
     }
-
-    if (!isAdmin) {
-      toast.error("Access Denied: Only employees can add new users");
+    if (newUser.role === "client" && isAdmin && (!newUser.client_ids || newUser.client_ids.length === 0)) {
+      toast.error("At least one client must be selected for client role");
       return;
     }
-
-    if (
-      newUser.role === "client" &&
-      (!newUser.client_ids || newUser.client_ids.length === 0)
-    ) {
-      toast.error(
-        "Validation Error: At least one client must be selected for client role"
-      );
+    if (newUser.role === "client" && !newUser.client_role) {
+      toast.error("Client role is required");
       return;
     }
-
-    // Admin & employee MAY have client associations (for multi-tenant SaaS
-    // they need access to multiple clients). No extra validation required.
 
     try {
       setIsSubmitting(true);
-      // Call the backend API route to handle user creation securely
       const response = await fetch("/api/v1/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newUser),
       });
 
       const result = await response.json();
-
       if (!response.ok) {
-        // Use the error message from the API response if available
         throw new Error(result.error || `API Error: ${response.statusText}`);
       }
 
-      // If successful
       toast.success(result.message || "User added successfully!");
       router.push("/admin/users");
     } catch (error) {
@@ -150,11 +163,20 @@ export default function AddUserPage() {
     }
   };
 
+  const roleOptions = isAdmin ? ADMIN_ROLE_OPTIONS : MANAGER_ROLE_OPTIONS;
+  const clientRoleOptions = isAdmin ? ADMIN_CLIENT_ROLE_OPTIONS : MANAGER_CLIENT_ROLE_OPTIONS;
+  const showClientRoleField = newUser.role === "client";
+  const showClientSelection = isAdmin && newUser.role === "client";
+
   return (
     <div className="container mx-auto p-4 max-w-3xl">
       <AdminPageHeader
         title="Add New User"
-        description="Create a new user account and set their permissions"
+        description={
+          isManager && !isAdmin
+            ? "Create a new team member for your organization"
+            : "Create a new user account and set their permissions"
+        }
       />
       <Card className="mt-6">
         <CardHeader>
@@ -180,6 +202,7 @@ export default function AddUserPage() {
                 required
               />
             </div>
+
             <div className="relative">
               <Label htmlFor="password">
                 Password <span className="text-destructive">*</span>
@@ -205,6 +228,7 @@ export default function AddUserPage() {
                 )}
               </button>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="first_name">First Name</Label>
@@ -227,6 +251,7 @@ export default function AddUserPage() {
                 />
               </div>
             </div>
+
             <div className="my-4">
               <Label htmlFor="role">
                 User Role <span className="text-destructive">*</span>
@@ -234,37 +259,50 @@ export default function AddUserPage() {
               <SelectInput
                 id="role"
                 name="role"
-                options={[
-                  { value: "admin", label: "Administrator" },
-                  { value: "employee", label: "Employee" },
-                  { value: "client", label: "Client" },
-                ]}
+                options={roleOptions}
                 value={newUser.role}
-                onChange={(e) =>
-                  setNewUser((prev) => ({ ...prev, role: e.target.value }))
-                }
+                onChange={handleRoleChange}
+                disabled={isManager && !isAdmin}
               />
+              {isManager && !isAdmin && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Team members are always created as Client users.
+                </p>
+              )}
             </div>
-            {(newUser.role === "client" ||
-              newUser.role === "employee" ||
-              newUser.role === "admin") && (
+
+            {showClientRoleField && (
+              <div className="my-4">
+                <Label htmlFor="client_role">
+                  Client Role <span className="text-destructive">*</span>
+                </Label>
+                <SelectInput
+                  id="client_role"
+                  name="client_role"
+                  options={clientRoleOptions}
+                  value={newUser.client_role}
+                  onChange={(e) =>
+                    setNewUser((prev) => ({ ...prev, client_role: e.target.value }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Defines what this user can do within the client account.
+                </p>
+              </div>
+            )}
+
+            {showClientSelection && (
               <div className="my-4">
                 <Label htmlFor="client_id">
-                  Client Associations
-                  {newUser.role === "client" && (
-                    <span className="text-destructive"> *</span>
-                  )}
+                  Client Associations <span className="text-destructive">*</span>
                 </Label>
                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md">
                   {clients.length > 0 ? (
                     clients.map((client) => (
-                      <div
-                        key={client.id}
-                        className="flex items-center space-x-2"
-                      >
+                      <div key={client.id} className="flex items-center space-x-2">
                         <Checkbox
                           id={`client-${client.id}`}
-                          checked={newUser.client_ids?.includes(client.id)} // Added safe navigation
+                          checked={newUser.client_ids?.includes(client.id)}
                           onCheckedChange={(checked) =>
                             handleClientCheckboxChange(client.id, checked)
                           }
@@ -278,19 +316,23 @@ export default function AddUserPage() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No active clients found.
-                    </p>
+                    <p className="text-sm text-muted-foreground">No active clients found.</p>
                   )}
                 </div>
-                {newUser.role === "client" &&
-                  newUser.client_ids?.length === 0 && (
-                    <p className="text-xs text-destructive mt-1">
-                      At least one client must be selected for client role.
-                    </p>
-                  )}
+                {newUser.client_ids?.length === 0 && (
+                  <p className="text-xs text-destructive mt-1">
+                    At least one client must be selected.
+                  </p>
+                )}
               </div>
             )}
+
+            {isManager && !isAdmin && activeClient && (
+              <div className="my-4 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                This user will be added to: <strong>{activeClient.companyName || activeClient.name || "your organization"}</strong>
+              </div>
+            )}
+
             <div className="flex space-x-4">
               <Button
                 type="button"
@@ -301,9 +343,7 @@ export default function AddUserPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? "Adding..." : "Add User"}
               </Button>
             </div>

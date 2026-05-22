@@ -309,7 +309,7 @@ export function AuthProvider({ children }) {
 
   // Coarse permission helpers
   const canInvite = isAdmin || isEmployee || isClientOwner || isManager;
-  const canManageUsers = isAdmin || isEmployee || isClientOwner;
+  const canManageUsers = isAdmin || isManager;
   const canViewTeam = isAdmin || isEmployee || isClientOwner || isManager;
   const canEditContent = isAdmin || isEmployee || isClientOwner || isManager || isEditor;
 

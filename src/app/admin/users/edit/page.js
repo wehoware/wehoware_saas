@@ -14,41 +14,65 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
-
 import { toast } from "react-hot-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import SelectInput from "@/components/ui/select";
 
+const ADMIN_ROLE_OPTIONS = [
+  { value: "admin", label: "Administrator" },
+  { value: "employee", label: "Employee" },
+  { value: "client", label: "Client" },
+];
+
+const ADMIN_CLIENT_ROLE_OPTIONS = [
+  { value: "client", label: "Client Owner" },
+  { value: "manager", label: "Manager" },
+  { value: "editor", label: "Editor" },
+  { value: "viewer", label: "Viewer" },
+];
+
+const MANAGER_CLIENT_ROLE_OPTIONS = [
+  { value: "manager", label: "Manager" },
+  { value: "editor", label: "Editor" },
+  { value: "viewer", label: "Viewer" },
+];
+
 export default function EditUserPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId");
-  const { user, isAdmin, activeClient } = useAuth();
+  const { user, isAdmin, isManager, activeClient } = useAuth();
+  const canAccess = isAdmin || isManager;
+
   const [clients, setClients] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editUser, setEditUser] = useState({
     id: "",
-    email: "", // Email is fetched but typically not editable here
+    email: "",
     first_name: "",
     last_name: "",
     role: "client",
-    client_ids: [], // This will store IDs from wehoware_user_clients
+    client_role: "viewer",
+    client_ids: [],
   });
 
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch(`/api/v1/users/${userId}`);
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch user");
-      const json = await res.json();
-      const u = json.user;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to fetch user");
+      }
+      const { user: u } = await res.json();
       setEditUser({
         id: u.id || "",
         email: u.email || "",
         first_name: u.first_name || "",
         last_name: u.last_name || "",
         role: u.role || "client",
+        client_role: u.client_role || "viewer",
         client_ids: u.client_ids || [],
       });
     } catch (error) {
@@ -71,54 +95,38 @@ export default function EditUserPage() {
   }, []);
 
   useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        if (!user) {
-          router.push("/login");
-          return;
-        }
-        if (!isAdmin) {
-          toast.error("Access Denied: Only employees can access this page");
-          router.push("/admin");
-          return;
-        }
-        if (!userId) {
-          toast.error("No user ID provided");
-          router.push("/admin/users");
-          return;
-        }
-        fetchUser();
-        fetchClients();
-      } catch (error) {
-        console.error("Error checking user role:", error);
-        toast.error("Failed to verify your access permissions");
-        router.push("/admin");
-      }
-    };
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (!canAccess) {
+      toast.error("Access Denied");
+      router.push("/admin");
+      return;
+    }
+    if (!userId) {
+      toast.error("No user ID provided");
+      router.push("/admin/users");
+      return;
+    }
+    fetchUser();
+    if (isAdmin) fetchClients();
+  }, [user, canAccess, isAdmin, userId, router, fetchUser, fetchClients]);
 
-    checkUserRole();
-  }, [user, isAdmin, activeClient?.id, userId, router, fetchUser, fetchClients]);
-
-  const handleEditInputChange = (e) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
     setEditUser((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleClientCheckboxChange = (clientId, checked) => {
     setEditUser((prev) => {
-      // Ensure we always have a valid array, even if prev.client_ids is undefined
-      const currentClientIds = Array.isArray(prev.client_ids) ? prev.client_ids : [];
-      
-      if (checked) {
-        // Add client ID if checked and not already present
-        return { ...prev, client_ids: [...currentClientIds, clientId] };
-      } else {
-        // Remove client ID if unchecked
-        return {
-          ...prev,
-          client_ids: currentClientIds.filter((id) => id !== clientId),
-        };
-      }
+      const current = Array.isArray(prev.client_ids) ? prev.client_ids : [];
+      return {
+        ...prev,
+        client_ids: checked
+          ? [...current, clientId]
+          : current.filter((id) => id !== clientId),
+      };
     });
   };
 
@@ -126,17 +134,34 @@ export default function EditUserPage() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
+
+      const payload = {
+        first_name: editUser.first_name,
+        last_name: editUser.last_name,
+      };
+
+      if (isAdmin) {
+        payload.role = editUser.role;
+        payload.client_ids = editUser.client_ids || [];
+        if (editUser.role === "client") {
+          payload.client_role = editUser.client_role;
+        }
+      } else {
+        // Managers can only change client_role (not system role or client_ids)
+        payload.client_role = editUser.client_role;
+      }
+
       const res = await fetch(`/api/v1/users/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: editUser.first_name,
-          last_name: editUser.last_name,
-          role: editUser.role,
-          client_ids: editUser.client_ids || [],
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to update user");
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update user");
+      }
+
       toast.success("User updated successfully");
       router.push("/admin/users");
     } catch (error) {
@@ -147,6 +172,12 @@ export default function EditUserPage() {
     }
   };
 
+  const showClientRoleField = isAdmin
+    ? editUser.role === "client"
+    : true; // Managers always see client_role (they only edit client users)
+
+  const clientRoleOptions = isAdmin ? ADMIN_CLIENT_ROLE_OPTIONS : MANAGER_CLIENT_ROLE_OPTIONS;
+
   return (
     <div className="container mx-auto p-4 max-w-3xl">
       <AdminPageHeader
@@ -156,9 +187,7 @@ export default function EditUserPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Edit User</CardTitle>
-          <CardDescription>
-            Update details for the selected user.
-          </CardDescription>
+          <CardDescription>Update details for the selected user.</CardDescription>
         </CardHeader>
         <Separator />
         <CardContent>
@@ -166,8 +195,9 @@ export default function EditUserPage() {
             <div>
               <Label htmlFor="edit-email">Email</Label>
               <Input id="edit-email" value={editUser.email} disabled />
-              <p className="text-sm ">Email cannot be changed</p>
+              <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="edit-first_name">First Name</Label>
@@ -176,7 +206,7 @@ export default function EditUserPage() {
                   name="first_name"
                   placeholder="John"
                   value={editUser.first_name}
-                  onChange={handleEditInputChange}
+                  onChange={handleInputChange}
                 />
               </div>
               <div>
@@ -186,43 +216,53 @@ export default function EditUserPage() {
                   name="last_name"
                   placeholder="Doe"
                   value={editUser.last_name}
-                  onChange={handleEditInputChange}
+                  onChange={handleInputChange}
                 />
               </div>
             </div>
-            <div>
-              <Label htmlFor="edit-role">User Role</Label>
-              <SelectInput
-                id="edit-role"
-                name="role"
-                options={[
-                  { value: "admin", label: "Administrator" },
-                  { value: "employee", label: "Employee" },
-                  { value: "client", label: "Client" },
-                ]}
-                value={editUser.role}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, role: e.target.value }))
-                }
-              />
-            </div>
-            {(editUser.role === "admin" ||
-              editUser.role === "employee" ||
-              editUser.role === "client") && (
+
+            {isAdmin && (
               <div>
-                <Label htmlFor="client_associations">
-                  Client Associations
-                </Label>
+                <Label htmlFor="edit-role">User Role</Label>
+                <SelectInput
+                  id="edit-role"
+                  name="role"
+                  options={ADMIN_ROLE_OPTIONS}
+                  value={editUser.role}
+                  onChange={(e) =>
+                    setEditUser((prev) => ({ ...prev, role: e.target.value }))
+                  }
+                />
+              </div>
+            )}
+
+            {showClientRoleField && (
+              <div>
+                <Label htmlFor="edit-client_role">Client Role</Label>
+                <SelectInput
+                  id="edit-client_role"
+                  name="client_role"
+                  options={clientRoleOptions}
+                  value={editUser.client_role}
+                  onChange={(e) =>
+                    setEditUser((prev) => ({ ...prev, client_role: e.target.value }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Defines what this user can do within the client account.
+                </p>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div>
+                <Label htmlFor="client_associations">Client Associations</Label>
                 <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border p-2 rounded-md">
                   {clients.length > 0 ? (
                     clients.map((client) => (
-                      <div
-                        key={client.id}
-                        className="flex items-center space-x-2"
-                      >
+                      <div key={client.id} className="flex items-center space-x-2">
                         <Checkbox
                           id={`client-${client.id}`}
-                          // Ensure editUser.client_ids is checked before calling includes
                           checked={editUser.client_ids?.includes(client.id)}
                           onCheckedChange={(checked) =>
                             handleClientCheckboxChange(client.id, checked)
@@ -237,13 +277,18 @@ export default function EditUserPage() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No active clients found.
-                    </p>
+                    <p className="text-sm text-muted-foreground">No active clients found.</p>
                   )}
                 </div>
               </div>
             )}
+
+            {isManager && !isAdmin && activeClient && (
+              <div className="p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                Client: <strong>{activeClient.companyName || activeClient.name || "your organization"}</strong>
+              </div>
+            )}
+
             <div className="flex space-x-4">
               <Button
                 type="button"
@@ -254,9 +299,7 @@ export default function EditUserPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? "Updating..." : "Update User"}
               </Button>
             </div>

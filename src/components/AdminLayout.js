@@ -66,7 +66,8 @@ const sidebarSections = [
     title: "Users",
     href: "/admin/users",
     icon: <Users className="h-5 w-5" />,
-    roles: ["admin"],
+    roles: ["admin", "client"],
+    clientRoles: ["manager"],
   },
   {
     type: "group",
@@ -230,10 +231,14 @@ const sidebarSections = [
   },
 ];
 
-function filterSectionsByRole(sections, role) {
+function filterSectionsByRole(sections, role, activeClientRole) {
   const visible = [];
   for (const section of sections) {
     if (!section.roles.includes(role)) continue;
+    // Sections with clientRoles are only visible when the user's activeClientRole matches
+    if (role === "client" && section.clientRoles && !section.clientRoles.includes(activeClientRole)) {
+      continue;
+    }
     if (section.type === "link") {
       visible.push(section);
       continue;
@@ -282,8 +287,8 @@ const AdminLayout = ({ children }) => {
 
   // Filter sidebar items based on allowed roles (groups + nested children).
   const allowedSections = useMemo(
-    () => filterSectionsByRole(sidebarSections, role),
-    [role]
+    () => filterSectionsByRole(sidebarSections, role, user?.activeClientRole),
+    [role, user?.activeClientRole]
   );
 
   // Find the active section/child for the current pathname.

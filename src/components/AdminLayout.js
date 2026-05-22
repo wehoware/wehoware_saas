@@ -36,11 +36,15 @@ import {
   UserSquare,
   PieChart,
   Link2,
+  Target,
+  Trophy,
+  ClipboardList,
 } from "lucide-react";
 
 // Sidebar configuration. Each entry is either a flat link or a group with children.
 // Groups auto-expand when the current pathname matches any child href.
 const ACCOUNTING_GROUP_ID = "accounting";
+const TASKS_GROUP_ID = "tasks";
 
 const sidebarSections = [
   {
@@ -136,11 +140,32 @@ const sidebarSections = [
     ],
   },
   {
-    type: "link",
+    type: "group",
+    id: TASKS_GROUP_ID,
     title: "Tasks",
-    href: "/admin/tasks",
     icon: <CheckCircle className="h-5 w-5" />,
     roles: ["admin", "employee"],
+    children: [
+      {
+        title: "All Tasks",
+        href: "/admin/tasks",
+        icon: <ClipboardList className="h-4 w-4" />,
+        roles: ["admin", "employee"],
+        matchExact: true,
+      },
+      {
+        title: "Reports",
+        href: "/admin/tasks/reports",
+        icon: <BarChart className="h-4 w-4" />,
+        roles: ["admin"],
+      },
+      {
+        title: "Goals",
+        href: "/admin/tasks/goals",
+        icon: <Target className="h-4 w-4" />,
+        roles: ["admin", "employee"],
+      },
+    ],
   },
   {
     type: "link",

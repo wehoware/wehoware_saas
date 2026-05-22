@@ -1,104 +1,155 @@
-// Placeholder for Task Details Sheet Component
-import React from 'react';
+"use client";
+
+import React, { useState } from "react";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetClose,
-} from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator'; // Assuming you have this
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
+import SubtaskList from "./SubtaskList";
+import TimeTrackerPanel from "./TimeTrackerPanel";
+import TaskComments from "./TaskComments";
 
-const TaskDetailsSheet = ({ task, isOpen, onOpenChange /*, onUpdate, onDelete */ }) => {
+const STATUS_VARIANT = {
+  "To Do": "secondary",
+  "In Progress": "default",
+  Done: "outline",
+  Backlog: "secondary",
+};
+const PRIORITY_VARIANT = {
+  High: "destructive",
+  Medium: "default",
+  Low: "secondary",
+};
+
+function formatDate(d) {
+  if (!d) return "Not set";
+  try { return format(new Date(d), "MMM d, yyyy"); } catch { return d; }
+}
+
+export default function TaskDetailsSheet({ task, isOpen, onOpenChange, userRole, onUpdateTask }) {
+  const [activeTab, setActiveTab] = useState("overview");
+
   if (!task) return null;
 
-  const getStatusVariant = (status) => {
-      switch (status) {
-          case 'To Do': return 'secondary';
-          case 'In Progress': return 'default';
-          case 'Done': return 'outline';
-          default: return 'secondary';
-      }
-  };
-
-  const getPriorityVariant = (priority) => {
-      switch (priority) {
-          case 'High': return 'destructive';
-          case 'Medium': return 'warning'; // Or 'default'
-          case 'Low': return 'secondary';
-          default: return 'secondary';
-      }
-  };
+  const assigneeName = task.assignee
+    ? `${task.assignee.first_name ?? ""} ${task.assignee.last_name ?? ""}`.trim()
+    : "Unassigned";
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Task Details</SheetTitle>
-          <SheetDescription>Viewing details for task ID: {task.id}</SheetDescription>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader className="pb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant={STATUS_VARIANT[task.status] ?? "secondary"}>{task.status ?? "No status"}</Badge>
+            {task.priority && (
+              <Badge variant={PRIORITY_VARIANT[task.priority] ?? "secondary"}>{task.priority}</Badge>
+            )}
+          </div>
+          <SheetTitle className="text-base leading-snug">{task.title}</SheetTitle>
         </SheetHeader>
 
-        <div className="py-6 space-y-4">
-          <h3 className="text-lg font-semibold mb-2">{task.title}</h3>
-          
-          {task.description && (
-            <p className="text-sm text-muted-foreground">{task.description}</p>
-          )}
-          {!task.description && (
-            <p className="text-sm text-muted-foreground italic">No description provided.</p>
-          )}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3">
+          <TabsList className="w-full grid grid-cols-4 h-8 text-xs">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="subtasks">Sub-tasks</TabsTrigger>
+            <TabsTrigger value="time">Time</TabsTrigger>
+            <TabsTrigger value="comments">Comments</TabsTrigger>
+          </TabsList>
 
-          <Separator />
+          {/* Overview tab */}
+          <TabsContent value="overview" className="mt-3 space-y-4">
+            {task.description ? (
+              <p className="text-sm text-muted-foreground">{task.description}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No description provided.</p>
+            )}
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div className="font-medium">Status:</div>
-            <div><Badge variant={getStatusVariant(task.status)}>{task.status}</Badge></div>
+            <Separator />
 
-            <div className="font-medium">Priority:</div>
-            <div><Badge variant={getPriorityVariant(task.priority)}>{task.priority}</Badge></div>
-            
-            <div className="font-medium">Assignee:</div>
-            <div>{task.assignee?.name || 'Unassigned'}</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <span className="font-medium text-muted-foreground">Status</span>
+              <Badge variant={STATUS_VARIANT[task.status] ?? "secondary"} className="w-fit">
+                {task.status ?? "—"}
+              </Badge>
 
-            <div className="font-medium">Due Date:</div>
-            <div>{task.dueDate || 'Not set'}</div>
-            
-            {/* Add Reporter, Client, Created/Updated if available in task data */}
-            {/* <div className="font-medium">Reporter:</div>
-            <div>{task.reporter?.name || 'N/A'}</div> */} 
+              <span className="font-medium text-muted-foreground">Priority</span>
+              <span>{task.priority ?? "—"}</span>
 
-            {/* <div className="font-medium">Client:</div>
-            <div>{task.client?.name || 'N/A'}</div> */} 
+              <span className="font-medium text-muted-foreground">Assignee</span>
+              <span>{assigneeName}</span>
 
-             {/* <div className="font-medium">Created:</div>
-            <div>{task.createdAt ? new Date(task.createdAt).toLocaleString() : 'N/A'}</div>
+              <span className="font-medium text-muted-foreground">Due Date</span>
+              <span>{formatDate(task.due_date ?? task.dueDate)}</span>
 
-            <div className="font-medium">Updated:</div>
-            <div>{task.updatedAt ? new Date(task.updatedAt).toLocaleString() : 'N/A'}</div>  */}
-          </div>
+              <span className="font-medium text-muted-foreground">Client</span>
+              <span>{task.client?.company_name ?? "—"}</span>
 
-          {/* TODO: Add Comments section */}
-          {/* <Separator />
-          <h4 className="font-medium">Comments</h4>
-          <div className="text-sm text-muted-foreground italic">Comments feature coming soon...</div> */}
-        
+              {task.story_points != null && (
+                <>
+                  <span className="font-medium text-muted-foreground">Story Points</span>
+                  <span>{task.story_points}</span>
+                </>
+              )}
+
+              {task.estimated_hours != null && (
+                <>
+                  <span className="font-medium text-muted-foreground">Estimated</span>
+                  <span>{Number(task.estimated_hours).toFixed(1)}h</span>
+                </>
+              )}
+
+              {task.actual_hours != null && (
+                <>
+                  <span className="font-medium text-muted-foreground">Logged</span>
+                  <span>{Number(task.actual_hours).toFixed(1)}h</span>
+                </>
+              )}
+
+              <span className="font-medium text-muted-foreground">Created</span>
+              <span>{formatDate(task.created_at ?? task.createdAt)}</span>
+            </div>
+
+            {/* Sub-task completion preview */}
+            {task.subtask_count > 0 && (
+              <>
+                <Separator />
+                <div className="text-sm">
+                  <span className="font-medium text-muted-foreground">Sub-tasks: </span>
+                  <span>{task.subtask_completed ?? 0} / {task.subtask_count} completed</span>
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Sub-tasks tab */}
+          <TabsContent value="subtasks" className="mt-3">
+            <SubtaskList taskId={task.id} userRole={userRole} />
+          </TabsContent>
+
+          {/* Time tracking tab */}
+          <TabsContent value="time" className="mt-3">
+            <TimeTrackerPanel taskId={task.id} task={task} userRole={userRole} />
+          </TabsContent>
+
+          {/* Comments tab */}
+          <TabsContent value="comments" className="mt-3">
+            <TaskComments taskId={task.id} />
+          </TabsContent>
+        </Tabs>
+
+        <div className="mt-4 flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
         </div>
-
-        <SheetFooter>
-          <SheetClose asChild>
-            <Button type="button" variant="outline">Close</Button>
-          </SheetClose>
-          {/* TODO: Add Edit/Delete buttons based on permissions */}
-          {/* <Button variant="secondary">Edit</Button> */}
-          {/* <Button variant="destructive">Delete</Button> */}
-        </SheetFooter>
       </SheetContent>
     </Sheet>
   );
-};
-
-export default TaskDetailsSheet;
+}

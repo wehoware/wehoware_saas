@@ -63,6 +63,8 @@ model WehowareClient {
   invites              WehowareUserInvite[]
   vendors              WehowareVendor[]
   customers            WehowareCustomer[]
+  goals                WehowareGoal[]
+  achievements         WehowareAchievement[]
 
   @@map("wehoware_clients")
 }
@@ -124,6 +126,12 @@ model WehowareProfile {
   createdCustomers         WehowareCustomer[]            @relation("CustomerCreator")
   updatedCustomers         WehowareCustomer[]            @relation("CustomerUpdater")
   invitedInvites           WehowareUserInvite[]        @relation("InviteCreator")
+  achievements             WehowareAchievement[]       @relation("UserAchievements")
+  ownedGoals               WehowareGoal[]              @relation("GoalOwner")
+  createdGoals             WehowareGoal[]              @relation("GoalCreator")
+  assignedSubtasks         WehowareSubtask[]           @relation("SubtaskAssignee")
+  createdSubtasks          WehowareSubtask[]           @relation("SubtaskCreator")
+  timeEntries              WehowareTaskTimeEntry[]
 
   @@index([role])
   @@index([clientId])
@@ -619,25 +627,37 @@ model WehowareClientKeyword {
 }
 
 model WehowareTask {
-  id          String                 @id @default(uuid()) @db.VarChar(36)
-  createdAt   DateTime               @default(now()) @map("created_at")
-  title       String                 @db.VarChar(500)
-  description String?                @db.Text
-  dueDate     DateTime?              @map("due_date")
-  priority    TaskPriority?
-  status      TaskStatus?
-  clientId    String?                @map("client_id") @db.VarChar(36)
-  assigneeId  String?                @map("assignee_id") @db.VarChar(36)
-  createdBy   String?                @map("created_by") @db.VarChar(36)
-  activities  WehowareTaskActivity[]
-  comments    WehowareTaskComment[]
-  assignee    WehowareProfile?       @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  client      WehowareClient?        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  creator     WehowareProfile?       @relation("TaskCreator", fields: [createdBy], references: [id])
+  id               String                  @id @default(uuid()) @db.VarChar(36)
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime?               @updatedAt @map("updated_at")
+  title            String                  @db.VarChar(500)
+  description      String?                 @db.Text
+  dueDate          DateTime?               @map("due_date")
+  priority         TaskPriority?
+  status           TaskStatus?
+  clientId         String?                 @map("client_id") @db.VarChar(36)
+  assigneeId       String?                 @map("assignee_id") @db.VarChar(36)
+  createdBy        String?                 @map("created_by") @db.VarChar(36)
+  subtaskCount     Int                     @default(0) @map("subtask_count")
+  subtaskCompleted Int                     @default(0) @map("subtask_completed")
+  estimatedHours   Decimal?                @map("estimated_hours") @db.Decimal(5, 2)
+  actualHours      Decimal                 @default(0) @map("actual_hours") @db.Decimal(8, 2)
+  remainingHours   Decimal?                @map("remaining_hours") @db.Decimal(8, 2)
+  storyPoints      Int?                    @map("story_points")
+  activities       WehowareTaskActivity[]
+  comments         WehowareTaskComment[]
+  subtasks         WehowareSubtask[]
+  timeEntries      WehowareTaskTimeEntry[]
+  linkedGoals      WehowareGoalTaskLink[]
+  assignee         WehowareProfile?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  client           WehowareClient?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator          WehowareProfile?        @relation("TaskCreator", fields: [createdBy], references: [id])
 
   @@index([assigneeId], map: "wehoware_tasks_assignee_id_fkey")
   @@index([clientId], map: "wehoware_tasks_client_id_fkey")
   @@index([createdBy], map: "wehoware_tasks_created_by_fkey")
+  @@index([status])
+  @@index([priority])
   @@map("wehoware_tasks")
 }
 
@@ -668,6 +688,123 @@ model WehowareTaskComment {
   @@index([taskId], map: "wehoware_task_comments_task_id_fkey")
   @@index([userId], map: "wehoware_task_comments_user_id_fkey")
   @@map("wehoware_task_comments")
+}
+
+model WehowareSubtask {
+  id          String                  @id @default(uuid()) @db.VarChar(36)
+  taskId      String                  @map("task_id") @db.VarChar(36)
+  title       String                  @db.VarChar(500)
+  description String?                 @db.Text
+  status      TaskStatus?
+  assigneeId  String?                 @map("assignee_id") @db.VarChar(36)
+  orderIndex  Int                     @default(0) @map("order_index")
+  completedAt DateTime?               @map("completed_at")
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  createdBy   String?                 @map("created_by") @db.VarChar(36)
+  task        WehowareTask            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignee    WehowareProfile?        @relation("SubtaskAssignee", fields: [assigneeId], references: [id])
+  creator     WehowareProfile?        @relation("SubtaskCreator", fields: [createdBy], references: [id])
+  timeEntries WehowareTaskTimeEntry[]
+
+  @@index([taskId])
+  @@index([status])
+  @@index([assigneeId])
+  @@map("wehoware_subtasks")
+}
+
+model WehowareTaskTimeEntry {
+  id          String           @id @default(uuid()) @db.VarChar(36)
+  taskId      String           @map("task_id") @db.VarChar(36)
+  subtaskId   String?          @map("subtask_id") @db.VarChar(36)
+  userId      String           @map("user_id") @db.VarChar(36)
+  hoursSpent  Decimal          @map("hours_spent") @db.Decimal(5, 2)
+  notes       String?          @db.Text
+  trackedDate DateTime         @map("tracked_date") @db.Date
+  createdAt   DateTime         @default(now()) @map("created_at")
+  task        WehowareTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  subtask     WehowareSubtask? @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+  user        WehowareProfile  @relation(fields: [userId], references: [id])
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([trackedDate])
+  @@map("wehoware_task_time_entries")
+}
+
+model WehowareGoal {
+  id                 String                  @id @default(uuid()) @db.VarChar(36)
+  clientId           String                  @map("client_id") @db.VarChar(36)
+  title              String                  @db.VarChar(500)
+  description        String?                 @db.Text
+  type               GoalType                @default(Goal)
+  status             GoalStatus              @default(Not_Started)
+  startDate          DateTime                @map("start_date") @db.Date
+  endDate            DateTime                @map("end_date") @db.Date
+  progressPercentage Int                     @default(0) @map("progress_percentage")
+  ownerId            String?                 @map("owner_id") @db.VarChar(36)
+  createdBy          String?                 @map("created_by") @db.VarChar(36)
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  client             WehowareClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  owner              WehowareProfile?        @relation("GoalOwner", fields: [ownerId], references: [id])
+  creator            WehowareProfile?        @relation("GoalCreator", fields: [createdBy], references: [id])
+  keyResults         WehowareGoalKeyResult[]
+  taskLinks          WehowareGoalTaskLink[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("wehoware_goals")
+}
+
+model WehowareGoalKeyResult {
+  id           String       @id @default(uuid()) @db.VarChar(36)
+  goalId       String       @map("goal_id") @db.VarChar(36)
+  title        String       @db.VarChar(500)
+  targetValue  Decimal?     @map("target_value") @db.Decimal(10, 2)
+  currentValue Decimal      @default(0) @map("current_value") @db.Decimal(10, 2)
+  unit         String?      @db.VarChar(50)
+  weight       Int          @default(25)
+  status       KrStatus     @default(Not_Started)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  goal         WehowareGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@map("wehoware_goal_key_results")
+}
+
+model WehowareGoalTaskLink {
+  id              String       @id @default(uuid()) @db.VarChar(36)
+  goalId          String       @map("goal_id") @db.VarChar(36)
+  taskId          String       @map("task_id") @db.VarChar(36)
+  contributionPct Int          @default(100) @map("contribution_pct")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  goal            WehowareGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  task            WehowareTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, taskId])
+  @@index([goalId])
+  @@index([taskId])
+  @@map("wehoware_goal_task_links")
+}
+
+model WehowareAchievement {
+  id          String           @id @default(uuid()) @db.VarChar(36)
+  clientId    String?          @map("client_id") @db.VarChar(36)
+  userId      String?          @map("user_id") @db.VarChar(36)
+  title       String           @db.VarChar(255)
+  description String?          @db.Text
+  badgeType   String           @default("custom") @map("badge_type") @db.VarChar(50)
+  achievedAt  DateTime         @map("achieved_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  client      WehowareClient?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user        WehowareProfile? @relation("UserAchievements", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([achievedAt])
+  @@map("wehoware_achievements")
 }
 
 model WehowareAppointmentType {
@@ -1459,4 +1596,24 @@ enum ClientRole {
   manager  @map("manager")
   editor   @map("editor")
   viewer   @map("viewer")
+}
+
+enum GoalType {
+  OKR
+  Goal
+  Milestone
+}
+
+enum GoalStatus {
+  Not_Started @map("Not Started")
+  In_Progress @map("In Progress")
+  Completed
+  Cancelled
+}
+
+enum KrStatus {
+  Not_Started @map("Not Started")
+  In_Progress @map("In Progress")
+  Completed
+  Failed
 }

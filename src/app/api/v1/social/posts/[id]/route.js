@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../utils/auth-middleware";
 
+const MAX_CONTENT_LENGTH = 63206;
 const EDITABLE_STATUSES = new Set(["Draft", "Scheduled"]);
 const DELETABLE_STATUSES = new Set(["Draft", "Scheduled", "Failed", "Cancelled"]);
 const ALLOWED_TYPES = new Set(["Text", "Image", "Video", "Carousel", "Story", "Reel"]);
@@ -27,6 +28,9 @@ function shapePost(p) {
     error_details: p.errorDetails,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
+    platforms: (p.accountPosts || [])
+      .map((ap) => ap.account?.platform?.platformCode)
+      .filter(Boolean),
     account_posts: (p.accountPosts || []).map((ap) => ({
       id: ap.id,
       account_id: ap.accountId,
@@ -36,11 +40,9 @@ function shapePost(p) {
       published_at: ap.publishedAt,
       error_details: ap.errorDetails,
       metrics: ap.metrics,
-      account: ap.account ? {
-        id: ap.account.id,
-        account_name: ap.account.accountName,
-        platform: ap.account.platform,
-      } : null,
+      account: ap.account
+        ? { id: ap.account.id, account_name: ap.account.accountName, platform: ap.account.platform }
+        : null,
     })),
   };
 }
@@ -53,12 +55,46 @@ const POST_INCLUDE = {
   },
 };
 
-async function resolvePost(prisma, id, user) {
+function resolvePost(prisma, id, user) {
   const clientId = user.activeClientId || user.clientId;
-  return prisma.wehowareSocialPost.findFirst({
-    where: { id, ...(user.role !== "admin" ? { clientId } : {}) },
-    include: POST_INCLUDE,
-  });
+  const where = user.role === "admin" ? { id } : { id, clientId };
+  return prisma.wehowareSocialPost.findFirst({ where, include: POST_INCLUDE });
+}
+
+function validateBodyForUpdate(body) {
+  const { content, post_type, scheduled_for } = body ?? {};
+  if (content !== undefined) {
+    if (content.trim().length === 0) return "Content cannot be empty";
+    if (content.length > MAX_CONTENT_LENGTH) return `Content exceeds maximum length of ${MAX_CONTENT_LENGTH} characters`;
+  }
+  if (post_type && !ALLOWED_TYPES.has(post_type)) return "Invalid post_type";
+  if (scheduled_for !== undefined && scheduled_for !== null && scheduled_for !== "") {
+    if (Number.isNaN(new Date(scheduled_for).getTime())) return "Invalid scheduled_for date";
+    if (new Date(scheduled_for) < new Date()) return "Scheduled time must be in the future";
+  }
+  return null;
+}
+
+function buildUpdateData(body, currentStatus, userId) {
+  const { title, content, media_urls, hashtags, scheduled_for, post_type, target_accounts } = body;
+
+  // Determine new status without nested ternary
+  let status;
+  if (scheduled_for === undefined) {
+    status = currentStatus;
+  } else {
+    status = scheduled_for ? "Scheduled" : "Draft";
+  }
+
+  const data = { status, updatedBy: userId };
+  if (title !== undefined) data.title = title || null;
+  if (content !== undefined) data.content = content.trim();
+  if (media_urls !== undefined) data.mediaUrls = media_urls;
+  if (hashtags !== undefined) data.hashtags = hashtags;
+  if (scheduled_for !== undefined) data.scheduledFor = scheduled_for ? new Date(scheduled_for) : null;
+  if (post_type) data.postType = post_type;
+  if (target_accounts !== undefined) data.targetAccounts = target_accounts;
+  return data;
 }
 
 export const GET = withAuth(async (request, { params }) => {
@@ -88,18 +124,10 @@ export const PUT = withAuth(async (request, { params }) => {
     }
 
     const body = await request.json();
-    const { title, content, media_urls, hashtags, scheduled_for, post_type, target_accounts } = body ?? {};
+    const validationError = validateBodyForUpdate(body);
+    if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
-    if (content !== undefined && content.trim().length === 0) {
-      return NextResponse.json({ error: "Content cannot be empty" }, { status: 400 });
-    }
-    if (post_type && !ALLOWED_TYPES.has(post_type)) {
-      return NextResponse.json({ error: `Invalid post_type` }, { status: 400 });
-    }
-    if (scheduled_for && new Date(scheduled_for) < new Date()) {
-      return NextResponse.json({ error: "Scheduled time must be in the future" }, { status: 400 });
-    }
-
+    const { target_accounts } = body ?? {};
     const clientId = user.activeClientId || user.clientId;
     if (Array.isArray(target_accounts) && target_accounts.length > 0) {
       const valid = await prisma.wehowareSocialAccount.findMany({
@@ -111,23 +139,9 @@ export const PUT = withAuth(async (request, { params }) => {
       }
     }
 
-    const newStatus = scheduled_for !== undefined
-      ? (scheduled_for ? "Scheduled" : "Draft")
-      : post.status;
-
     const updated = await prisma.wehowareSocialPost.update({
       where: { id },
-      data: {
-        ...(title !== undefined ? { title: title || null } : {}),
-        ...(content !== undefined ? { content: content.trim() } : {}),
-        ...(media_urls !== undefined ? { mediaUrls: media_urls } : {}),
-        ...(hashtags !== undefined ? { hashtags } : {}),
-        ...(scheduled_for !== undefined ? { scheduledFor: scheduled_for ? new Date(scheduled_for) : null } : {}),
-        ...(post_type ? { postType: post_type } : {}),
-        ...(target_accounts !== undefined ? { targetAccounts: target_accounts } : {}),
-        status: newStatus,
-        updatedBy: user.id,
-      },
+      data: buildUpdateData(body, post.status, user.id),
       include: POST_INCLUDE,
     });
     return NextResponse.json({ post: shapePost(updated) });

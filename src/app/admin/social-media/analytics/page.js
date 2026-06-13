@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AdminLayout from "@/components/AdminLayout";
 import { useAuth } from "@/contexts/auth-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +43,7 @@ export default function SocialAnalyticsPage() {
   const posts = analytics?.posts || [];
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -163,6 +162,6 @@ export default function SocialAnalyticsPage() {
           </Card>
         )}
       </div>
-    </AdminLayout>
+    </>
   );
 }

@@ -38,6 +38,7 @@ function serialize(b) {
     excerpt: b.excerpt,
     content: b.content,
     thumbnail: b.thumbnail,
+    thumbnail_alt: b.thumbnailAlt,
     status: b.status,
     category_id: b.categoryId,
     featured: b.featured,
@@ -51,6 +52,24 @@ function serialize(b) {
     meta_title: b.metaTitle,
     meta_description: b.metaDescription,
     meta_keywords: b.metaKeywords,
+    open_graph_title: b.openGraphTitle,
+    open_graph_description: b.openGraphDescription,
+    open_graph_image: b.openGraphImage,
+    twitter_title: b.twitterTitle,
+    twitter_description: b.twitterDescription,
+    twitter_image: b.twitterImage,
+    canonical_url: b.canonicalUrl,
+    robots_meta: b.robotsMeta,
+    schema_type: b.schemaType,
+    seo_score: b.seoScore,
+    target_keywords: b.targetKeywords,
+    show_toc: b.showToc,
+    show_author_box: b.showAuthorBox,
+    cta_heading: b.ctaHeading,
+    cta_body: b.ctaBody,
+    cta_button_text: b.ctaButtonText,
+    cta_button_url: b.ctaButtonUrl,
+    allow_social_share: b.allowSocialShare,
     wehoware_blog_categories: b.category
       ? { id: b.category.id, name: b.category.name }
       : null,
@@ -125,6 +144,7 @@ export async function GET(request) {
     const where = { clientId: client.id, status: "Published" };
     if (category) where.categoryId = category;
     if (featured === "true") where.featured = true;
+    // status is always forced to "Published" in the public API — no caller override
     if (search) {
       where.OR = [
         { title: { contains: search } },

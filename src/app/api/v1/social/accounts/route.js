@@ -1,9 +1,10 @@
 /**
  * GET  /api/v1/social/accounts — List accounts for active client
- * POST /api/v1/social/accounts — (unused, accounts created via OAuth callback)
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
+
+const VALID_STATUSES = new Set(["Active", "Disconnected", "Error", "Paused"]);
 
 export const GET = withAuth(async (request) => {
   try {
@@ -14,13 +15,19 @@ export const GET = withAuth(async (request) => {
       return NextResponse.json({ error: "No active client" }, { status: 400 });
     }
 
-    const where = { clientId };
     const statusFilter = searchParams.get("status");
     const platformFilter = searchParams.get("platform");
-    if (statusFilter) where.status = statusFilter;
-    if (platformFilter) {
-      where.platform = { platformCode: platformFilter };
+
+    if (statusFilter && !VALID_STATUSES.has(statusFilter)) {
+      return NextResponse.json(
+        { error: `Invalid status. Must be one of: ${[...VALID_STATUSES].join(", ")}` },
+        { status: 400 }
+      );
     }
+
+    const where = { clientId };
+    if (statusFilter) where.status = statusFilter;
+    if (platformFilter) where.platform = { platformCode: platformFilter };
 
     const accounts = await prisma.wehowareSocialAccount.findMany({
       where,

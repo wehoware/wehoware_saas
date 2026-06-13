@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Edit, Trash2, Check, X, } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft } from "lucide-react";
 
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
@@ -196,8 +196,8 @@ export default function BlogCategoriesPage() {
         <AdminPageHeader
           title="Blog Categories"
           description="Manage blog categories"
-          showBackButton={true}
-          backButtonHref="/admin/categories"
+          backLink="/admin/blogs"
+          backIcon={<ArrowLeft size={16} />}
           actionLabel={showAddForm ? "Cancel" : "Add Category"}
           actionIcon={showAddForm ? <X size={16} /> : <Plus size={16} />}
           onAction={() => setShowAddForm(!showAddForm)}

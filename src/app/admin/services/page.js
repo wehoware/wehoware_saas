@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import {
   Search,
   Plus,
@@ -25,7 +24,15 @@ import {
   Briefcase,
   Loader2,
   FolderTree,
+  Copy,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  TrendingUp,
+  Check,
+  Terminal,
 } from "lucide-react";
+import SelectInput from "@/components/ui/select";
 import AdminPageHeader from "@/components/AdminPageHeader";
 
 import {
@@ -34,18 +41,39 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
+
+const PAGE_SIZE = 20;
+
+function getSeoScoreClass(score = 0) {
+  if (score >= 80) return "bg-green-50 text-green-700 border border-green-200";
+  if (score >= 50) return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+  return "bg-red-50 text-red-700 border border-red-200";
+}
 
 export default function ServicesPage() {
   const router = useRouter();
   const { activeClient, clientUrl } = useAuth();
   const [services, setServices] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalItems: 0 });
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [cloneLoading, setCloneLoading] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [successMessage, setSuccessMessage] = useState("");
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [sortField, setSortField] = useState("created_at");
@@ -55,16 +83,32 @@ export default function ServicesPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [serviceToDelete, setServiceToDelete] = useState(null);
   const [categories, setCategories] = useState([]);
-  const fetchServices = useCallback(async () => {
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [apiDialogOpen, setApiDialogOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
+
+  const fetchServices = useCallback(async (targetPage) => {
     try {
       setIsLoading(true);
-      const params = new URLSearchParams({ sortBy: sortField, sortOrder, limit: "100" });
+      const params = new URLSearchParams({
+        sortBy: sortField,
+        sortOrder,
+        page: String(targetPage),
+        limit: String(PAGE_SIZE),
+      });
       if (showActiveOnly) params.set("active", "true");
+      if (showFeaturedOnly) params.set("featured", "true");
+      if (selectedCategoryId && selectedCategoryId !== "all") params.set("categoryId", selectedCategoryId);
       if (searchTerm) params.set("search", searchTerm);
       const res = await fetch(`/api/v1/services?${params}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch services");
       const json = await res.json();
       setServices(json.data || []);
+      if (json.pagination) {
+        setPagination(json.pagination);
+      }
+      setSelectedIds([]);
     } catch (error) {
       console.error("Error fetching services:", error);
       setErrorMessage(error.message || "Failed to fetch services");
@@ -72,7 +116,7 @@ export default function ServicesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [sortField, sortOrder, showActiveOnly, searchTerm]);
+  }, [sortField, sortOrder, showActiveOnly, showFeaturedOnly, selectedCategoryId, searchTerm]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -85,38 +129,54 @@ export default function ServicesPage() {
     }
   }, []);
 
-  // Fetch services from Supabase
   useEffect(() => {
     if (!activeClient?.id) return;
-    fetchServices();
+    fetchServices(page);
     fetchCategories();
-  }, [showActiveOnly, sortField, sortOrder, activeClient, fetchServices, fetchCategories]);
+  }, [page, sortField, sortOrder, showActiveOnly, showFeaturedOnly, selectedCategoryId, activeClient, fetchServices, fetchCategories]);
 
-  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchServices(); // Re-fetch with current filters
+    setPage(1);
+    fetchServices(1);
   };
 
-  // Reset search
   const resetSearch = () => {
     setSearchTerm("");
-    fetchServices();
+    setPage(1);
   };
 
-  // Handle sort
+  useEffect(() => {
+    if (searchTerm === "" && activeClient?.id) {
+      fetchServices(1);
+    }
+  }, [searchTerm]);
+
+  const handleFilterChange = (checked) => {
+    setShowActiveOnly(checked);
+    setPage(1);
+  };
+
+  const handleFeaturedFilterChange = (checked) => {
+    setShowFeaturedOnly(checked);
+    setPage(1);
+  };
+
+  const handleCategoryFilterChange = (value) => {
+    setSelectedCategoryId(value || "all");
+    setPage(1);
+  };
+
   const handleSort = (field) => {
     if (sortField === field) {
-      // Toggle sort order if clicking the same field
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
-      // Set new sort field and default to ascending
       setSortField(field);
       setSortOrder("asc");
     }
+    setPage(1);
   };
 
-  // Handle delete using a separate loading state
   const openDeleteDialog = (service) => {
     setServiceToDelete(service);
     setDeleteDialogOpen(true);
@@ -124,20 +184,13 @@ export default function ServicesPage() {
 
   const handleDelete = async () => {
     if (!serviceToDelete) return;
-
     try {
       setDeleteLoading(true);
-
       const res = await fetch(`/api/v1/services/${serviceToDelete.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to delete service");
-
-      setServices((prev) =>
-        prev.filter((service) => service.id !== serviceToDelete.id)
-      );
-
-      // Show success message
       setSuccessMessage("Service deleted successfully!");
       setSuccessDialogOpen(true);
+      fetchServices(page);
     } catch (error) {
       console.error("Error deleting service:", error);
       setErrorMessage(error.message || "Failed to delete service");
@@ -149,8 +202,96 @@ export default function ServicesPage() {
     }
   };
 
-  // We're using server-side filtering now, so this is much simpler
-  const filteredServices = services;
+  const handleClone = async (service) => {
+    try {
+      setCloneLoading(service.id);
+      const res = await fetch(`/api/v1/services/${service.id}/duplicate`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to clone service");
+      const json = await res.json();
+      router.push(`/admin/services/edit/${json.service.id}`);
+    } catch (error) {
+      console.error("Error cloning service:", error);
+      setErrorMessage(error.message || "Failed to clone service");
+      setErrorDialogOpen(true);
+    } finally {
+      setCloneLoading(null);
+    }
+  };
+
+  const allOnPageSelected = services.length > 0 && services.every((s) => selectedIds.includes(s.id));
+
+  const toggleSelectAll = () => {
+    const pageIds = services.map((s) => s.id);
+    const pageIdSet = new Set(pageIds);
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pageIdSet.has(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkAction = async (action) => {
+    if (selectedIds.length === 0) return;
+    if (action === "delete") {
+      setBulkDeleteDialogOpen(true);
+      return;
+    }
+    try {
+      setBulkLoading(true);
+      const res = await fetch("/api/v1/services/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ids: selectedIds }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Bulk action failed");
+      const json = await res.json();
+      const count = json.updated ?? json.deleted ?? selectedIds.length;
+      setSuccessMessage(`${count} service(s) ${action === "activate" ? "activated" : "deactivated"} successfully.`);
+      setSuccessDialogOpen(true);
+      setSelectedIds([]);
+      fetchServices(page);
+    } catch (error) {
+      console.error("Bulk action error:", error);
+      setErrorMessage(error.message || "Bulk action failed");
+      setErrorDialogOpen(true);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      setBulkLoading(true);
+      const res = await fetch("/api/v1/services/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: selectedIds }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Bulk delete failed");
+      const json = await res.json();
+      const count = json.deleted ?? selectedIds.length;
+      setSuccessMessage(`${count} service(s) deleted successfully.`);
+      setSuccessDialogOpen(true);
+      setSelectedIds([]);
+      fetchServices(page);
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      setErrorMessage(error.message || "Bulk delete failed");
+      setErrorDialogOpen(true);
+    } finally {
+      setBulkLoading(false);
+      setBulkDeleteDialogOpen(false);
+    }
+  };
+
+  const startItem = (pagination.page - 1) * PAGE_SIZE + 1;
+  const endItem = Math.min(pagination.page * PAGE_SIZE, pagination.totalItems);
 
   return (
     <div className="flex flex-col">
@@ -166,6 +307,17 @@ export default function ServicesPage() {
           onSecondaryAction={() => router.push("/admin/categories/service")}
         />
 
+        <div className="flex justify-end -mt-2 mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setApiDialogOpen(true)}
+          >
+            <Terminal className="h-4 w-4 mr-2" />
+            Developer API Reference
+          </Button>
+        </div>
+
         <Card className="border border-gray-200 shadow-sm hover:shadow transition-shadow duration-200">
           <CardHeader>
             <CardTitle>Services Statistics</CardTitle>
@@ -179,7 +331,7 @@ export default function ServicesPage() {
                 <div className="text-sm font-medium text-muted-foreground">
                   Total Services
                 </div>
-                <div className="text-2xl font-bold">{services.length}</div>
+                <div className="text-2xl font-bold">{pagination.totalItems}</div>
               </div>
               <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
                 <div className="text-sm font-medium text-muted-foreground">
@@ -194,17 +346,29 @@ export default function ServicesPage() {
                   Drafts
                 </div>
                 <div className="text-2xl font-bold">
-                  {
-                    services.filter((service) => service.active === false)
-                      .length
-                  }
+                  {services.filter((service) => service.active === false).length}
                 </div>
               </div>
               <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
                 <div className="text-sm font-medium text-muted-foreground">
-                  Categories
+                  Featured
                 </div>
-                <div className="text-2xl font-bold">{categories.length}</div>
+                <div className="text-2xl font-bold">
+                  {services.filter((s) => s.featured === true).length}
+                </div>
+              </div>
+              <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
+                <div className="text-sm font-medium text-muted-foreground">
+                  Avg SEO Score
+                </div>
+                <div className="text-2xl font-bold">
+                  {services.length > 0
+                    ? Math.round(
+                        services.reduce((sum, s) => sum + (s.seo_score || 0), 0) /
+                          services.length
+                      )
+                    : 0}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -253,14 +417,33 @@ export default function ServicesPage() {
                     )}
                   </form>
                 </div>
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-4 items-center flex-wrap">
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="active-only"
                       checked={showActiveOnly}
-                      onCheckedChange={(checked) => setShowActiveOnly(checked)}
+                      onCheckedChange={handleFilterChange}
                     />
-                    <Label htmlFor="active-only">Show active only</Label>
+                    <Label htmlFor="active-only">Active only</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="featured-only"
+                      checked={showFeaturedOnly}
+                      onCheckedChange={handleFeaturedFilterChange}
+                    />
+                    <Label htmlFor="featured-only">Featured only</Label>
+                  </div>
+                  <div className="w-[180px]">
+                    <SelectInput
+                      placeholder="All Categories"
+                      value={selectedCategoryId}
+                      onChange={(e) => handleCategoryFilterChange(e.target.value)}
+                      options={[
+                        { value: "all", label: "All Categories" },
+                        ...categories.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                    />
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -273,9 +456,7 @@ export default function ServicesPage() {
                       <DropdownMenuItem onClick={() => handleSort("title")}>
                         Sort by Title
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleSort("created_at")}
-                      >
+                      <DropdownMenuItem onClick={() => handleSort("created_at")}>
                         Sort by Date
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleSort("fee")}>
@@ -285,6 +466,39 @@ export default function ServicesPage() {
                   </DropdownMenu>
                 </div>
               </div>
+
+              {selectedIds.length > 0 && (
+                <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-md">
+                  <span className="text-sm font-medium text-blue-700">
+                    {selectedIds.length} selected
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={bulkLoading}
+                    onClick={() => handleBulkAction("activate")}
+                  >
+                    Activate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={bulkLoading}
+                    onClick={() => handleBulkAction("deactivate")}
+                  >
+                    Deactivate
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={bulkLoading}
+                    onClick={() => handleBulkAction("delete")}
+                  >
+                    Delete
+                  </Button>
+                  {bulkLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                </div>
+              )}
 
               {isLoading ? (
                 <div className="flex justify-center items-center py-10">
@@ -296,6 +510,15 @@ export default function ServicesPage() {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
+                          <th className="px-3 py-3 text-left w-[40px]">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300"
+                              checked={allOnPageSelected}
+                              onChange={toggleSelectAll}
+                              title="Select all on page"
+                            />
+                          </th>
                           <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[60px]">
                             Thumb
                           </th>
@@ -315,7 +538,7 @@ export default function ServicesPage() {
                             scope="col"
                             className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                           >
-                            Description
+                            Category
                           </th>
                           <th
                             scope="col"
@@ -328,6 +551,38 @@ export default function ServicesPage() {
                                 <ArrowUpDown className="h-3 w-3" />
                               )}
                             </div>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort("views")}
+                          >
+                            <div className="flex items-center gap-1">
+                              <TrendingUp className="h-3 w-3" />
+                              Views
+                              {sortField === "views" && (
+                                <ArrowUpDown className="h-3 w-3" />
+                              )}
+                            </div>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            onClick={() => handleSort("rating")}
+                          >
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3 w-3" />
+                              Rating
+                              {sortField === "rating" && (
+                                <ArrowUpDown className="h-3 w-3" />
+                              )}
+                            </div>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                          >
+                            SEO
                           </th>
                           <th
                             scope="col"
@@ -350,11 +605,31 @@ export default function ServicesPage() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredServices.map((service) => (
+                        {services.map((service) => {
+                          let feeDisplay = null;
+                          if (service.fee_label) {
+                            feeDisplay = <div className="text-sm text-gray-900">{service.fee_label}</div>;
+                          } else if (service.fee != null) {
+                            feeDisplay = (
+                              <div className="text-sm text-gray-900">
+                                {service.fee_currency}{" "}
+                                {Number(service.fee).toFixed(2)}
+                              </div>
+                            );
+                          }
+                          return (
                           <tr
                             key={service.id}
                             className="hover:bg-gray-50 transition-colors"
                           >
+                            <td className="px-3 py-3">
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-300"
+                                checked={selectedIds.includes(service.id)}
+                                onChange={() => toggleSelectOne(service.id)}
+                              />
+                            </td>
                             <td className="p-3">
                               <Image
                                 src={service.thumbnail || "/images/blank.jpg"}
@@ -380,23 +655,41 @@ export default function ServicesPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm text-gray-900 max-w-xs truncate">
-                                {service.description}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {service.wehoware_service_categories?.name || (
+                                  <span className="text-gray-400 italic">Uncategorized</span>
+                                )}
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {service.fee != null && (
-                                <div className="text-sm text-gray-900">
-                                  {service.fee_currency}{" "}
-                                  {Number(service.fee).toFixed(2)}
-                                </div>
-                              )}
+                              {feeDisplay}
                               {service.duration && (
                                 <div className="text-xs text-gray-500">
                                   {service.duration}
                                 </div>
                               )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {service.views || 0}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center text-sm text-gray-900">
+                                <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                                {service.rating === null || service.rating === undefined ? "0.0" : Number(service.rating).toFixed(1)}
+                                <span className="text-xs text-gray-500 ml-1">
+                                  ({service.reviews_count || 0})
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSeoScoreClass(service.seo_score)}`}
+                              >
+                                {service.seo_score || 0}/100
+                              </span>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span
@@ -444,6 +737,19 @@ export default function ServicesPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  title="Clone"
+                                  disabled={cloneLoading === service.id}
+                                  onClick={() => handleClone(service)}
+                                >
+                                  {cloneLoading === service.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   title="Delete"
                                   onClick={() => openDeleteDialog(service)}
                                 >
@@ -452,18 +758,47 @@ export default function ServicesPage() {
                               </div>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
 
-                  {filteredServices.length === 0 && (
+                  {services.length === 0 && (
                     <div className="text-center py-10">
                       <Briefcase className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-medium">No services found</h3>
                       <p className="text-sm text-muted-foreground mt-1">
                         Try changing your search or filter criteria
                       </p>
+                    </div>
+                  )}
+
+                  {pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-2">
+                      <p className="text-sm text-muted-foreground">
+                        Page {pagination.page} of {pagination.totalPages} &middot; Showing {startItem}–{endItem} of {pagination.totalItems}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page <= 1}
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page >= pagination.totalPages}
+                          onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </>
@@ -473,7 +808,6 @@ export default function ServicesPage() {
         </Card>
       </div>
 
-      {/* Delete confirmation dialog */}
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -487,7 +821,19 @@ export default function ServicesPage() {
         variant="destructive"
       />
 
-      {/* Error dialog */}
+      <ConfirmDialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={setBulkDeleteDialogOpen}
+        title="Delete selected services?"
+        message={`This will permanently delete ${selectedIds.length} service(s). This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleBulkDelete}
+        isLoading={bulkLoading}
+        loadingLabel="Deleting..."
+        variant="destructive"
+      />
+
       <AlertComponent
         open={errorDialogOpen}
         onOpenChange={setErrorDialogOpen}
@@ -496,7 +842,6 @@ export default function ServicesPage() {
         actionLabel="OK"
       />
 
-      {/* Success dialog */}
       <AlertComponent
         open={successDialogOpen}
         onOpenChange={setSuccessDialogOpen}
@@ -504,6 +849,178 @@ export default function ServicesPage() {
         message={successMessage}
         actionLabel="OK"
       />
+
+      <Dialog open={apiDialogOpen} onOpenChange={setApiDialogOpen}>
+        <DialogContent className="max-w-[70vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Terminal className="h-5 w-5" />
+              Developer API Reference
+            </DialogTitle>
+            <DialogDescription>
+              Public API endpoints scoped to the active client. Copy and use these in your frontend or mobile app.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-2">
+            {/* Client Context */}
+            <div className="space-y-3 p-3 bg-muted rounded-lg">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Client Context
+              </h4>
+              <ApiCopyRow
+                label="Client ID"
+                value={activeClient?.id || "N/A"}
+                field="clientId"
+                copiedField={copiedField}
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+              <ApiCopyRow
+                label="Domain"
+                value={clientUrl || "N/A"}
+                field="domain"
+                copiedField={copiedField}
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+            </div>
+
+            {/* Endpoints */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Endpoints
+              </h4>
+              <ApiEndpointRow
+                method="GET"
+                label="List Services"
+                url={`/api/public/services?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="list"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+              <ApiEndpointRow
+                method="GET"
+                label="Get Service by Slug"
+                url={`/api/public/services/{slug}?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="slug"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+              <ApiEndpointRow
+                method="GET"
+                label="List Categories"
+                url={`/api/public/services/categories?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="categories"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+            </div>
+
+            <div className="pt-2 border-t">
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  const lines = [
+                    `Client ID: ${activeClient?.id || "N/A"}`,
+                    `Domain: ${clientUrl || "N/A"}`,
+                    "",
+                    "Endpoints:",
+                    `GET /api/public/services?clientId=${activeClient?.id || "{clientId}"}`,
+                    `GET /api/public/services/{slug}?clientId=${activeClient?.id || "{clientId}"}`,
+                    `GET /api/public/services/categories?clientId=${activeClient?.id || "{clientId}"}`,
+                  ];
+                  navigator.clipboard.writeText(lines.join("\n"));
+                  setCopiedField("all");
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              >
+                {copiedField === "all" ? (
+                  <Check className="h-4 w-4 mr-2" />
+                ) : (
+                  <Copy className="h-4 w-4 mr-2" />
+                )}
+                Copy All Endpoints
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ApiCopyRow({ label, value, field, copiedField, onCopy }) {
+  const isCopied = copiedField === field;
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-mono truncate" title={value}>{value}</p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 flex-shrink-0"
+        onClick={() => onCopy(value, field)}
+        disabled={!value || value === "N/A"}
+      >
+        {isCopied ? (
+          <Check className="h-4 w-4 text-green-600" />
+        ) : (
+          <Copy className="h-4 w-4" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function ApiEndpointRow({ method, label, url, field, copiedField, onCopy }) {
+  const isCopied = copiedField === field;
+  return (
+    <div className="p-3 border rounded-lg space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs font-mono font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+          {method}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <code className="text-xs font-mono bg-muted px-2 py-1 rounded flex-1 truncate" title={url}>
+          {url}
+        </code>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 flex-shrink-0"
+          onClick={() => onCopy(url, field)}
+        >
+          {isCopied ? (
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

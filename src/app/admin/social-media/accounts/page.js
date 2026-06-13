@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import AdminLayout from "@/components/AdminLayout";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +68,7 @@ export default function SocialAccountsPage() {
   async function connectPlatform(platform) {
     setConnecting(platform.id);
     try {
-      const res = await fetch(`/api/v1/social/platforms/${platform.id}/oauth-url`);
+      const res = await fetch(`/api/v1/social/platforms/${platform.platformCode}/oauth-url`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to generate OAuth URL");
       window.location.href = data.authUrl;
@@ -109,7 +108,7 @@ export default function SocialAccountsPage() {
   const connectedPlatformCodes = new Set(accounts.filter((a) => a.status === "Active").map((a) => a.platform?.platformCode));
 
   return (
-    <AdminLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -257,6 +256,6 @@ export default function SocialAccountsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminLayout>
+    </>
   );
 }

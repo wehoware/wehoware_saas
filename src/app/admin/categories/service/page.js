@@ -216,8 +216,8 @@ export default function ServiceCategoriesPage() {
         <AdminPageHeader
           title="Service Categories"
           description="Manage service categories"
-          showBackButton={true}
-          backButtonHref="/admin/categories"
+          backLink="/admin/services"
+          backIcon={<ArrowLeft size={16} />}
           actionLabel={showAddForm ? "Cancel" : "Add Category"}
           actionIcon={showAddForm ? <X size={16} /> : <Plus size={16} />}
           onAction={() => setShowAddForm(!showAddForm)}

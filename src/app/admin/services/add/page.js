@@ -18,6 +18,12 @@ import AlertComponent from "@/components/ui/alert-component";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RichTextEditor from "@/components/ui/rich-text-editor";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
   Save,
   FileText,
@@ -26,6 +32,7 @@ import {
   ImagePlus,
   UploadCloud,
   X as XIcon,
+  Eye,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 
@@ -48,6 +55,7 @@ export default function AddServicePage() {
   const [originalThumbnailUrl, setOriginalThumbnailUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const categoryOptions = useMemo(() => {
     return categories.map((category) => ({
@@ -63,6 +71,7 @@ export default function AddServicePage() {
     short_description: "",
     content: "",
     thumbnail: "",
+    thumbnail_alt: "",
     price: "",
     fee_currency: "CAD",
     service_code: "",
@@ -73,6 +82,22 @@ export default function AddServicePage() {
     seo_title: "",
     seo_description: "",
     seo_keywords: "",
+    open_graph_title: "",
+    open_graph_description: "",
+    open_graph_image: "",
+    twitter_title: "",
+    twitter_description: "",
+    twitter_image: "",
+    canonical_url: "",
+    robots_meta: "index,follow",
+    schema_type: "Service",
+    target_keywords: "",
+    cta_heading: "",
+    cta_body: "",
+    cta_button_text: "",
+    cta_button_url: "",
+    allow_social_share: true,
+    scheduled_publish_at: "",
   });
 
   useEffect(() => {
@@ -102,7 +127,7 @@ export default function AddServicePage() {
     const previousTitle = formData.title;
 
     let processedValue;
-    if (type === "checkbox" && (name === "featured" || name === "active")) {
+    if (type === "checkbox") {
       processedValue = checked;
     } else if (name === "price") {
       processedValue = value === "" ? "" : parseFloat(value);
@@ -134,7 +159,6 @@ export default function AddServicePage() {
     setFormData(newFormData);
   };
 
-  // Handler for rich text editor content changes
   const handleContentChange = (html) => {
     setFormData({
       ...formData,
@@ -142,7 +166,6 @@ export default function AddServicePage() {
     });
   };
 
-  // Handler for short description rich text editor changes
   const handleShortDescriptionChange = (html) => {
     setFormData({
       ...formData,
@@ -153,14 +176,12 @@ export default function AddServicePage() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Basic validation (optional: add size/type checks)
       if (!file.type.startsWith("image/")) {
         toast.error("Invalid file type. Please select an image.");
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        // 5MB limit example
         toast.error("File size exceeds 5MB limit.");
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
@@ -181,10 +202,10 @@ export default function AddServicePage() {
 
   const clearThumbnail = () => {
     setThumbnailFile(null);
-    setPreviewUrl(""); // Clear preview
-    setFormData((prev) => ({ ...prev, thumbnail: "" })); // Clear URL in form
+    setPreviewUrl("");
+    setFormData((prev) => ({ ...prev, thumbnail: "" }));
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Clear the actual file input element
+      fileInputRef.current.value = "";
     }
   };
 
@@ -200,8 +221,10 @@ export default function AddServicePage() {
     if (
       !formData.title ||
       !formData.slug ||
+      !formData.category_id ||
       !formData.short_description ||
       !formData.content ||
+      formData.price === "" ||
       !formData.seo_title ||
       !formData.seo_description
     ) {
@@ -245,6 +268,7 @@ export default function AddServicePage() {
         description: dataToSubmit.short_description,
         content: dataToSubmit.content,
         thumbnail: thumbnailUrlToSave || formData.thumbnail || null,
+        thumbnail_alt: dataToSubmit.thumbnail_alt || null,
         fee: dataToSubmit.price === "" ? null : parseFloat(dataToSubmit.price),
         fee_currency: dataToSubmit.fee_currency || "CAD",
         service_code: dataToSubmit.service_code || null,
@@ -260,6 +284,24 @@ export default function AddServicePage() {
         meta_title: dataToSubmit.seo_title,
         meta_description: dataToSubmit.seo_description,
         meta_keywords: dataToSubmit.seo_keywords,
+        open_graph_title: dataToSubmit.open_graph_title || null,
+        open_graph_description: dataToSubmit.open_graph_description || null,
+        open_graph_image: dataToSubmit.open_graph_image || null,
+        twitter_title: dataToSubmit.twitter_title || null,
+        twitter_description: dataToSubmit.twitter_description || null,
+        twitter_image: dataToSubmit.twitter_image || null,
+        canonical_url: dataToSubmit.canonical_url || null,
+        robots_meta: dataToSubmit.robots_meta || "index,follow",
+        schema_type: dataToSubmit.schema_type || "Service",
+        target_keywords: dataToSubmit.target_keywords
+          ? dataToSubmit.target_keywords.split(",").map((k) => k.trim()).filter(Boolean)
+          : [],
+        cta_heading: dataToSubmit.cta_heading || null,
+        cta_body: dataToSubmit.cta_body || null,
+        cta_button_text: dataToSubmit.cta_button_text || null,
+        cta_button_url: dataToSubmit.cta_button_url || null,
+        allow_social_share: dataToSubmit.allow_social_share,
+        scheduled_publish_at: dataToSubmit.scheduled_publish_at || null,
         created_by: user?.id,
         updated_by: user?.id,
       };
@@ -295,6 +337,9 @@ export default function AddServicePage() {
           description="Create a new service for your clients"
           backLink="/admin/services"
           backIcon={<ArrowLeft size={16} />}
+          secondaryActionLabel="Preview"
+          secondaryActionIcon={<Eye className="h-4 w-4" />}
+          onSecondaryAction={() => setPreviewOpen(true)}
         />
         <form onSubmit={handleSubmit}>
           <Tabs defaultValue="basic" className="w-full">
@@ -419,11 +464,10 @@ export default function AddServicePage() {
                     Enter the details about this service
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label>Thumbnail</Label>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                      {/* Preview */}
                       <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
                         {previewUrl ? (
                           <Image
@@ -438,7 +482,6 @@ export default function AddServicePage() {
                         )}
                       </div>
                       <div className="flex-grow space-y-2 w-full">
-                        {/* File Input Button */}
                         <Button
                           type="button"
                           variant="outline"
@@ -455,7 +498,7 @@ export default function AddServicePage() {
                           type="file"
                           accept="image/*"
                           onChange={handleFileChange}
-                          className="hidden" // Hide the actual input, trigger via button
+                          className="hidden"
                           disabled={isUploading}
                         />
                         {thumbnailFile && (
@@ -471,18 +514,16 @@ export default function AddServicePage() {
                           </span>
                           <div className="flex-grow border-t border-muted"></div>
                         </div>
-                        {/* URL Input */}
                         <Input
                           id="thumbnail"
                           name="thumbnail"
                           type="url"
                           placeholder="Enter Image URL"
-                          value={formData.thumbnail} // Controlled by formData
+                          value={formData.thumbnail}
                           onChange={handleInputChange}
-                          disabled={!!thumbnailFile || isUploading} // Disable if file is selected or uploading
+                          disabled={!!thumbnailFile || isUploading}
                         />
                       </div>
-                      {/* Clear Button */}
                       {(thumbnailFile || formData.thumbnail) &&
                         !isUploading && (
                           <Button
@@ -502,6 +543,18 @@ export default function AddServicePage() {
                       stored in Supabase Storage.
                     </p>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="thumbnail_alt">Alt Text</Label>
+                    <Input
+                      id="thumbnail_alt"
+                      name="thumbnail_alt"
+                      placeholder="Describe the image for accessibility"
+                      value={formData.thumbnail_alt}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="duration">
@@ -518,12 +571,16 @@ export default function AddServicePage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="fee_currency">Fee Currency</Label>
-                    <Input
+                    <SelectInput
                       id="fee_currency"
                       name="fee_currency"
-                      placeholder="e.g., CAD"
+                      placeholder="Select currency"
                       value={formData.fee_currency}
                       onChange={handleInputChange}
+                      options={[
+                        { value: "CAD", label: "CAD" },
+                        { value: "USD", label: "USD" },
+                      ]}
                     />
                     <p className="text-sm text-muted-foreground">
                       Currency code for the price (default: CAD).
@@ -555,6 +612,21 @@ export default function AddServicePage() {
                       Comma-separated list of tags.
                     </p>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="scheduled_publish_at">Schedule Publish At</Label>
+                    <Input
+                      id="scheduled_publish_at"
+                      name="scheduled_publish_at"
+                      type="datetime-local"
+                      value={formData.scheduled_publish_at}
+                      onChange={handleInputChange}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Leave blank to activate manually.
+                    </p>
+                  </div>
+
                   <div className="flex items-center space-x-2 pt-2">
                     <Switch
                       id="active"
@@ -656,6 +728,195 @@ export default function AddServicePage() {
                       Unique identifier for the service URL (required)
                     </p>
                   </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Open Graph</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="open_graph_title">OG Title</Label>
+                      <Input
+                        id="open_graph_title"
+                        name="open_graph_title"
+                        placeholder="Title for social sharing"
+                        value={formData.open_graph_title}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open_graph_description">OG Description</Label>
+                      <Textarea
+                        id="open_graph_description"
+                        name="open_graph_description"
+                        placeholder="Description for social sharing"
+                        value={formData.open_graph_description}
+                        onChange={handleInputChange}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open_graph_image">OG Image URL</Label>
+                      <Input
+                        id="open_graph_image"
+                        name="open_graph_image"
+                        type="url"
+                        placeholder="https://example.com/image.jpg"
+                        value={formData.open_graph_image}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Twitter Cards</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="twitter_title">Twitter Title</Label>
+                      <Input
+                        id="twitter_title"
+                        name="twitter_title"
+                        placeholder="Title for Twitter"
+                        value={formData.twitter_title}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twitter_description">Twitter Description</Label>
+                      <Textarea
+                        id="twitter_description"
+                        name="twitter_description"
+                        placeholder="Description for Twitter"
+                        value={formData.twitter_description}
+                        onChange={handleInputChange}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twitter_image">Twitter Image URL</Label>
+                      <Input
+                        id="twitter_image"
+                        name="twitter_image"
+                        type="url"
+                        placeholder="https://example.com/image.jpg"
+                        value={formData.twitter_image}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Advanced SEO</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="canonical_url">Canonical URL</Label>
+                      <Input
+                        id="canonical_url"
+                        name="canonical_url"
+                        type="url"
+                        placeholder="https://example.com/canonical-page"
+                        value={formData.canonical_url}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="robots_meta">Robots Meta</Label>
+                        <SelectInput
+                          id="robots_meta"
+                          name="robots_meta"
+                          value={formData.robots_meta}
+                          onChange={handleInputChange}
+                          options={[
+                            { value: "index,follow", label: "Index, Follow" },
+                            { value: "noindex,follow", label: "No Index, Follow" },
+                            { value: "index,nofollow", label: "Index, No Follow" },
+                            { value: "noindex,nofollow", label: "No Index, No Follow" },
+                          ]}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="schema_type">Schema Type</Label>
+                        <Input
+                          id="schema_type"
+                          name="schema_type"
+                          placeholder="Service"
+                          value={formData.schema_type}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="target_keywords">Target Keywords</Label>
+                      <Input
+                        id="target_keywords"
+                        name="target_keywords"
+                        placeholder="e.g. keyword1, keyword2"
+                        value={formData.target_keywords}
+                        onChange={handleInputChange}
+                      />
+                      <p className="text-sm text-muted-foreground">
+                        Comma-separated target keywords for SEO scoring.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Call to Action</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="cta_heading">CTA Heading</Label>
+                      <Input
+                        id="cta_heading"
+                        name="cta_heading"
+                        placeholder="e.g. Get Started Today"
+                        value={formData.cta_heading}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cta_body">CTA Body</Label>
+                      <Textarea
+                        id="cta_body"
+                        name="cta_body"
+                        placeholder="Short call-to-action message"
+                        value={formData.cta_body}
+                        onChange={handleInputChange}
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="cta_button_text">Button Text</Label>
+                        <Input
+                          id="cta_button_text"
+                          name="cta_button_text"
+                          placeholder="e.g. Contact Us"
+                          value={formData.cta_button_text}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cta_button_url">Button URL</Label>
+                        <Input
+                          id="cta_button_url"
+                          name="cta_button_url"
+                          type="url"
+                          placeholder="https://example.com/contact"
+                          value={formData.cta_button_url}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                      id="allow_social_share"
+                      name="allow_social_share"
+                      checked={formData.allow_social_share}
+                      onCheckedChange={(checked) =>
+                        handleInputChange({
+                          target: { name: "allow_social_share", type: "checkbox", checked },
+                        })
+                      }
+                    />
+                    <Label htmlFor="allow_social_share">Allow Social Share</Label>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -701,6 +962,22 @@ export default function AddServicePage() {
             router.refresh();
           }}
         />
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Service Preview</DialogTitle>
+            </DialogHeader>
+            <div className="prose max-w-none dark:prose-invert">
+              <h1>{formData.title}</h1>
+              <div
+                dangerouslySetInnerHTML={{ __html: formData.short_description }}
+              />
+              <div
+                dangerouslySetInnerHTML={{ __html: formData.content }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

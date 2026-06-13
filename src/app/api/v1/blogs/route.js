@@ -7,6 +7,8 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
+import { sanitizeHtml } from "@/lib/sanitize";
+import { computeSeoScore, normalizeTargetKeywords } from "@/lib/seoScore";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -35,6 +37,7 @@ function serialize(b) {
     excerpt: b.excerpt,
     content: b.content,
     thumbnail: b.thumbnail,
+    thumbnail_alt: b.thumbnailAlt,
     status: b.status,
     category_id: b.categoryId,
     featured: b.featured,
@@ -45,13 +48,42 @@ function serialize(b) {
     created_at: b.createdAt,
     updated_at: b.updatedAt,
     published_at: b.publishedAt,
+    scheduled_publish_at: b.scheduledPublishAt,
     created_by: b.createdBy,
     updated_by: b.updatedBy,
     meta_title: b.metaTitle,
     meta_description: b.metaDescription,
     meta_keywords: b.metaKeywords,
+    open_graph_title: b.openGraphTitle,
+    open_graph_description: b.openGraphDescription,
+    open_graph_image: b.openGraphImage,
+    twitter_title: b.twitterTitle,
+    twitter_description: b.twitterDescription,
+    twitter_image: b.twitterImage,
+    canonical_url: b.canonicalUrl,
+    robots_meta: b.robotsMeta,
+    schema_type: b.schemaType,
+    seo_score: b.seoScore,
+    target_keywords: b.targetKeywords,
+    show_toc: b.showToc,
+    show_author_box: b.showAuthorBox,
+    cta_heading: b.ctaHeading,
+    cta_body: b.ctaBody,
+    cta_button_text: b.ctaButtonText,
+    cta_button_url: b.ctaButtonUrl,
+    allow_social_share: b.allowSocialShare,
     wehoware_blog_categories: b.category ? { name: b.category.name } : null,
+    wehoware_profiles: b.creator
+      ? { first_name: b.creator.firstName, last_name: b.creator.lastName }
+      : null,
   };
+}
+
+function calcReadTime(html) {
+  if (!html) return null;
+  const text = html.replace(/<[^>]+>/g, " ");
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 200));
 }
 
 /**
@@ -121,9 +153,18 @@ export const GET = withAuth(async (request) => {
       ? FIELD_MAP[sortByRaw]
       : "createdAt";
 
+    const VALID_STATUSES = ["Draft", "Published", "Archived"];
     const where = { clientId };
     if (category) where.categoryId = category;
-    if (status) where.status = status;
+    if (status) {
+      if (!VALID_STATUSES.includes(status)) {
+        return NextResponse.json(
+          { error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` },
+          { status: 400 }
+        );
+      }
+      where.status = status;
+    }
     if (search) {
       where.OR = [
         { title: { contains: search } },
@@ -188,14 +229,33 @@ export const POST = withAuth(
         categoryId: categoryIdAlt,
         status,
         thumbnail,
+        thumbnail_alt,
         excerpt,
         slug: slugInput,
         tags,
         featured,
         read_time,
+        scheduled_publish_at,
         meta_title,
         meta_description,
         meta_keywords,
+        open_graph_title,
+        open_graph_description,
+        open_graph_image,
+        twitter_title,
+        twitter_description,
+        twitter_image,
+        canonical_url,
+        robots_meta,
+        schema_type,
+        target_keywords,
+        show_toc,
+        show_author_box,
+        cta_heading,
+        cta_body,
+        cta_button_text,
+        cta_button_url,
+        allow_social_share,
       } = body ?? {};
       const categoryId = category_id ?? categoryIdAlt;
 
@@ -210,22 +270,59 @@ export const POST = withAuth(
         ? slugInput.trim()
         : await generateUniqueSlug(prisma, title, clientId);
 
+      const sanitizedContent = sanitizeHtml(content);
+      const resolvedStatus = status || "Draft";
+      const normalizedKeywords = normalizeTargetKeywords(target_keywords);
+      const seoScoreValue = computeSeoScore({
+        metaTitle: meta_title ?? title,
+        metaDescription: meta_description ?? excerpt,
+        metaKeywords: meta_keywords,
+        thumbnail: thumbnail,
+        thumbnailAlt: thumbnail_alt,
+        openGraphTitle: open_graph_title,
+        openGraphDescription: open_graph_description,
+        openGraphImage: open_graph_image,
+        slug,
+        content: sanitizedContent ?? excerpt,
+        targetKeywords: normalizedKeywords,
+      });
       const blog = await prisma.wehowareBlog.create({
         data: {
           title,
           slug,
-          content,
-          excerpt: excerpt ?? null,
+          content: sanitizedContent,
+          excerpt: excerpt ? sanitizeHtml(excerpt) : null,
           categoryId: categoryId ?? null,
-          status: status || "Draft",
+          status: resolvedStatus,
+          publishedAt: resolvedStatus === "Published" ? new Date() : null,
+          scheduledPublishAt: scheduled_publish_at ? new Date(scheduled_publish_at) : null,
           thumbnail: thumbnail ?? null,
+          thumbnailAlt: thumbnail_alt ?? null,
           clientId,
           tags: tags ?? [],
           featured: featured ?? false,
-          readTime: read_time ?? null,
+          readTime: read_time ?? calcReadTime(sanitizedContent),
           metaTitle: meta_title ?? null,
           metaDescription: meta_description ?? null,
           metaKeywords: meta_keywords ?? null,
+          openGraphTitle: open_graph_title ?? null,
+          openGraphDescription: open_graph_description ?? null,
+          openGraphImage: open_graph_image ?? null,
+          twitterTitle: twitter_title ?? null,
+          twitterDescription: twitter_description ?? null,
+          twitterImage: twitter_image ?? null,
+          canonicalUrl: canonical_url ?? null,
+          robotsMeta: robots_meta ?? "index,follow",
+          schemaType: schema_type ?? "BlogPosting",
+          seoScore: seoScoreValue,
+          targetKeywords: normalizedKeywords,
+          showToc: show_toc ?? false,
+          showAuthorBox: show_author_box ?? true,
+          ctaHeading: cta_heading ?? null,
+          ctaBody: cta_body ?? null,
+          ctaButtonText: cta_button_text ?? null,
+          ctaButtonUrl: cta_button_url ?? null,
+          allowSocialShare: allow_social_share === undefined ? true : Boolean(allow_social_share),
           createdBy: user.id,
           updatedBy: user.id,
         },

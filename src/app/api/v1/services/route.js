@@ -1,37 +1,31 @@
 /**
  * /api/v1/services
  *
- * Prisma/MySQL-backed replacement for the old Supabase handler.
- *
  * GET  — list services (paginated, filtered) for the caller's active client
  * POST — create a new service (employee/admin only)
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
+import { sanitizeHtml } from "@/lib/sanitize";
+import { computeSeoScore, normalizeTargetKeywords } from "@/lib/seoScore";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
-const SORTABLE_FIELDS = new Set([
-  "created_at",
-  "updated_at",
-  "title",
-  "fee",
-  "price",
-  "active",
-  "featured",
-]);
-// Map snake_case query values → camelCase Prisma field names
+const SORTABLE_FIELDS = new Set(["created_at", "updated_at", "title", "fee", "price", "active", "featured", "views", "rating"]);
 const FIELD_MAP = {
   created_at: "createdAt",
   updated_at: "updatedAt",
   title: "title",
   fee: "fee",
-  price: "fee", // legacy alias — price maps to fee
+  price: "fee",
   active: "active",
   featured: "featured",
+  views: "views",
+  rating: "rating",
 };
 
 function serialize(s) {
+  const fee = s.fee !== null && s.fee !== undefined ? Number(s.fee) : null;
   return {
     id: s.id,
     client_id: s.clientId,
@@ -41,14 +35,19 @@ function serialize(s) {
     description: s.description,
     content: s.content,
     thumbnail: s.thumbnail,
-    fee: s.fee,
+    thumbnail_alt: s.thumbnailAlt,
+    fee,
     fee_currency: s.feeCurrency,
+    fee_label: fee === null || fee === 0 ? "Free" : null,
     service_code: s.serviceCode,
     duration: s.duration,
     tags: s.tags,
     active: s.active,
     featured: s.featured,
+    rating: s.rating ? Number(s.rating) : 0,
+    reviews_count: s.reviewsCount,
     views: s.views,
+    scheduled_publish_at: s.scheduledPublishAt,
     created_at: s.createdAt,
     updated_at: s.updatedAt,
     created_by: s.createdBy,
@@ -56,25 +55,36 @@ function serialize(s) {
     meta_title: s.metaTitle,
     meta_description: s.metaDescription,
     meta_keywords: s.metaKeywords,
+    open_graph_title: s.openGraphTitle,
+    open_graph_description: s.openGraphDescription,
+    open_graph_image: s.openGraphImage,
+    twitter_title: s.twitterTitle,
+    twitter_description: s.twitterDescription,
+    twitter_image: s.twitterImage,
+    canonical_url: s.canonicalUrl,
+    robots_meta: s.robotsMeta,
+    schema_type: s.schemaType,
+    seo_score: s.seoScore,
+    target_keywords: s.targetKeywords,
+    cta_heading: s.ctaHeading,
+    cta_body: s.ctaBody,
+    cta_button_text: s.ctaButtonText,
+    cta_button_url: s.ctaButtonUrl,
+    allow_social_share: s.allowSocialShare,
     wehoware_service_categories: s.category
       ? { id: s.category.id, name: s.category.name, slug: s.category.slug }
       : null,
   };
 }
 
-/**
- * Resolve which client context (tenant) applies for the current request.
- * Returns null if the user has no valid context.
- */
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
-  if (["employee", "admin"].includes(user.role)) {
-    return user.activeClientId ?? null;
-  }
+  if (["employee", "admin"].includes(user.role)) return user.activeClientId ?? null;
   return null;
 }
 
-async function generateUniqueSlug(prisma, title, currentSlug = null) {
+// Slug uniqueness is scoped per-client so the same slug can exist for different clients.
+async function generateUniqueSlug(prisma, title, clientId, currentSlug = null) {
   const base = String(title)
     .toLowerCase()
     .replace(/\s+/g, "-")
@@ -84,20 +94,17 @@ async function generateUniqueSlug(prisma, title, currentSlug = null) {
 
   if (base && base === currentSlug) return base;
 
-  let candidate = base || "service";
-  let counter = 1;
-  // Bounded loop guard — stop after 100 attempts to avoid runaway
-  while (counter < 100) {
+  const fallback = base || "service";
+  let candidate = fallback;
+  for (let counter = 1; counter < 100; counter++) {
     const hit = await prisma.wehowareService.findFirst({
-      where: { slug: candidate },
+      where: { clientId, slug: candidate },
       select: { id: true },
     });
     if (!hit) return candidate;
-    candidate = `${base || "service"}-${counter}`;
-    counter += 1;
+    candidate = `${fallback}-${counter}`;
   }
-  // Fallback — add a timestamp suffix
-  return `${base || "service"}-${Date.now()}`;
+  return `${fallback}-${Date.now()}`;
 }
 
 // -------------------------------------------------------------------
@@ -109,37 +116,22 @@ export const GET = withAuth(
       const { prisma, user } = request;
       const clientId = resolveClientId(user);
       if (!clientId) {
-        return NextResponse.json(
-          { error: "Active client context required" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Active client context required" }, { status: 400 });
       }
 
       const url = new URL(request.url);
-      const page = Math.max(
-        1,
-        parseInt(url.searchParams.get("page") || "1", 10)
-      );
+      const page = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10));
       const limit = Math.min(
         MAX_PAGE_SIZE,
-        Math.max(
-          1,
-          parseInt(
-            url.searchParams.get("limit") || String(DEFAULT_PAGE_SIZE),
-            10
-          )
-        )
+        Math.max(1, Number.parseInt(url.searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10))
       );
       const search = (url.searchParams.get("search") || "").trim();
       const categoryId = url.searchParams.get("categoryId") || "";
       const featured = url.searchParams.get("featured");
       const active = url.searchParams.get("active");
       const sortByRaw = url.searchParams.get("sortBy") || "created_at";
-      const sortOrder =
-        url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
-      const sortBy = SORTABLE_FIELDS.has(sortByRaw)
-        ? FIELD_MAP[sortByRaw]
-        : "createdAt";
+      const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+      const sortBy = SORTABLE_FIELDS.has(sortByRaw) ? FIELD_MAP[sortByRaw] : "createdAt";
 
       const where = { clientId };
       if (categoryId) where.categoryId = categoryId;
@@ -155,9 +147,7 @@ export const GET = withAuth(
       const [items, totalItems] = await Promise.all([
         prisma.wehowareService.findMany({
           where,
-          include: {
-            category: { select: { id: true, name: true, slug: true } },
-          },
+          include: { category: { select: { id: true, name: true, slug: true } } },
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
           take: limit,
@@ -165,10 +155,8 @@ export const GET = withAuth(
         prisma.wehowareService.count({ where }),
       ]);
 
-      const data = items.map(serialize);
-
       return NextResponse.json({
-        data,
+        data: items.map(serialize),
         pagination: {
           totalItems,
           page,
@@ -178,14 +166,35 @@ export const GET = withAuth(
       });
     } catch (err) {
       console.error("[GET /api/v1/services] error:", err);
-      return NextResponse.json(
-        { error: "Failed to fetch services" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to fetch services" }, { status: 500 });
     }
   },
   { allowedRoles: ["client", "employee", "admin"] }
 );
+
+// -------------------------------------------------------------------
+// Shared helpers for POST / PUT
+// -------------------------------------------------------------------
+
+function parseFee(fee, price) {
+  const raw = fee !== undefined ? fee : price;
+  return raw !== undefined && raw !== null ? Number(raw) : undefined;
+}
+
+function validateServiceCreate(title, categoryId, feeValue) {
+  if (!title) return "Missing required field: title";
+  if (!categoryId) return "Missing required field: category_id";
+  if (feeValue === undefined) return "Missing required field: price";
+  return Number.isFinite(feeValue) ? null : "price must be a valid number";
+}
+
+function handleServicePrismaError(err, label) {
+  console.error(label, err);
+  if (err?.code === "P2003") return NextResponse.json({ error: "Invalid category_id" }, { status: 400 });
+  if (err?.code === "P2002") return NextResponse.json({ error: "A service with this slug already exists" }, { status: 409 });
+  if (err instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+  return NextResponse.json({ error: "Failed to save service" }, { status: 500 });
+}
 
 // -------------------------------------------------------------------
 // POST /api/v1/services
@@ -195,7 +204,6 @@ export const POST = withAuth(
     try {
       const { prisma, user } = request;
 
-      // Only employee/admin can create; they must have active client context
       if (!user.activeClientId) {
         return NextResponse.json(
           { error: "Active client context required to create a service" },
@@ -206,89 +214,97 @@ export const POST = withAuth(
 
       const body = await request.json();
       const {
-        title,
-        description,
-        content,
+        title, description, content,
         category_id: categoryId,
-        price,
-        fee,
-        currency,
-        fee_currency: feeCurrencyInput,
-        duration,
-        active,
-        featured,
-        image_url: imageUrl,
-        thumbnail,
-        service_code: serviceCode,
-        tags,
-        meta_title: metaTitle,
-        meta_description: metaDescription,
-        meta_keywords: metaKeywords,
+        price, fee, currency, fee_currency: feeCurrencyInput,
+        duration, active, featured,
+        image_url: imageUrl, thumbnail,
+        thumbnail_alt: thumbnailAltInput,
+        service_code: serviceCode, tags,
+        scheduled_publish_at: scheduledPublishAtInput,
+        meta_title: metaTitle, meta_description: metaDescription, meta_keywords: metaKeywords,
+        open_graph_title: openGraphTitle,
+        open_graph_description: openGraphDescription,
+        open_graph_image: openGraphImage,
+        twitter_title: twitterTitle,
+        twitter_description: twitterDescription,
+        twitter_image: twitterImage,
+        canonical_url: canonicalUrl,
+        robots_meta: robotsMeta,
+        schema_type: schemaType,
+        target_keywords: targetKeywords,
+        cta_heading: ctaHeading,
+        cta_body: ctaBody,
+        cta_button_text: ctaButtonText,
+        cta_button_url: ctaButtonUrl,
+        allow_social_share: allowSocialShare,
       } = body ?? {};
 
-      const feeValue = fee !== undefined ? fee : price;
-
-      if (!title || !categoryId || feeValue === undefined || feeValue === null) {
-        return NextResponse.json(
-          { error: "Missing required fields: title, category_id, price" },
-          { status: 400 }
-        );
+      const feeValue = parseFee(fee, price);
+      const validationError = validateServiceCreate(title, categoryId, feeValue);
+      if (validationError) {
+        return NextResponse.json({ error: validationError }, { status: 400 });
       }
 
-      const slug = await generateUniqueSlug(prisma, title);
+      const slug = await generateUniqueSlug(prisma, title, clientId);
+
+      const normalizedKeywords = normalizeTargetKeywords(targetKeywords);
+      const seoScoreValue = computeSeoScore({
+        metaTitle: metaTitle ?? title,
+        metaDescription: metaDescription ?? description,
+        metaKeywords: metaKeywords,
+        thumbnail: thumbnail ?? imageUrl,
+        thumbnailAlt: thumbnailAltInput,
+        openGraphTitle: openGraphTitle,
+        openGraphDescription: openGraphDescription,
+        openGraphImage: openGraphImage,
+        slug,
+        content: content ?? description,
+        targetKeywords: normalizedKeywords,
+      });
 
       const service = await prisma.wehowareService.create({
         data: {
-          clientId,
-          title,
-          slug,
-          description: description ?? null,
-          content: content ?? null,
+          clientId, title, slug,
+          description: description ? sanitizeHtml(description) : null,
+          content: content ? sanitizeHtml(content) : null,
           thumbnail: thumbnail ?? imageUrl ?? null,
-          categoryId,
-          fee: feeValue,
+          thumbnailAlt: thumbnailAltInput ?? null,
+          categoryId, fee: feeValue,
           feeCurrency: feeCurrencyInput ?? currency ?? "CAD",
           serviceCode: serviceCode ?? null,
           duration: duration ?? null,
+          scheduledPublishAt: scheduledPublishAtInput ? new Date(scheduledPublishAtInput) : null,
           active: active === undefined ? true : Boolean(active),
           featured: featured === undefined ? false : Boolean(featured),
           tags: tags ?? [],
           metaTitle: metaTitle ?? null,
           metaDescription: metaDescription ?? null,
           metaKeywords: metaKeywords ?? null,
-          createdBy: user.id,
-          updatedBy: user.id,
+          openGraphTitle: openGraphTitle ?? null,
+          openGraphDescription: openGraphDescription ?? null,
+          openGraphImage: openGraphImage ?? null,
+          twitterTitle: twitterTitle ?? null,
+          twitterDescription: twitterDescription ?? null,
+          twitterImage: twitterImage ?? null,
+          canonicalUrl: canonicalUrl ?? null,
+          robotsMeta: robotsMeta ?? "index,follow",
+          schemaType: schemaType ?? "Service",
+          seoScore: seoScoreValue,
+          targetKeywords: normalizedKeywords,
+          ctaHeading: ctaHeading ?? null,
+          ctaBody: ctaBody ?? null,
+          ctaButtonText: ctaButtonText ?? null,
+          ctaButtonUrl: ctaButtonUrl ?? null,
+          allowSocialShare: allowSocialShare === undefined ? true : Boolean(allowSocialShare),
+          createdBy: user.id, updatedBy: user.id,
         },
-        include: {
-          category: { select: { id: true, name: true, slug: true } },
-        },
+        include: { category: { select: { id: true, name: true, slug: true } } },
       });
 
       return NextResponse.json({ service: serialize(service) }, { status: 201 });
     } catch (err) {
-      console.error("[POST /api/v1/services] error:", err);
-      if (err?.code === "P2003") {
-        return NextResponse.json(
-          { error: "Invalid category_id" },
-          { status: 400 }
-        );
-      }
-      if (err?.code === "P2002") {
-        return NextResponse.json(
-          { error: "A service with this slug already exists" },
-          { status: 409 }
-        );
-      }
-      if (err instanceof SyntaxError) {
-        return NextResponse.json(
-          { error: "Invalid JSON format in request body" },
-          { status: 400 }
-        );
-      }
-      return NextResponse.json(
-        { error: "Failed to create service" },
-        { status: 500 }
-      );
+      return handleServicePrismaError(err, "[POST /api/v1/services] error:");
     }
   },
   { allowedRoles: ["employee", "admin"] }

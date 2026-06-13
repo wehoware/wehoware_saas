@@ -17,7 +17,22 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import {
+  Loader2,
+  Eye,
+  FileText,
+  Tag,
+  ImagePlus,
+  UploadCloud,
+  X as XIcon,
+  Save,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
@@ -25,14 +40,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { uploadThumbnail } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  FileText,
-  Tag,
-  ImagePlus,
-  UploadCloud,
-  X as XIcon,
-} from "lucide-react";
-import { Save } from "lucide-react";
 import SelectInput from "@/components/ui/select";
 
 export default function AddBlogPage() {
@@ -44,6 +51,7 @@ export default function AddBlogPage() {
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -55,6 +63,7 @@ export default function AddBlogPage() {
     excerpt: "",
     content: "",
     thumbnail: "",
+    thumbnail_alt: "",
     status: "Draft",
     category_id: "",
     tags: "",
@@ -63,6 +72,24 @@ export default function AddBlogPage() {
     seo_title: "",
     seo_description: "",
     seo_keywords: "",
+    open_graph_title: "",
+    open_graph_description: "",
+    open_graph_image: "",
+    twitter_title: "",
+    twitter_description: "",
+    twitter_image: "",
+    canonical_url: "",
+    robots_meta: "index,follow",
+    schema_type: "BlogPosting",
+    target_keywords: "",
+    show_toc: false,
+    show_author_box: true,
+    cta_heading: "",
+    cta_body: "",
+    cta_button_text: "",
+    cta_button_url: "",
+    allow_social_share: true,
+    scheduled_publish_at: "",
   });
 
   const fetchCategories = async () => {
@@ -228,6 +255,7 @@ export default function AddBlogPage() {
         excerpt: formData.excerpt.trim(),
         content: formData.content.trim(),
         thumbnail: uploadedThumbnailUrl || formData.thumbnail || "",
+        thumbnail_alt: formData.thumbnail_alt.trim(),
         status: formData.status,
         category_id: formData.category_id || null,
         tags: formData.tags
@@ -241,6 +269,29 @@ export default function AddBlogPage() {
         meta_title: formData.seo_title.trim(),
         meta_description: formData.seo_description.trim(),
         meta_keywords: formData.seo_keywords.trim(),
+        open_graph_title: formData.open_graph_title.trim() || null,
+        open_graph_description: formData.open_graph_description.trim() || null,
+        open_graph_image: formData.open_graph_image.trim() || null,
+        twitter_title: formData.twitter_title.trim() || null,
+        twitter_description: formData.twitter_description.trim() || null,
+        twitter_image: formData.twitter_image.trim() || null,
+        canonical_url: formData.canonical_url.trim() || null,
+        robots_meta: formData.robots_meta || "index,follow",
+        schema_type: formData.schema_type || "BlogPosting",
+        target_keywords: formData.target_keywords
+          ? formData.target_keywords.split(",").map((k) => k.trim()).filter(Boolean)
+          : [],
+        show_toc: formData.show_toc,
+        show_author_box: formData.show_author_box,
+        cta_heading: formData.cta_heading.trim() || null,
+        cta_body: formData.cta_body.trim() || null,
+        cta_button_text: formData.cta_button_text.trim() || null,
+        cta_button_url: formData.cta_button_url.trim() || null,
+        allow_social_share: formData.allow_social_share,
+        scheduled_publish_at:
+          (formData.status === "Draft" || !formData.status) && formData.scheduled_publish_at
+            ? new Date(formData.scheduled_publish_at).toISOString()
+            : null,
       };
 
       if (dataToInsert.read_time !== null && isNaN(dataToInsert.read_time)) {
@@ -277,6 +328,17 @@ export default function AddBlogPage() {
         <AdminPageHeader title="Add New Blog Post" />
         <div className="mt-6">
           <form onSubmit={handleSubmit}>
+            <div className="mb-4 flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPreviewOpen(true)}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Preview
+              </Button>
+            </div>
+
             <Tabs defaultValue="basic" className="space-y-4">
               <TabsList>
                 <TabsTrigger value="basic">
@@ -385,7 +447,6 @@ export default function AddBlogPage() {
                     <div className="space-y-2">
                       <Label>Thumbnail</Label>
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                        {/* Preview */}
                         <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
                           {previewUrl ? (
                             <Image
@@ -400,7 +461,6 @@ export default function AddBlogPage() {
                           )}
                         </div>
                         <div className="flex-grow space-y-2 w-full">
-                          {/* File Input Button */}
                           <Button
                             type="button"
                             variant="outline"
@@ -417,7 +477,7 @@ export default function AddBlogPage() {
                             type="file"
                             accept="image/*"
                             onChange={handleFileChange}
-                            className="hidden" // Hide the actual input, trigger via button
+                            className="hidden"
                             disabled={isUploading}
                           />
                           {thumbnailFile && (
@@ -433,18 +493,27 @@ export default function AddBlogPage() {
                             </span>
                             <div className="flex-grow border-t border-muted"></div>
                           </div>
-                          {/* URL Input */}
                           <Input
                             id="thumbnail"
                             name="thumbnail"
                             type="url"
                             placeholder="Enter Image URL"
-                            value={formData.thumbnail} // Controlled by formData
+                            value={formData.thumbnail}
                             onChange={handleInputChange}
-                            disabled={!!thumbnailFile || isUploading} // Disable if file is selected or uploading
+                            disabled={!!thumbnailFile || isUploading}
                           />
+                          <div className="space-y-1">
+                            <Label htmlFor="thumbnail_alt">Alt Text</Label>
+                            <Input
+                              id="thumbnail_alt"
+                              name="thumbnail_alt"
+                              type="text"
+                              placeholder="Describe the image for accessibility"
+                              value={formData.thumbnail_alt}
+                              onChange={handleInputChange}
+                            />
+                          </div>
                         </div>
-                        {/* Clear Button */}
                         {(thumbnailFile || formData.thumbnail) &&
                           !isUploading && (
                             <Button
@@ -589,6 +658,235 @@ export default function AddBlogPage() {
                         required
                       />
                     </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <h4 className="text-sm font-semibold">Open Graph</h4>
+                      <div className="space-y-2">
+                        <Label htmlFor="open_graph_title">OG Title</Label>
+                        <Input
+                          id="open_graph_title"
+                          name="open_graph_title"
+                          placeholder="Title for social sharing"
+                          value={formData.open_graph_title}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="open_graph_description">OG Description</Label>
+                        <Textarea
+                          id="open_graph_description"
+                          name="open_graph_description"
+                          placeholder="Description for social sharing"
+                          value={formData.open_graph_description}
+                          onChange={handleInputChange}
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="open_graph_image">OG Image URL</Label>
+                        <Input
+                          id="open_graph_image"
+                          name="open_graph_image"
+                          type="url"
+                          placeholder="https://example.com/image.jpg"
+                          value={formData.open_graph_image}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <h4 className="text-sm font-semibold">Twitter Cards</h4>
+                      <div className="space-y-2">
+                        <Label htmlFor="twitter_title">Twitter Title</Label>
+                        <Input
+                          id="twitter_title"
+                          name="twitter_title"
+                          placeholder="Title for Twitter"
+                          value={formData.twitter_title}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="twitter_description">Twitter Description</Label>
+                        <Textarea
+                          id="twitter_description"
+                          name="twitter_description"
+                          placeholder="Description for Twitter"
+                          value={formData.twitter_description}
+                          onChange={handleInputChange}
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="twitter_image">Twitter Image URL</Label>
+                        <Input
+                          id="twitter_image"
+                          name="twitter_image"
+                          type="url"
+                          placeholder="https://example.com/image.jpg"
+                          value={formData.twitter_image}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <h4 className="text-sm font-semibold">Advanced SEO</h4>
+                      <div className="space-y-2">
+                        <Label htmlFor="canonical_url">Canonical URL</Label>
+                        <Input
+                          id="canonical_url"
+                          name="canonical_url"
+                          type="url"
+                          placeholder="https://example.com/canonical-page"
+                          value={formData.canonical_url}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="robots_meta">Robots Meta</Label>
+                          <SelectInput
+                            id="robots_meta"
+                            name="robots_meta"
+                            value={formData.robots_meta}
+                            onChange={handleInputChange}
+                            options={[
+                              { value: "index,follow", label: "Index, Follow" },
+                              { value: "noindex,follow", label: "No Index, Follow" },
+                              { value: "index,nofollow", label: "Index, No Follow" },
+                              { value: "noindex,nofollow", label: "No Index, No Follow" },
+                            ]}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="schema_type">Schema Type</Label>
+                          <Input
+                            id="schema_type"
+                            name="schema_type"
+                            placeholder="BlogPosting"
+                            value={formData.schema_type}
+                            onChange={handleInputChange}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="target_keywords">Target Keywords</Label>
+                        <Input
+                          id="target_keywords"
+                          name="target_keywords"
+                          placeholder="e.g. keyword1, keyword2"
+                          value={formData.target_keywords}
+                          onChange={handleInputChange}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Comma-separated target keywords for SEO scoring.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <h4 className="text-sm font-semibold">Display Options</h4>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="show_toc"
+                          name="show_toc"
+                          checked={formData.show_toc}
+                          onCheckedChange={(checked) =>
+                            setFormData((prev) => ({ ...prev, show_toc: checked }))
+                          }
+                        />
+                        <Label htmlFor="show_toc">Show Table of Contents</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="show_author_box"
+                          name="show_author_box"
+                          checked={formData.show_author_box}
+                          onCheckedChange={(checked) =>
+                            setFormData((prev) => ({ ...prev, show_author_box: checked }))
+                          }
+                        />
+                        <Label htmlFor="show_author_box">Show Author Box</Label>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4 space-y-4">
+                      <h4 className="text-sm font-semibold">Call to Action</h4>
+                      <div className="space-y-2">
+                        <Label htmlFor="cta_heading">CTA Heading</Label>
+                        <Input
+                          id="cta_heading"
+                          name="cta_heading"
+                          placeholder="e.g. Subscribe to our newsletter"
+                          value={formData.cta_heading}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cta_body">CTA Body</Label>
+                        <Textarea
+                          id="cta_body"
+                          name="cta_body"
+                          placeholder="Short call-to-action message"
+                          value={formData.cta_body}
+                          onChange={handleInputChange}
+                          rows={2}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="cta_button_text">Button Text</Label>
+                          <Input
+                            id="cta_button_text"
+                            name="cta_button_text"
+                            placeholder="e.g. Subscribe"
+                            value={formData.cta_button_text}
+                            onChange={handleInputChange}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="cta_button_url">Button URL</Label>
+                          <Input
+                            id="cta_button_url"
+                            name="cta_button_url"
+                            type="url"
+                            placeholder="https://example.com/subscribe"
+                            value={formData.cta_button_url}
+                            onChange={handleInputChange}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Switch
+                        id="allow_social_share"
+                        name="allow_social_share"
+                        checked={formData.allow_social_share}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({ ...prev, allow_social_share: checked }))
+                        }
+                      />
+                      <Label htmlFor="allow_social_share">Allow Social Share</Label>
+                    </div>
+
+                    {(formData.status === "Draft" || !formData.status) && (
+                      <div className="space-y-2 border-t pt-4">
+                        <Label htmlFor="scheduled_publish_at">Schedule Publish At</Label>
+                        <Input
+                          id="scheduled_publish_at"
+                          name="scheduled_publish_at"
+                          type="datetime-local"
+                          value={formData.scheduled_publish_at}
+                          onChange={handleInputChange}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Leave blank to publish manually.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -619,6 +917,48 @@ export default function AddBlogPage() {
           </form>
         </div>
       </div>
+
+      <AlertComponent
+        open={errorDialogOpen}
+        onOpenChange={setErrorDialogOpen}
+        title="Error"
+        message={errorMessage}
+        actionLabel="OK"
+      />
+
+      <AlertComponent
+        open={successDialogOpen}
+        onOpenChange={setSuccessDialogOpen}
+        title="Success"
+        message="Blog post created successfully!"
+        actionLabel="OK"
+        onAction={() => {
+          router.push("/admin/blogs");
+          router.refresh();
+        }}
+      />
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <h1 className="text-2xl font-bold">{formData.title}</h1>
+            {(previewUrl || formData.thumbnail) && (
+              <img
+                src={previewUrl || formData.thumbnail}
+                alt={formData.thumbnail_alt || formData.title}
+                className="w-full rounded object-cover max-h-64"
+              />
+            )}
+            <div
+              className="prose max-w-none"
+              dangerouslySetInnerHTML={{ __html: formData.content }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import AdminLayout from "@/components/AdminLayout";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,9 +32,8 @@ export default function EditPostPage() {
   const [hashtagInput, setHashtagInput] = useState("");
   const [mediaUrlInput, setMediaUrlInput] = useState("");
 
-  useEffect(() => { if (user && params?.id) loadData(); }, [user, params?.id]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
+    if (!params?.id) return;
     setInitialLoading(true);
     try {
       const [postRes, accountsRes] = await Promise.all([
@@ -66,7 +64,11 @@ export default function EditPostPage() {
     } finally {
       setInitialLoading(false);
     }
-  }
+  }, [params?.id, router]);
+
+  useEffect(() => {
+    if (user) loadData();
+  }, [user, loadData]);
 
   function toggleAccount(id) {
     setFormData((p) => ({
@@ -89,6 +91,14 @@ export default function EditPostPage() {
     if (!url || formData.mediaUrls.includes(url)) return;
     setFormData((p) => ({ ...p, mediaUrls: [...p.mediaUrls, url] }));
     setMediaUrlInput("");
+  }
+
+  function removeHashtag(tag) {
+    setFormData((p) => ({ ...p, hashtags: p.hashtags.filter((t) => t !== tag) }));
+  }
+
+  function removeMediaUrl(url) {
+    setFormData((p) => ({ ...p, mediaUrls: p.mediaUrls.filter((u) => u !== url) }));
   }
 
   async function handleSave(schedule = false) {
@@ -123,11 +133,9 @@ export default function EditPostPage() {
 
   if (initialLoading) {
     return (
-      <AdminLayout>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />)}
-        </div>
-      </AdminLayout>
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-muted rounded-lg animate-pulse" />)}
+      </div>
     );
   }
 
@@ -138,112 +146,111 @@ export default function EditPostPage() {
   const isOverLimit = formData.content.length > minCharLimit;
 
   return (
-    <AdminLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href={`/admin/social-media/posts/${params.id}`}>
-            <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button>
-          </Link>
-          <h1 className="text-2xl font-bold">Edit Post</h1>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Link href={`/admin/social-media/posts/${params.id}`}>
+          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button>
+        </Link>
+        <h1 className="text-2xl font-bold">Edit Post</h1>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Post Content</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="title">Title (optional)</Label>
+                <Input id="title" value={formData.title}
+                  onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+                  className="mt-1" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="content">Content *</Label>
+                  <span className={`text-xs ${isOverLimit ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                    {formData.content.length}{minCharLimit < 10000 ? ` / ${minCharLimit}` : ""}
+                  </span>
+                </div>
+                <Textarea id="content" value={formData.content} rows={6}
+                  onChange={(e) => setFormData((p) => ({ ...p, content: e.target.value }))}
+                  className={isOverLimit ? "border-red-500" : ""} />
+              </div>
+              <div>
+                <Label>Post Type</Label>
+                <Select value={formData.postType} onValueChange={(v) => setFormData((p) => ({ ...p, postType: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {POST_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Hashtags</Label>
+                <div className="flex gap-2 mt-1">
+                  <div className="relative flex-1">
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input value={hashtagInput}
+                      onChange={(e) => setHashtagInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addHashtag(); } }}
+                      placeholder="Add hashtag..." className="pl-9" />
+                  </div>
+                  <Button type="button" variant="outline" onClick={addHashtag}>Add</Button>
+                </div>
+                {formData.hashtags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {formData.hashtags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="cursor-pointer"
+                        onClick={() => removeHashtag(tag)}>
+                        #{tag} ×
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>Media URLs</Label>
+                <div className="flex gap-2 mt-1">
+                  <div className="relative flex-1">
+                    <Image className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input value={mediaUrlInput}
+                      onChange={(e) => setMediaUrlInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMediaUrl(); } }}
+                      placeholder="https://..." className="pl-9" />
+                  </div>
+                  <Button type="button" variant="outline" onClick={addMediaUrl}>Add</Button>
+                </div>
+                {formData.mediaUrls.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {formData.mediaUrls.map((url) => (
+                      <div key={url} className="flex items-center gap-2 text-xs bg-muted p-2 rounded">
+                        <span className="truncate flex-1">{url}</span>
+                        <button onClick={() => removeMediaUrl(url)} className="text-destructive">×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            <Card>
-              <CardHeader><CardTitle className="text-base">Post Content</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Title (optional)</Label>
-                  <Input id="title" value={formData.title} onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))} className="mt-1" />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <Label htmlFor="content">Content *</Label>
-                    <span className={`text-xs ${isOverLimit ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                      {formData.content.length}{minCharLimit < 10000 ? ` / ${minCharLimit}` : ""}
-                    </span>
-                  </div>
-                  <Textarea
-                    id="content"
-                    value={formData.content}
-                    onChange={(e) => setFormData((p) => ({ ...p, content: e.target.value }))}
-                    rows={6}
-                    className={isOverLimit ? "border-red-500" : ""}
-                  />
-                </div>
-                <div>
-                  <Label>Post Type</Label>
-                  <Select value={formData.postType} onValueChange={(v) => setFormData((p) => ({ ...p, postType: v }))}>
-                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {POST_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Hashtags</Label>
-                  <div className="flex gap-2 mt-1">
-                    <div className="relative flex-1">
-                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input value={hashtagInput} onChange={(e) => setHashtagInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addHashtag(); } }}
-                        placeholder="Add hashtag..." className="pl-9" />
-                    </div>
-                    <Button type="button" variant="outline" onClick={addHashtag}>Add</Button>
-                  </div>
-                  {formData.hashtags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {formData.hashtags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="cursor-pointer"
-                          onClick={() => setFormData((p) => ({ ...p, hashtags: p.hashtags.filter((t) => t !== tag) }))}>
-                          #{tag} ×
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <Label>Media URLs</Label>
-                  <div className="flex gap-2 mt-1">
-                    <div className="relative flex-1">
-                      <Image className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input value={mediaUrlInput} onChange={(e) => setMediaUrlInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMediaUrl(); } }}
-                        placeholder="https://..." className="pl-9" />
-                    </div>
-                    <Button type="button" variant="outline" onClick={addMediaUrl}>Add</Button>
-                  </div>
-                  {formData.mediaUrls.length > 0 && (
-                    <div className="space-y-1 mt-2">
-                      {formData.mediaUrls.map((url) => (
-                        <div key={url} className="flex items-center gap-2 text-xs bg-muted p-2 rounded">
-                          <span className="truncate flex-1">{url}</span>
-                          <button onClick={() => setFormData((p) => ({ ...p, mediaUrls: p.mediaUrls.filter((u) => u !== url) }))}
-                            className="text-destructive">×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Share2 className="h-4 w-4" />Target Accounts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {accounts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No connected accounts</p>
-                ) : (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Share2 className="h-4 w-4" />Target Accounts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {accounts.length === 0
+                ? <p className="text-sm text-muted-foreground">No connected accounts</p>
+                : (
                   <div className="space-y-2">
                     {accounts.map((account) => (
                       <div key={account.id} className="flex items-center gap-2">
-                        <Checkbox id={`acc-${account.id}`} checked={formData.targetAccounts.includes(account.id)}
+                        <Checkbox id={`acc-${account.id}`}
+                          checked={formData.targetAccounts.includes(account.id)}
                           onCheckedChange={() => toggleAccount(account.id)} />
                         <label htmlFor={`acc-${account.id}`} className="flex items-center gap-2 cursor-pointer text-sm flex-1">
                           {account.platform?.logoUrl
@@ -255,38 +262,37 @@ export default function EditPostPage() {
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />Schedule
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Label htmlFor="scheduledFor">Publish Date &amp; Time</Label>
-                <Input id="scheduledFor" type="datetime-local" value={formData.scheduledFor}
-                  min={new Date().toISOString().slice(0, 16)}
-                  onChange={(e) => setFormData((p) => ({ ...p, scheduledFor: e.target.value }))}
-                  className="mt-1" />
-                <p className="text-xs text-muted-foreground mt-1">Clear to save as draft</p>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />Schedule
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Label htmlFor="scheduledFor">Publish Date &amp; Time</Label>
+              <Input id="scheduledFor" type="datetime-local" value={formData.scheduledFor}
+                min={new Date().toISOString().slice(0, 16)}
+                onChange={(e) => setFormData((p) => ({ ...p, scheduledFor: e.target.value }))}
+                className="mt-1" />
+              <p className="text-xs text-muted-foreground mt-1">Clear to save as draft</p>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2">
-              {formData.scheduledFor && (
-                <Button className="w-full" disabled={loading || isOverLimit} onClick={() => handleSave(true)}>
-                  <Calendar className="h-4 w-4 mr-2" />Update Schedule
-                </Button>
-              )}
-              <Button variant="outline" className="w-full" disabled={loading} onClick={() => handleSave(false)}>
-                <Save className="h-4 w-4 mr-2" />Save Changes
+          <div className="space-y-2">
+            {formData.scheduledFor && (
+              <Button className="w-full" disabled={loading || isOverLimit} onClick={() => handleSave(true)}>
+                <Calendar className="h-4 w-4 mr-2" />Update Schedule
               </Button>
-            </div>
+            )}
+            <Button variant="outline" className="w-full" disabled={loading} onClick={() => handleSave(false)}>
+              <Save className="h-4 w-4 mr-2" />Save Changes
+            </Button>
           </div>
         </div>
       </div>
-    </AdminLayout>
+    </div>
   );
 }

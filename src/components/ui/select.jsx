@@ -3,6 +3,8 @@ import React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { ChevronDown, Check } from "lucide-react";
 
+const EMPTY_SENTINEL = "__EMPTY__";
+
 /**
  * SelectInput: Reusable select component using Radix UI and Lucide icons
  *
@@ -10,7 +12,7 @@ import { ChevronDown, Check } from "lucide-react";
  * - id: string
  * - name: string
  * - label: string
- * - options: string[]
+ * - options: string[] | {value: string, label: string}[]
  * - value: string
  * - onChange: (e: { target: { name: string; value: string } }) => void
  */
@@ -26,24 +28,28 @@ export default function SelectInput({
   ...props
 }) {
   // Normalize options to always handle [{value, label}] format
+  // and map empty-string values to a sentinel so Radix UI doesn't crash
   const normalizedOptions = options.map(opt => {
     if (typeof opt === 'string') {
-      return { value: opt, label: opt };
+      return { value: opt || EMPTY_SENTINEL, label: opt };
     }
-    return opt;
+    return { value: opt.value || EMPTY_SENTINEL, label: opt.label };
   });
 
   // Handle value change without causing an infinite update loop
   const handleValueChange = (newValue) => {
-    if (newValue !== value) {
-      onChange({ target: { name, value: newValue } });
+    const actualValue = newValue === EMPTY_SENTINEL ? "" : newValue;
+    if (actualValue !== value) {
+      onChange({ target: { name, value: actualValue } });
     }
   };
-  
+
+  const valueForRadix = value === "" ? EMPTY_SENTINEL : value;
+
   return (
     <div className="space-y-2">
       <SelectPrimitive.Root
-        value={value}
+        value={valueForRadix}
         onValueChange={handleValueChange}
         required={required}
       >

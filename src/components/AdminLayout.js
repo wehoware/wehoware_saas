@@ -39,6 +39,7 @@ import {
   Target,
   ClipboardList,
   Share2,
+  Inbox,
 } from "lucide-react";
 
 // Sidebar configuration. Each entry is either a flat link or a group with children.
@@ -70,6 +71,53 @@ const sidebarSections = [
     icon: <Users className="h-5 w-5" />,
     roles: ["admin", "client"],
     clientRoles: ["client", "manager"],
+  },
+  {
+    type: "group",
+    id: SOCIAL_MEDIA_GROUP_ID,
+    title: "Social Media",
+    icon: <Share2 className="h-5 w-5" />,
+    roles: ["admin", "employee", "client"],
+    clientRoles: ["client", "manager", "editor", "viewer"],
+    children: [
+      {
+        title: "Overview",
+        href: "/admin/social-media",
+        icon: <LayoutDashboard className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+        matchExact: true,
+      },
+      {
+        title: "Inbox",
+        href: "/admin/social-media/inbox",
+        icon: <Inbox className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Posts",
+        href: "/admin/social-media/posts",
+        icon: <FileText className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Calendar",
+        href: "/admin/social-media/calendar",
+        icon: <Calendar className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Analytics",
+        href: "/admin/social-media/analytics",
+        icon: <BarChart className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Accounts",
+        href: "/admin/social-media/accounts",
+        icon: <Users className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+    ],
   },
   {
     type: "group",
@@ -219,47 +267,6 @@ const sidebarSections = [
     roles: ["admin", "employee", "client"],
   },
   {
-    type: "group",
-    id: SOCIAL_MEDIA_GROUP_ID,
-    title: "Social Media",
-    icon: <Share2 className="h-5 w-5" />,
-    roles: ["admin", "employee", "client"],
-    clientRoles: ["client", "manager", "editor", "viewer"],
-    children: [
-      {
-        title: "Overview",
-        href: "/admin/social-media",
-        icon: <LayoutDashboard className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-        matchExact: true,
-      },
-      {
-        title: "Accounts",
-        href: "/admin/social-media/accounts",
-        icon: <Users className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-      },
-      {
-        title: "Posts",
-        href: "/admin/social-media/posts",
-        icon: <FileText className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-      },
-      {
-        title: "Calendar",
-        href: "/admin/social-media/calendar",
-        icon: <Calendar className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-      },
-      {
-        title: "Analytics",
-        href: "/admin/social-media/analytics",
-        icon: <BarChart className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-      },
-    ],
-  },
-  {
     type: "link",
     title: "Reports",
     href: "/admin/reports",
@@ -280,7 +287,11 @@ function filterSectionsByRole(sections, role, activeClientRole) {
   for (const section of sections) {
     if (!section.roles.includes(role)) continue;
     // Sections with clientRoles are only visible when the user's activeClientRole matches
-    if (role === "client" && section.clientRoles && !section.clientRoles.includes(activeClientRole)) {
+    if (
+      role === "client" &&
+      section.clientRoles &&
+      !section.clientRoles.includes(activeClientRole)
+    ) {
       continue;
     }
     if (section.type === "link") {
@@ -289,7 +300,12 @@ function filterSectionsByRole(sections, role, activeClientRole) {
     }
     const allowedChildren = (section.children || []).filter((c) => {
       if (!c.roles.includes(role)) return false;
-      if (role === "client" && c.clientRoles && !c.clientRoles.includes(activeClientRole)) return false;
+      if (
+        role === "client" &&
+        c.clientRoles &&
+        !c.clientRoles.includes(activeClientRole)
+      )
+        return false;
       return true;
     });
     if (allowedChildren.length === 0) continue;
@@ -334,13 +350,13 @@ const AdminLayout = ({ children }) => {
   // Filter sidebar items based on allowed roles (groups + nested children).
   const allowedSections = useMemo(
     () => filterSectionsByRole(sidebarSections, role, user?.activeClientRole),
-    [role, user?.activeClientRole]
+    [role, user?.activeClientRole],
   );
 
   // Find the active section/child for the current pathname.
   const activeRoute = useMemo(
     () => findActiveRoute(allowedSections, pathname),
-    [allowedSections, pathname]
+    [allowedSections, pathname],
   );
 
   // Track which groups the user has manually toggled.
@@ -358,9 +374,15 @@ const AdminLayout = ({ children }) => {
     setGroupOverrides((prev) => ({ ...prev, [groupId]: !currentlyExpanded }));
   };
 
+  // Routes accessible to admins that should not appear in the sidebar.
+  const hiddenAllowedRoutes = ["/admin/categories/blog", "/admin/categories/service"];
+
   // Always allow the '/admin' dashboard. Otherwise allow only routes that
-  // appear in the user's allowed sections.
-  const isRouteAllowed = pathname === "/admin" || Boolean(activeRoute);
+  // appear in the user's allowed sections OR are in the hidden allowed list.
+  const isRouteAllowed =
+    pathname === "/admin" ||
+    Boolean(activeRoute) ||
+    (role === "admin" && hiddenAllowedRoutes.some((r) => pathname === r || pathname.startsWith(`${r}/`)));
 
   // Guard: if the current route isn’t allowed, show an error and redirect.
   useEffect(() => {
@@ -374,7 +396,7 @@ const AdminLayout = ({ children }) => {
       pathname !== "/admin"
     ) {
       toast.error(
-        "Access Denied: You don't have permission to view this page."
+        "Access Denied: You don't have permission to view this page.",
       );
       router.push("/admin"); // Redirect to base admin dashboard
     }
@@ -468,7 +490,7 @@ const AdminLayout = ({ children }) => {
                     const active = isLinkActive(
                       section.href,
                       pathname,
-                      section.matchExact
+                      section.matchExact,
                     );
                     return (
                       <Link
@@ -489,7 +511,7 @@ const AdminLayout = ({ children }) => {
                   // Group rendering
                   const isExpanded = isGroupExpanded(section.id);
                   const hasActiveChild = section.children.some((child) =>
-                    isLinkActive(child.href, pathname, child.matchExact)
+                    isLinkActive(child.href, pathname, child.matchExact),
                   );
                   return (
                     <div key={section.id} className="flex flex-col">
@@ -524,7 +546,7 @@ const AdminLayout = ({ children }) => {
                             const childActive = isLinkActive(
                               child.href,
                               pathname,
-                              child.matchExact
+                              child.matchExact,
                             );
                             return (
                               <Link

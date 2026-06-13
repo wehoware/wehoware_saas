@@ -7,6 +7,7 @@ import { withAuth } from "../../../utils/auth-middleware";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+const MAX_CONTENT_LENGTH = 63206;
 const ALLOWED_STATUSES = new Set(["Draft", "Scheduled", "Publishing", "Published", "PartiallyPublished", "Failed", "Cancelled"]);
 const ALLOWED_TYPES = new Set(["Text", "Image", "Video", "Carousel", "Story", "Reel"]);
 
@@ -28,6 +29,10 @@ function shapePost(p) {
     created_at: p.createdAt,
     updated_at: p.updatedAt,
     created_by: p.createdBy,
+    // Flat list of platform codes for UI badges
+    platforms: (p.accountPosts || [])
+      .map((ap) => ap.account?.platform?.platformCode)
+      .filter(Boolean),
     account_posts: (p.accountPosts || []).map((ap) => ({
       id: ap.id,
       account_id: ap.accountId,
@@ -52,14 +57,19 @@ export const GET = withAuth(async (request) => {
     const clientId = user.activeClientId || user.clientId;
     if (!clientId) return NextResponse.json({ error: "No active client" }, { status: 400 });
 
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10)));
+    const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10)));
     const statusFilter = searchParams.get("status");
     const startDate = searchParams.get("scheduled_from");
     const endDate = searchParams.get("scheduled_to");
 
     const where = { clientId };
-    if (statusFilter && ALLOWED_STATUSES.has(statusFilter)) where.status = statusFilter;
+    if (statusFilter) {
+      if (!ALLOWED_STATUSES.has(statusFilter)) {
+        return NextResponse.json({ error: `Invalid status filter. Must be one of: ${[...ALLOWED_STATUSES].join(", ")}` }, { status: 400 });
+      }
+      where.status = statusFilter;
+    }
     if (startDate || endDate) {
       where.scheduledFor = {};
       if (startDate) where.scheduledFor.gte = new Date(startDate);
@@ -105,17 +115,19 @@ export const POST = withAuth(
       if (!content || content.trim().length === 0) {
         return NextResponse.json({ error: "Content is required" }, { status: 400 });
       }
-      if (content.length > 63206) {
+      if (content.length > MAX_CONTENT_LENGTH) {
         return NextResponse.json({ error: "Content exceeds maximum length" }, { status: 400 });
       }
       if (post_type && !ALLOWED_TYPES.has(post_type)) {
         return NextResponse.json({ error: `Invalid post_type. Must be one of: ${[...ALLOWED_TYPES].join(", ")}` }, { status: 400 });
       }
+      if (scheduled_for && Number.isNaN(new Date(scheduled_for).getTime())) {
+        return NextResponse.json({ error: "Invalid scheduled_for date" }, { status: 400 });
+      }
       if (scheduled_for && new Date(scheduled_for) < new Date()) {
         return NextResponse.json({ error: "Scheduled time must be in the future" }, { status: 400 });
       }
 
-      // Validate target accounts belong to this client
       const accountIds = Array.isArray(target_accounts) ? target_accounts : [];
       if (accountIds.length > 0) {
         const validAccounts = await prisma.wehowareSocialAccount.findMany({

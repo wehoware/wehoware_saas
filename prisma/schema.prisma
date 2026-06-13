@@ -31,6 +31,8 @@ model WehowareClient {
   bills                WehowareBill[]
   blogCategories       WehowareBlogCategory[]
   blogs                WehowareBlog[]
+  blogFaqs             WehowareBlogFaq[]
+  serviceFaqs            WehowareServiceFaq[]
   keywords             WehowareClientKeyword[]
   switchHistory        WehowareClientSwitchHistory[]
   emailLogs            WehowareEmailLog[]
@@ -67,6 +69,7 @@ model WehowareClient {
   achievements         WehowareAchievement[]
   socialAccounts       WehowareSocialAccount[]
   socialPosts          WehowareSocialPost[]
+  inboxConversations   WehowareSocialInboxConversation[]
 
   @@map("wehoware_clients")
 }
@@ -138,6 +141,8 @@ model WehowareProfile {
   updatedSocialAccounts    WehowareSocialAccount[]     @relation("SocialAccountUpdater")
   createdSocialPosts       WehowareSocialPost[]        @relation("SocialPostCreator")
   updatedSocialPosts       WehowareSocialPost[]        @relation("SocialPostUpdater")
+  savedBlogVersions        WehowareBlogVersion[]       @relation("BlogVersionSaver")
+  savedServiceVersions     WehowareServiceVersion[]    @relation("ServiceVersionSaver")
 
   @@index([role])
   @@index([clientId])
@@ -168,36 +173,61 @@ model WehowareBlogCategory {
 }
 
 model WehowareBlog {
-  id              String                @id @default(uuid()) @db.VarChar(36)
-  clientId        String                @map("client_id") @db.VarChar(36)
-  title           String                @db.VarChar(500)
-  slug            String                @unique @db.VarChar(500)
-  excerpt         String?               @db.Text
-  content         String?               @db.LongText
-  thumbnail       String?               @db.VarChar(500)
-  status          BlogStatus            @default(Draft)
-  categoryId      String?               @map("category_id") @db.VarChar(36)
-  featured        Boolean               @default(false)
-  readTime        Int?                  @map("read_time")
-  views           Int                   @default(0)
-  likes           Int                   @default(0)
-  tags            Json
-  createdAt       DateTime              @default(now()) @map("created_at")
-  updatedAt       DateTime              @updatedAt @map("updated_at")
-  publishedAt     DateTime?             @map("published_at")
-  createdBy       String?               @map("created_by") @db.VarChar(36)
-  updatedBy       String?               @map("updated_by") @db.VarChar(36)
-  metaTitle       String?               @map("meta_title") @db.VarChar(255)
-  metaDescription String?               @map("meta_description") @db.VarChar(500)
-  metaKeywords    String?               @map("meta_keywords") @db.VarChar(500)
-  category        WehowareBlogCategory? @relation(fields: [categoryId], references: [id])
-  client          WehowareClient        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  creator         WehowareProfile?      @relation("BlogCreator", fields: [createdBy], references: [id])
-  updater         WehowareProfile?      @relation("BlogUpdater", fields: [updatedBy], references: [id])
+  id                  String                      @id @default(uuid()) @db.VarChar(36)
+  clientId            String                      @map("client_id") @db.VarChar(36)
+  title               String                      @db.VarChar(500)
+  slug                String                      @db.VarChar(500)
+  excerpt             String?                     @db.Text
+  content             String?                     @db.LongText
+  thumbnail           String?                     @db.VarChar(500)
+  thumbnailAlt        String?                     @map("thumbnail_alt") @db.VarChar(255)
+  status              BlogStatus                  @default(Draft)
+  categoryId          String?                     @map("category_id") @db.VarChar(36)
+  featured            Boolean                     @default(false)
+  readTime            Int?                        @map("read_time")
+  views               Int                         @default(0)
+  likes               Int                         @default(0)
+  tags                Json
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+  publishedAt         DateTime?                   @map("published_at")
+  scheduledPublishAt  DateTime?                   @map("scheduled_publish_at")
+  createdBy           String?                     @map("created_by") @db.VarChar(36)
+  updatedBy           String?                     @map("updated_by") @db.VarChar(36)
+  metaTitle           String?                     @map("meta_title") @db.VarChar(255)
+  metaDescription     String?                     @map("meta_description") @db.VarChar(500)
+  metaKeywords        String?                     @map("meta_keywords") @db.VarChar(500)
+  openGraphTitle      String?                     @map("open_graph_title") @db.VarChar(255)
+  openGraphDescription String?                    @map("open_graph_description") @db.VarChar(500)
+  openGraphImage      String?                     @map("open_graph_image") @db.VarChar(500)
+  twitterTitle        String?                     @map("twitter_title") @db.VarChar(255)
+  twitterDescription  String?                     @map("twitter_description") @db.VarChar(500)
+  twitterImage        String?                     @map("twitter_image") @db.VarChar(500)
+  canonicalUrl        String?                     @map("canonical_url") @db.VarChar(500)
+  robotsMeta          String                      @default("index,follow") @map("robots_meta") @db.VarChar(50)
+  schemaType          String                      @default("BlogPosting") @map("schema_type") @db.VarChar(100)
+  seoScore            Int                         @default(0) @map("seo_score")
+  targetKeywords      Json?                       @map("target_keywords")
+  showToc             Boolean                     @default(false) @map("show_toc")
+  showAuthorBox       Boolean                     @default(true) @map("show_author_box")
+  ctaHeading          String?                     @map("cta_heading") @db.VarChar(255)
+  ctaBody             String?                     @map("cta_body") @db.Text
+  ctaButtonText       String?                     @map("cta_button_text") @db.VarChar(100)
+  ctaButtonUrl        String?                     @map("cta_button_url") @db.VarChar(500)
+  allowSocialShare    Boolean                     @default(true) @map("allow_social_share")
+  category            WehowareBlogCategory?       @relation(fields: [categoryId], references: [id])
+  client              WehowareClient              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator             WehowareProfile?            @relation("BlogCreator", fields: [createdBy], references: [id])
+  updater             WehowareProfile?            @relation("BlogUpdater", fields: [updatedBy], references: [id])
+  versions            WehowareBlogVersion[]
+  relatedServices     WehowareBlogServiceRelation[]
+  faqs                WehowareBlogFaq[]
 
+  @@unique([clientId, slug])
   @@index([categoryId])
   @@index([status])
   @@index([createdAt])
+  @@index([scheduledPublishAt])
   @@index([clientId], map: "wehoware_blogs_client_id_fkey")
   @@index([createdBy], map: "wehoware_blogs_created_by_fkey")
   @@index([updatedBy], map: "wehoware_blogs_updated_by_fkey")
@@ -228,39 +258,62 @@ model WehowareServiceCategory {
 }
 
 model WehowareService {
-  id              String                   @id @default(uuid()) @db.VarChar(36)
-  clientId        String                   @map("client_id") @db.VarChar(36)
-  title           String                   @db.VarChar(500)
-  slug            String                   @unique @db.VarChar(500)
-  description     String?                  @db.Text
-  content         String?                  @db.LongText
-  thumbnail       String?                  @db.VarChar(500)
-  active          Boolean                  @default(true)
-  categoryId      String?                  @map("category_id") @db.VarChar(36)
-  fee             Decimal?                 @db.Decimal(10, 2)
-  feeCurrency     String                   @default("CAD") @map("fee_currency") @db.VarChar(10)
-  serviceCode     String?                  @map("service_code") @db.VarChar(100)
-  featured        Boolean                  @default(false)
-  rating          Decimal                  @default(0.00) @db.Decimal(3, 2)
-  reviewsCount    Int                      @default(0) @map("reviews_count")
-  tags            Json
-  duration        String?                  @db.VarChar(100)
-  createdAt       DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime                 @updatedAt @map("updated_at")
-  createdBy       String?                  @map("created_by") @db.VarChar(36)
-  updatedBy       String?                  @map("updated_by") @db.VarChar(36)
-  metaTitle       String?                  @map("meta_title") @db.VarChar(255)
-  metaDescription String?                  @map("meta_description") @db.VarChar(500)
-  metaKeywords    String?                  @map("meta_keywords") @db.VarChar(500)
-  views           Int                      @default(0)
-  inquiries       WehowareInquiry[]
-  category        WehowareServiceCategory? @relation(fields: [categoryId], references: [id])
-  client          WehowareClient           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  creator         WehowareProfile?         @relation("ServiceCreator", fields: [createdBy], references: [id])
-  updater         WehowareProfile?         @relation("ServiceUpdater", fields: [updatedBy], references: [id])
+  id                 String                      @id @default(uuid()) @db.VarChar(36)
+  clientId           String                      @map("client_id") @db.VarChar(36)
+  title              String                      @db.VarChar(500)
+  slug               String                      @db.VarChar(500)
+  description        String?                     @db.Text
+  content            String?                     @db.LongText
+  thumbnail          String?                     @db.VarChar(500)
+  thumbnailAlt       String?                     @map("thumbnail_alt") @db.VarChar(255)
+  active             Boolean                     @default(true)
+  categoryId         String?                     @map("category_id") @db.VarChar(36)
+  fee                Decimal?                    @db.Decimal(10, 2)
+  feeCurrency        String                      @default("CAD") @map("fee_currency") @db.VarChar(10)
+  serviceCode        String?                     @map("service_code") @db.VarChar(100)
+  featured           Boolean                     @default(false)
+  rating             Decimal                     @default(0.00) @db.Decimal(3, 2)
+  reviewsCount       Int                         @default(0) @map("reviews_count")
+  tags               Json
+  duration           String?                     @db.VarChar(100)
+  scheduledPublishAt DateTime?                   @map("scheduled_publish_at")
+  createdAt          DateTime                    @default(now()) @map("created_at")
+  updatedAt          DateTime                    @updatedAt @map("updated_at")
+  createdBy          String?                     @map("created_by") @db.VarChar(36)
+  updatedBy          String?                     @map("updated_by") @db.VarChar(36)
+  metaTitle          String?                     @map("meta_title") @db.VarChar(255)
+  metaDescription    String?                     @map("meta_description") @db.VarChar(500)
+  metaKeywords       String?                     @map("meta_keywords") @db.VarChar(500)
+  openGraphTitle     String?                     @map("open_graph_title") @db.VarChar(255)
+  openGraphDescription String?                   @map("open_graph_description") @db.VarChar(500)
+  openGraphImage     String?                     @map("open_graph_image") @db.VarChar(500)
+  twitterTitle       String?                     @map("twitter_title") @db.VarChar(255)
+  twitterDescription String?                     @map("twitter_description") @db.VarChar(500)
+  twitterImage       String?                     @map("twitter_image") @db.VarChar(500)
+  canonicalUrl       String?                     @map("canonical_url") @db.VarChar(500)
+  robotsMeta         String                      @default("index,follow") @map("robots_meta") @db.VarChar(50)
+  schemaType         String                      @default("Service") @map("schema_type") @db.VarChar(100)
+  seoScore           Int                         @default(0) @map("seo_score")
+  targetKeywords     Json?                       @map("target_keywords")
+  ctaHeading         String?                     @map("cta_heading") @db.VarChar(255)
+  ctaBody            String?                     @map("cta_body") @db.Text
+  ctaButtonText      String?                     @map("cta_button_text") @db.VarChar(100)
+  ctaButtonUrl       String?                     @map("cta_button_url") @db.VarChar(500)
+  allowSocialShare   Boolean                     @default(true) @map("allow_social_share")
+  views              Int                         @default(0)
+  inquiries          WehowareInquiry[]
+  versions           WehowareServiceVersion[]
+  relatedBlogs       WehowareBlogServiceRelation[]
+  faqs               WehowareServiceFaq[]
+  category           WehowareServiceCategory?    @relation(fields: [categoryId], references: [id])
+  client             WehowareClient              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator            WehowareProfile?            @relation("ServiceCreator", fields: [createdBy], references: [id])
+  updater            WehowareProfile?            @relation("ServiceUpdater", fields: [updatedBy], references: [id])
 
+  @@unique([clientId, slug])
   @@index([categoryId])
   @@index([active])
+  @@index([scheduledPublishAt])
   @@index([clientId], map: "wehoware_services_client_id_fkey")
   @@index([createdBy], map: "wehoware_services_created_by_fkey")
   @@index([updatedBy], map: "wehoware_services_updated_by_fkey")
@@ -1659,7 +1712,8 @@ model WehowareSocialAccount {
   updatedAt      DateTime                  @updatedAt @map("updated_at")
   createdBy      String?                   @map("created_by") @db.VarChar(36)
   updatedBy      String?                   @map("updated_by") @db.VarChar(36)
-  accountPosts   WehowareSocialAccountPost[]
+  accountPosts         WehowareSocialAccountPost[]
+  inboxConversations   WehowareSocialInboxConversation[]
   client         WehowareClient            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   platform       WehowareSocialPlatform    @relation(fields: [platformId], references: [id])
   creator        WehowareProfile?          @relation("SocialAccountCreator", fields: [createdBy], references: [id])
@@ -1775,4 +1829,169 @@ enum SocialAccountPostStatus {
   Published
   Failed
   Retrying
+}
+
+// ── Social Media Inbox ──────────────────────────────────────────────────────
+
+model WehowareSocialInboxConversation {
+  id                     String                        @id @default(uuid()) @db.VarChar(36)
+  clientId               String                        @map("client_id") @db.VarChar(36)
+  accountId              String                        @map("account_id") @db.VarChar(36)
+  platformCode           String                        @map("platform_code") @db.VarChar(50)
+  platformConversationId String                        @map("platform_conversation_id") @db.VarChar(500)
+  participantName        String                        @map("participant_name") @db.VarChar(255)
+  participantHandle      String?                       @map("participant_handle") @db.VarChar(255)
+  participantAvatar      String?                       @map("participant_avatar") @db.VarChar(500)
+  participantId          String                        @map("participant_id") @db.VarChar(500)
+  lastMessageAt          DateTime?                     @map("last_message_at")
+  lastMessagePreview     String?                       @map("last_message_preview") @db.VarChar(500)
+  unreadCount            Int                           @default(0) @map("unread_count")
+  status                 SocialInboxConversationStatus @default(Open)
+  metadata               Json
+  lastSyncedAt           DateTime?                     @map("last_synced_at")
+  createdAt              DateTime                      @default(now()) @map("created_at")
+  updatedAt              DateTime                      @updatedAt @map("updated_at")
+
+  client   WehowareClient        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  account  WehowareSocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  messages WehowareSocialInboxMessage[]
+
+  @@unique([accountId, platformConversationId])
+  @@index([clientId])
+  @@index([accountId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@map("wehoware_social_inbox_conversations")
+}
+
+model WehowareSocialInboxMessage {
+  id                String                          @id @default(uuid()) @db.VarChar(36)
+  conversationId    String                          @map("conversation_id") @db.VarChar(36)
+  platformMessageId String                          @map("platform_message_id") @db.VarChar(500)
+  direction         SocialMessageDirection
+  senderName        String                          @map("sender_name") @db.VarChar(255)
+  senderHandle      String?                         @map("sender_handle") @db.VarChar(255)
+  senderAvatar      String?                         @map("sender_avatar") @db.VarChar(500)
+  content           String                          @db.Text
+  mediaUrls         Json                            @map("media_urls")
+  isRead            Boolean                         @default(false) @map("is_read")
+  sentAt            DateTime                        @map("sent_at")
+  metadata          Json
+  createdAt         DateTime                        @default(now()) @map("created_at")
+
+  conversation WehowareSocialInboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, platformMessageId])
+  @@index([conversationId])
+  @@index([sentAt])
+  @@index([isRead])
+  @@map("wehoware_social_inbox_messages")
+}
+
+enum SocialInboxConversationStatus {
+  Open
+  Archived
+  Closed
+}
+
+enum SocialMessageDirection {
+  Inbound
+  Outbound
+}
+
+// ─── Blog version history ────────────────────────────────────────────────────
+
+model WehowareBlogVersion {
+  id          String         @id @default(uuid()) @db.VarChar(36)
+  blogId      String         @map("blog_id") @db.VarChar(36)
+  versionNum  Int            @map("version_num")
+  title       String         @db.VarChar(500)
+  content     String?        @db.LongText
+  excerpt     String?        @db.Text
+  status      BlogStatus
+  savedBy     String?        @map("saved_by") @db.VarChar(36)
+  savedAt     DateTime       @default(now()) @map("saved_at")
+  blog        WehowareBlog   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  saver       WehowareProfile? @relation("BlogVersionSaver", fields: [savedBy], references: [id])
+
+  @@unique([blogId, versionNum])
+  @@index([blogId])
+  @@map("wehoware_blog_versions")
+}
+
+// ─── Service version history ─────────────────────────────────────────────────
+
+model WehowareServiceVersion {
+  id          String           @id @default(uuid()) @db.VarChar(36)
+  serviceId   String           @map("service_id") @db.VarChar(36)
+  versionNum  Int              @map("version_num")
+  title       String           @db.VarChar(500)
+  content     String?          @db.LongText
+  description String?          @db.Text
+  savedBy     String?          @map("saved_by") @db.VarChar(36)
+  savedAt     DateTime         @default(now()) @map("saved_at")
+  service     WehowareService  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  saver       WehowareProfile? @relation("ServiceVersionSaver", fields: [savedBy], references: [id])
+
+  @@unique([serviceId, versionNum])
+  @@index([serviceId])
+  @@map("wehoware_service_versions")
+}
+
+// ─── Blog ↔ Service relation ─────────────────────────────────────────────────
+
+model WehowareBlogServiceRelation {
+  id        String           @id @default(uuid()) @db.VarChar(36)
+  blogId    String           @map("blog_id") @db.VarChar(36)
+  serviceId String           @map("service_id") @db.VarChar(36)
+  createdAt DateTime         @default(now()) @map("created_at")
+  blog      WehowareBlog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  service   WehowareService  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, serviceId])
+  @@index([blogId])
+  @@index([serviceId])
+  @@map("wehoware_blog_service_relations")
+}
+
+// ─── Service FAQs ────────────────────────────────────────────────────────────
+
+model WehowareServiceFaq {
+  id           String          @id @default(uuid()) @db.VarChar(36)
+  clientId     String          @map("client_id") @db.VarChar(36)
+  serviceId    String          @map("service_id") @db.VarChar(36)
+  question     String          @db.VarChar(500)
+  answer       String          @db.Text
+  displayOrder Int             @default(0) @map("display_order")
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  client       WehowareClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  service      WehowareService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@index([clientId])
+  @@index([displayOrder])
+  @@map("wehoware_service_faqs")
+}
+
+// ─── Blog FAQs ───────────────────────────────────────────────────────────────
+
+model WehowareBlogFaq {
+  id           String         @id @default(uuid()) @db.VarChar(36)
+  clientId     String         @map("client_id") @db.VarChar(36)
+  blogId       String         @map("blog_id") @db.VarChar(36)
+  question     String         @db.VarChar(500)
+  answer       String         @db.Text
+  displayOrder Int            @default(0) @map("display_order")
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  client       WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  blog         WehowareBlog   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@index([blogId])
+  @@index([clientId])
+  @@index([displayOrder])
+  @@map("wehoware_blog_faqs")
 }

@@ -3,7 +3,7 @@
  * Marks all messages in a conversation as read and resets unreadCount.
  */
 import { NextResponse } from "next/server";
-import { withAuth } from "../../../../../../utils/auth-middleware";
+import { withAuth } from "../../../../../utils/auth-middleware";
 
 export const POST = withAuth(async (request, { params }) => {
   try {

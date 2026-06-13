@@ -3,7 +3,7 @@
  * PUT /api/v1/social/inbox/[id]  — update conversation status (Open/Archived/Closed)
  */
 import { NextResponse } from "next/server";
-import { withAuth } from "../../../../../utils/auth-middleware";
+import { withAuth } from "../../../../utils/auth-middleware";
 
 const VALID_STATUSES = new Set(["Open", "Archived", "Closed"]);
 const MESSAGE_LIMIT = 100;

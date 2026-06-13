@@ -3,7 +3,7 @@
  * Sends a reply in a conversation and stores it as an Outbound message.
  */
 import { NextResponse } from "next/server";
-import { withAuth } from "../../../../../../utils/auth-middleware";
+import { withAuth } from "../../../../../utils/auth-middleware";
 import { getSocialClient } from "@/lib/social-clients/index.js";
 
 const MAX_MESSAGE_LENGTH = 2000;

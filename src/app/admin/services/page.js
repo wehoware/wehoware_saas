@@ -892,6 +892,13 @@ export default function ServicesPage() {
               />
             </div>
 
+            {/* Authentication Note */}
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+              <p className="text-xs text-blue-800">
+                <strong>No authentication required.</strong> All public endpoints are scoped to a client via <code className="font-mono bg-blue-100 px-1 rounded">domain</code> or <code className="font-mono bg-blue-100 px-1 rounded">clientId</code> query parameter.
+              </p>
+            </div>
+
             {/* Endpoints */}
             <div className="space-y-3">
               <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -923,6 +930,18 @@ export default function ServicesPage() {
               />
               <ApiEndpointRow
                 method="GET"
+                label="Get Service FAQs"
+                url={`/api/public/services/{slug}/faqs?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="faqs"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+              <ApiEndpointRow
+                method="GET"
                 label="List Categories"
                 url={`/api/public/services/categories?clientId=${activeClient?.id || "{clientId}"}`}
                 copiedField={copiedField}
@@ -932,6 +951,263 @@ export default function ServicesPage() {
                   setCopiedField(field);
                   setTimeout(() => setCopiedField(null), 1500);
                 }}
+              />
+            </div>
+
+            {/* Query Parameters */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Query Parameters
+              </h4>
+              <ApiParamTable
+                params={[
+                  { name: "clientId", type: "string (UUID)", required: true, description: "Active client ID. Alternative to domain." },
+                  { name: "domain", type: "string", required: false, description: "Client domain (e.g. example.com). Alternative to clientId." },
+                  { name: "page", type: "integer", required: false, description: "Page number for list endpoints. Default: 1" },
+                  { name: "limit", type: "integer", required: false, description: "Items per page. Default: 10, Max: 100" },
+                  { name: "search", type: "string", required: false, description: "Search in title and description." },
+                  { name: "categoryId", type: "string (UUID)", required: false, description: "Filter by category ID." },
+                  { name: "featured", type: "boolean", required: false, description: "Filter featured items only." },
+                  { name: "sortBy", type: "string", required: false, description: "created_at, updated_at, title, fee, featured. Default: created_at" },
+                  { name: "sortOrder", type: "string", required: false, description: "asc or desc. Default: desc" },
+                ]}
+              />
+            </div>
+
+            {/* Response Fields */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Service Response Fields
+              </h4>
+              <ApiFieldTable
+                fields={[
+                  { name: "id", type: "string (UUID)", description: "Unique service identifier" },
+                  { name: "client_id", type: "string (UUID)", description: "Owner client ID" },
+                  { name: "category_id", type: "string (UUID)", description: "Category reference" },
+                  { name: "title", type: "string", description: "Service title" },
+                  { name: "slug", type: "string", description: "URL-friendly identifier" },
+                  { name: "description", type: "string | null", description: "Short description" },
+                  { name: "content", type: "string | null", description: "Full HTML content" },
+                  { name: "thumbnail", type: "string | null", description: "Thumbnail image URL" },
+                  { name: "thumbnail_alt", type: "string | null", description: "Alt text for thumbnail" },
+                  { name: "fee", type: "number | null", description: "Service fee amount" },
+                  { name: "fee_currency", type: "string | null", description: "Currency code (e.g. USD)" },
+                  { name: "fee_label", type: "string | null", description: "Free if fee is 0/null" },
+                  { name: "service_code", type: "string | null", description: "Internal service code" },
+                  { name: "duration", type: "string | null", description: "Duration description" },
+                  { name: "tags", type: "string[] | null", description: "Array of tag strings" },
+                  { name: "active", type: "boolean", description: "Published status" },
+                  { name: "featured", type: "boolean", description: "Featured flag" },
+                  { name: "rating", type: "number", description: "Average rating (0 if none)" },
+                  { name: "reviews_count", type: "integer", description: "Total review count" },
+                  { name: "views", type: "integer", description: "View count" },
+                  { name: "created_at", type: "ISO 8601", description: "Creation timestamp" },
+                  { name: "updated_at", type: "ISO 8601", description: "Last update timestamp" },
+                  { name: "meta_title", type: "string | null", description: "SEO meta title" },
+                  { name: "meta_description", type: "string | null", description: "SEO meta description" },
+                  { name: "meta_keywords", type: "string | null", description: "SEO meta keywords" },
+                  { name: "open_graph_title", type: "string | null", description: "OG title" },
+                  { name: "open_graph_description", type: "string | null", description: "OG description" },
+                  { name: "open_graph_image", type: "string | null", description: "OG image URL" },
+                  { name: "twitter_title", type: "string | null", description: "Twitter card title" },
+                  { name: "twitter_description", type: "string | null", description: "Twitter card description" },
+                  { name: "twitter_image", type: "string | null", description: "Twitter card image URL" },
+                  { name: "canonical_url", type: "string | null", description: "Canonical URL override" },
+                  { name: "robots_meta", type: "string | null", description: "Robots meta tag value" },
+                  { name: "schema_type", type: "string | null", description: "JSON-LD schema type" },
+                  { name: "seo_score", type: "integer | null", description: "Computed SEO score (0-100)" },
+                  { name: "target_keywords", type: "string | null", description: "Comma-separated target keywords" },
+                  { name: "cta_heading", type: "string | null", description: "CTA section heading" },
+                  { name: "cta_body", type: "string | null", description: "CTA body text" },
+                  { name: "cta_button_text", type: "string | null", description: "CTA button label" },
+                  { name: "cta_button_url", type: "string | null", description: "CTA button link" },
+                  { name: "allow_social_share", type: "boolean", description: "Social sharing enabled" },
+                  { name: "wehoware_service_categories", type: "object | null", description: "{ id, name, slug }" },
+                ]}
+              />
+            </div>
+
+            {/* Single Service Extra Fields */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Single Service Extra Fields
+              </h4>
+              <ApiFieldTable
+                fields={[
+                  { name: "related_blogs", type: "array", description: "Linked blog posts: { id, title, slug, thumbnail, excerpt }" },
+                  { name: "faqs", type: "array", description: "Active FAQs: { id, question, answer, display_order }" },
+                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD schema.org object" },
+                ]}
+              />
+            </div>
+
+            {/* Example Response */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Example: List Services
+              </h4>
+              <ApiCodeBlock
+                title="GET /api/public/services?clientId={id}"
+                code={`{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "client_id": "client-uuid-1234",
+      "category_id": "cat-uuid",
+      "title": "Legal Consultation",
+      "slug": "legal-consultation",
+      "description": "Expert legal advice for businesses and individuals.",
+      "content": "<p>Full service description with HTML content...</p>",
+      "thumbnail": "https://cdn.example.com/service-thumb.jpg",
+      "thumbnail_alt": "Legal consultation meeting",
+      "fee": 150.00,
+      "fee_currency": "USD",
+      "fee_label": null,
+      "service_code": "LC-001",
+      "duration": "1 hour consultation",
+      "tags": ["legal", "business", "consultation"],
+      "active": true,
+      "featured": false,
+      "rating": 4.8,
+      "reviews_count": 12,
+      "views": 342,
+      "created_at": "2025-01-15T10:30:00Z",
+      "updated_at": "2025-06-01T14:22:00Z",
+      "meta_title": "Legal Consultation Services | Wehoware",
+      "meta_description": "Get expert legal advice from certified professionals.",
+      "meta_keywords": "legal, consultation, lawyer, business law",
+      "open_graph_title": "Legal Consultation Services",
+      "open_graph_description": "Expert legal advice for businesses and individuals.",
+      "open_graph_image": "https://cdn.example.com/og-legal.jpg",
+      "twitter_title": "Legal Consultation Services",
+      "twitter_description": "Expert legal advice for businesses and individuals.",
+      "twitter_image": "https://cdn.example.com/twitter-legal.jpg",
+      "canonical_url": "https://example.com/services/legal-consultation",
+      "robots_meta": "index, follow",
+      "schema_type": "Service",
+      "seo_score": 92,
+      "target_keywords": "legal consultation, business lawyer",
+      "cta_heading": "Ready to Get Started?",
+      "cta_body": "Book your consultation today and protect your business.",
+      "cta_button_text": "Book Now",
+      "cta_button_url": "/contact",
+      "allow_social_share": true,
+      "wehoware_service_categories": {
+        "id": "cat-uuid",
+        "name": "Legal",
+        "slug": "legal"
+      }
+    }
+  ],
+  "pagination": {
+    "totalItems": 24,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
+  }
+}`}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Example: Get Service by Slug
+              </h4>
+              <ApiCodeBlock
+                title="GET /api/public/services/{slug}?clientId={id}"
+                code={`{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "client_id": "client-uuid-1234",
+  "category_id": "cat-uuid",
+  "title": "Legal Consultation",
+  "slug": "legal-consultation",
+  "description": "Expert legal advice for businesses and individuals.",
+  "content": "<p>Full service description with HTML content...</p>",
+  "thumbnail": "https://cdn.example.com/service-thumb.jpg",
+  "thumbnail_alt": "Legal consultation meeting",
+  "fee": 150.00,
+  "fee_currency": "USD",
+  "fee_label": null,
+  "service_code": "LC-001",
+  "duration": "1 hour consultation",
+  "tags": ["legal", "business", "consultation"],
+  "active": true,
+  "featured": false,
+  "rating": 4.8,
+  "reviews_count": 12,
+  "views": 342,
+  "created_at": "2025-01-15T10:30:00Z",
+  "updated_at": "2025-06-01T14:22:00Z",
+  "meta_title": "Legal Consultation Services | Wehoware",
+  "meta_description": "Get expert legal advice from certified professionals.",
+  "meta_keywords": "legal, consultation, lawyer, business law",
+  "open_graph_title": "Legal Consultation Services",
+  "open_graph_description": "Expert legal advice for businesses and individuals.",
+  "open_graph_image": "https://cdn.example.com/og-legal.jpg",
+  "twitter_title": "Legal Consultation Services",
+  "twitter_description": "Expert legal advice for businesses and individuals.",
+  "twitter_image": "https://cdn.example.com/twitter-legal.jpg",
+  "canonical_url": "https://example.com/services/legal-consultation",
+  "robots_meta": "index, follow",
+  "schema_type": "Service",
+  "seo_score": 92,
+  "target_keywords": "legal consultation, business lawyer",
+  "cta_heading": "Ready to Get Started?",
+  "cta_body": "Book your consultation today and protect your business.",
+  "cta_button_text": "Book Now",
+  "cta_button_url": "/contact",
+  "allow_social_share": true,
+  "wehoware_service_categories": {
+    "id": "cat-uuid",
+    "name": "Legal",
+    "slug": "legal"
+  },
+  "related_blogs": [
+    {
+      "id": "blog-uuid-1",
+      "title": "Understanding Legal Rights",
+      "slug": "legal-rights",
+      "thumbnail": "https://cdn.example.com/blog-thumb.jpg",
+      "excerpt": "Learn about your fundamental legal rights..."
+    }
+  ],
+  "faqs": [
+    {
+      "id": "faq-1",
+      "question": "What is included in the consultation?",
+      "answer": "Comprehensive review of your legal situation with actionable advice.",
+      "display_order": 0
+    },
+    {
+      "id": "faq-2",
+      "question": "How do I book a session?",
+      "answer": "Use the CTA button or contact form to schedule your appointment.",
+      "display_order": 1
+    }
+  ],
+  "faq_schema": {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is included in the consultation?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Comprehensive review of your legal situation with actionable advice."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I book a session?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Use the CTA button or contact form to schedule your appointment."
+        }
+      }
+    ]
+  }
+}`}
               />
             </div>
 
@@ -947,6 +1223,7 @@ export default function ServicesPage() {
                     "Endpoints:",
                     `GET /api/public/services?clientId=${activeClient?.id || "{clientId}"}`,
                     `GET /api/public/services/{slug}?clientId=${activeClient?.id || "{clientId}"}`,
+                    `GET /api/public/services/{slug}/faqs?clientId=${activeClient?.id || "{clientId}"}`,
                     `GET /api/public/services/categories?clientId=${activeClient?.id || "{clientId}"}`,
                   ];
                   navigator.clipboard.writeText(lines.join("\n"));
@@ -965,6 +1242,93 @@ export default function ServicesPage() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ApiParamTable({ params }) {
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <table className="w-full text-xs">
+        <thead className="bg-muted">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Parameter</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Required</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {params.map((p) => (
+            <tr key={p.name}>
+              <td className="px-3 py-2 font-mono text-blue-700">{p.name}</td>
+              <td className="px-3 py-2 text-muted-foreground">{p.type}</td>
+              <td className="px-3 py-2">
+                {p.required ? (
+                  <span className="text-red-600 font-semibold">Yes</span>
+                ) : (
+                  <span className="text-muted-foreground">No</span>
+                )}
+              </td>
+              <td className="px-3 py-2 text-muted-foreground">{p.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ApiFieldTable({ fields }) {
+  return (
+    <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead className="bg-muted sticky top-0">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Field</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {fields.map((f) => (
+            <tr key={f.name}>
+              <td className="px-3 py-2 font-mono text-blue-700">{f.name}</td>
+              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{f.type}</td>
+              <td className="px-3 py-2 text-muted-foreground">{f.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ApiCodeBlock({ title, code }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      {title && (
+        <div className="px-3 py-1.5 bg-muted border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
+          <span>{title}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => {
+              navigator.clipboard.writeText(code);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+      )}
+      <pre className="p-3 text-xs font-mono bg-muted/30 overflow-x-auto whitespace-pre-wrap break-all">
+        {code}
+      </pre>
     </div>
   );
 }

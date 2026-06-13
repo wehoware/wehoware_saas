@@ -32,7 +32,7 @@ import {
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { format } from "date-fns";
-import { Plus, Target, Trophy, Loader2, Trash2, ChevronRight } from "lucide-react";
+import { Plus, Target, Trophy, Loader2, Trash2, ChevronRight, ArrowLeft } from "lucide-react";
 
 const GOAL_TYPE_COLORS = { OKR: "default", Goal: "secondary", Milestone: "outline" };
 const STATUS_COLORS = {
@@ -565,6 +565,8 @@ export default function GoalsPage() {
       <AdminPageHeader
         title="Goals & Achievements"
         description="Track OKRs, business goals, and team achievements."
+        backLink="/admin/tasks"
+        backIcon={<ArrowLeft className="h-4 w-4" />}
         actionLabel="New Goal"
         actionIcon={<Plus className="mr-2 h-4 w-4" />}
         onAction={() => setShowCreate(true)}

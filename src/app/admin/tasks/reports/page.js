@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { format, subDays } from "date-fns";
-import { Download, RefreshCw, AlertTriangle, TrendingUp, Clock, CheckCircle } from "lucide-react";
+import { Download, RefreshCw, AlertTriangle, TrendingUp, Clock, CheckCircle, ArrowLeft } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -129,6 +129,8 @@ export default function TaskReportsPage() {
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <AdminPageHeader
+        backLink="/admin/tasks"
+        backIcon={<ArrowLeft className="h-4 w-4" />}
         title="Task Reports"
         description="Comprehensive analytics and team performance metrics."
       />

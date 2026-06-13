@@ -919,6 +919,13 @@ export default function BlogsPage() {
               />
             </div>
 
+            {/* Authentication Note */}
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+              <p className="text-xs text-blue-800">
+                <strong>No authentication required.</strong> All public endpoints are scoped to a client via <code className="font-mono bg-blue-100 px-1 rounded">domain</code> or <code className="font-mono bg-blue-100 px-1 rounded">clientId</code> query parameter.
+              </p>
+            </div>
+
             {/* Endpoints */}
             <div className="space-y-3">
               <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -950,6 +957,18 @@ export default function BlogsPage() {
               />
               <ApiEndpointRow
                 method="GET"
+                label="Get Blog FAQs"
+                url={`/api/public/blogs/{slug}/faqs?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="faqs"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
+              <ApiEndpointRow
+                method="GET"
                 label="List Categories"
                 url={`/api/public/blogs/categories?clientId=${activeClient?.id || "{clientId}"}`}
                 copiedField={copiedField}
@@ -959,6 +978,257 @@ export default function BlogsPage() {
                   setCopiedField(field);
                   setTimeout(() => setCopiedField(null), 1500);
                 }}
+              />
+            </div>
+
+            {/* Query Parameters */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Query Parameters
+              </h4>
+              <ApiParamTable
+                params={[
+                  { name: "clientId", type: "string (UUID)", required: true, description: "Active client ID. Alternative to domain." },
+                  { name: "domain", type: "string", required: false, description: "Client domain (e.g. example.com). Alternative to clientId." },
+                  { name: "page", type: "integer", required: false, description: "Page number for list endpoints. Default: 1" },
+                  { name: "limit", type: "integer", required: false, description: "Items per page. Default: 10, Max: 100" },
+                  { name: "search", type: "string", required: false, description: "Search in title, excerpt, and content." },
+                  { name: "category", type: "string (UUID)", required: false, description: "Filter by category ID." },
+                  { name: "featured", type: "boolean", required: false, description: "Filter featured posts only." },
+                  { name: "sortBy", type: "string", required: false, description: "created_at, updated_at, published_at, title. Default: created_at" },
+                  { name: "sortOrder", type: "string", required: false, description: "asc or desc. Default: desc" },
+                ]}
+              />
+            </div>
+
+            {/* Response Fields */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Blog Response Fields
+              </h4>
+              <ApiFieldTable
+                fields={[
+                  { name: "id", type: "string (UUID)", description: "Unique blog identifier" },
+                  { name: "client_id", type: "string (UUID)", description: "Owner client ID" },
+                  { name: "title", type: "string", description: "Blog post title" },
+                  { name: "slug", type: "string", description: "URL-friendly identifier" },
+                  { name: "excerpt", type: "string | null", description: "Short excerpt/summary" },
+                  { name: "content", type: "string | null", description: "Full HTML content" },
+                  { name: "thumbnail", type: "string | null", description: "Featured image URL" },
+                  { name: "thumbnail_alt", type: "string | null", description: "Alt text for thumbnail" },
+                  { name: "status", type: "string", description: "Draft, Published, or Archived" },
+                  { name: "category_id", type: "string (UUID) | null", description: "Category reference" },
+                  { name: "featured", type: "boolean", description: "Featured flag" },
+                  { name: "read_time", type: "integer | null", description: "Estimated read time in minutes" },
+                  { name: "views", type: "integer", description: "View count" },
+                  { name: "likes", type: "integer", description: "Like count" },
+                  { name: "tags", type: "string[] | null", description: "Array of tag strings" },
+                  { name: "created_at", type: "ISO 8601", description: "Creation timestamp" },
+                  { name: "updated_at", type: "ISO 8601", description: "Last update timestamp" },
+                  { name: "published_at", type: "ISO 8601 | null", description: "Publish date" },
+                  { name: "meta_title", type: "string | null", description: "SEO meta title" },
+                  { name: "meta_description", type: "string | null", description: "SEO meta description" },
+                  { name: "meta_keywords", type: "string | null", description: "SEO meta keywords" },
+                  { name: "open_graph_title", type: "string | null", description: "OG title" },
+                  { name: "open_graph_description", type: "string | null", description: "OG description" },
+                  { name: "open_graph_image", type: "string | null", description: "OG image URL" },
+                  { name: "twitter_title", type: "string | null", description: "Twitter card title" },
+                  { name: "twitter_description", type: "string | null", description: "Twitter card description" },
+                  { name: "twitter_image", type: "string | null", description: "Twitter card image URL" },
+                  { name: "canonical_url", type: "string | null", description: "Canonical URL override" },
+                  { name: "robots_meta", type: "string | null", description: "Robots meta tag value" },
+                  { name: "schema_type", type: "string | null", description: "JSON-LD schema type" },
+                  { name: "seo_score", type: "integer | null", description: "Computed SEO score (0-100)" },
+                  { name: "target_keywords", type: "string | null", description: "Comma-separated target keywords" },
+                  { name: "show_toc", type: "boolean", description: "Show table of contents" },
+                  { name: "show_author_box", type: "boolean", description: "Show author box" },
+                  { name: "cta_heading", type: "string | null", description: "CTA section heading" },
+                  { name: "cta_body", type: "string | null", description: "CTA body text" },
+                  { name: "cta_button_text", type: "string | null", description: "CTA button label" },
+                  { name: "cta_button_url", type: "string | null", description: "CTA button link" },
+                  { name: "allow_social_share", type: "boolean", description: "Social sharing enabled" },
+                  { name: "wehoware_blog_categories", type: "object | null", description: "{ id, name }" },
+                ]}
+              />
+            </div>
+
+            {/* Single Blog Extra Fields */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Single Blog Extra Fields
+              </h4>
+              <ApiFieldTable
+                fields={[
+                  { name: "related_services", type: "array", description: "Linked services: { id, title, slug, thumbnail, description, fee, fee_currency }" },
+                  { name: "faqs", type: "array", description: "Active FAQs: { id, question, answer, display_order }" },
+                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD schema.org object" },
+                ]}
+              />
+            </div>
+
+            {/* Example Response */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Example: List Blogs
+              </h4>
+              <ApiCodeBlock
+                title="GET /api/public/blogs?clientId={id}"
+                code={`{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "client_id": "client-uuid-1234",
+      "title": "How to Start a Business",
+      "slug": "how-to-start-a-business",
+      "excerpt": "A comprehensive guide to starting and scaling your own business in 2025.",
+      "content": "<p>Full article content with HTML formatting...</p>",
+      "thumbnail": "https://cdn.example.com/blog.jpg",
+      "thumbnail_alt": "Business startup illustration",
+      "status": "Published",
+      "category_id": "cat-uuid",
+      "featured": true,
+      "read_time": 8,
+      "views": 1240,
+      "likes": 87,
+      "tags": ["business", "startup", "entrepreneurship"],
+      "created_at": "2025-02-10T09:00:00Z",
+      "updated_at": "2025-05-20T16:45:00Z",
+      "published_at": "2025-02-10T09:00:00Z",
+      "meta_title": "How to Start a Business in 2025 | Complete Guide",
+      "meta_description": "A comprehensive guide to starting and scaling your own business.",
+      "meta_keywords": "business, startup, entrepreneur, guide",
+      "open_graph_title": "How to Start a Business in 2025",
+      "open_graph_description": "A comprehensive guide to starting and scaling your own business.",
+      "open_graph_image": "https://cdn.example.com/og-blog.jpg",
+      "twitter_title": "How to Start a Business in 2025",
+      "twitter_description": "A comprehensive guide to starting and scaling your own business.",
+      "twitter_image": "https://cdn.example.com/twitter-blog.jpg",
+      "canonical_url": "https://example.com/blog/how-to-start-a-business",
+      "robots_meta": "index, follow",
+      "schema_type": "Article",
+      "seo_score": 95,
+      "target_keywords": "start a business, business guide 2025",
+      "show_toc": true,
+      "show_author_box": true,
+      "cta_heading": "Ready to Launch?",
+      "cta_body": "Get expert help setting up your business the right way.",
+      "cta_button_text": "Get Started",
+      "cta_button_url": "/services/business-registration",
+      "allow_social_share": true,
+      "wehoware_blog_categories": {
+        "id": "cat-uuid",
+        "name": "Business"
+      }
+    }
+  ],
+  "pagination": {
+    "totalItems": 42,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5
+  }
+}`}
+              />
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Example: Get Blog by Slug
+              </h4>
+              <ApiCodeBlock
+                title="GET /api/public/blogs/{slug}?clientId={id}"
+                code={`{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "client_id": "client-uuid-1234",
+  "title": "How to Start a Business",
+  "slug": "how-to-start-a-business",
+  "excerpt": "A comprehensive guide to starting and scaling your own business in 2025.",
+  "content": "<p>Full article content with HTML formatting...</p>",
+  "thumbnail": "https://cdn.example.com/blog.jpg",
+  "thumbnail_alt": "Business startup illustration",
+  "status": "Published",
+  "category_id": "cat-uuid",
+  "featured": true,
+  "read_time": 8,
+  "views": 1240,
+  "likes": 87,
+  "tags": ["business", "startup", "entrepreneurship"],
+  "created_at": "2025-02-10T09:00:00Z",
+  "updated_at": "2025-05-20T16:45:00Z",
+  "published_at": "2025-02-10T09:00:00Z",
+  "meta_title": "How to Start a Business in 2025 | Complete Guide",
+  "meta_description": "A comprehensive guide to starting and scaling your own business.",
+  "meta_keywords": "business, startup, entrepreneur, guide",
+  "open_graph_title": "How to Start a Business in 2025",
+  "open_graph_description": "A comprehensive guide to starting and scaling your own business.",
+  "open_graph_image": "https://cdn.example.com/og-blog.jpg",
+  "twitter_title": "How to Start a Business in 2025",
+  "twitter_description": "A comprehensive guide to starting and scaling your own business.",
+  "twitter_image": "https://cdn.example.com/twitter-blog.jpg",
+  "canonical_url": "https://example.com/blog/how-to-start-a-business",
+  "robots_meta": "index, follow",
+  "schema_type": "Article",
+  "seo_score": 95,
+  "target_keywords": "start a business, business guide 2025",
+  "show_toc": true,
+  "show_author_box": true,
+  "cta_heading": "Ready to Launch?",
+  "cta_body": "Get expert help setting up your business the right way.",
+  "cta_button_text": "Get Started",
+  "cta_button_url": "/services/business-registration",
+  "allow_social_share": true,
+  "wehoware_blog_categories": {
+    "id": "cat-uuid",
+    "name": "Business"
+  },
+  "related_services": [
+    {
+      "id": "svc-uuid-1",
+      "title": "Business Registration",
+      "slug": "business-registration",
+      "thumbnail": "https://cdn.example.com/service-thumb.jpg",
+      "description": "Complete business registration service.",
+      "fee": 299,
+      "fee_currency": "USD"
+    }
+  ],
+  "faqs": [
+    {
+      "id": "faq-1",
+      "question": "How long does it take to start a business?",
+      "answer": "Typically 2-4 weeks depending on your location and business structure.",
+      "display_order": 0
+    },
+    {
+      "id": "faq-2",
+      "question": "What documents do I need?",
+      "answer": "You will need identification, business plan, and registration forms.",
+      "display_order": 1
+    }
+  ],
+  "faq_schema": {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How long does it take to start a business?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Typically 2-4 weeks depending on your location and business structure."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What documents do I need?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You will need identification, business plan, and registration forms."
+        }
+      }
+    ]
+  }
+}`}
               />
             </div>
 
@@ -974,6 +1244,7 @@ export default function BlogsPage() {
                     "Endpoints:",
                     `GET /api/public/blogs?clientId=${activeClient?.id || "{clientId}"}`,
                     `GET /api/public/blogs/{slug}?clientId=${activeClient?.id || "{clientId}"}`,
+                    `GET /api/public/blogs/{slug}/faqs?clientId=${activeClient?.id || "{clientId}"}`,
                     `GET /api/public/blogs/categories?clientId=${activeClient?.id || "{clientId}"}`,
                   ];
                   navigator.clipboard.writeText(lines.join("\n"));
@@ -992,6 +1263,93 @@ export default function BlogsPage() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ApiParamTable({ params }) {
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <table className="w-full text-xs">
+        <thead className="bg-muted">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Parameter</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Required</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {params.map((p) => (
+            <tr key={p.name}>
+              <td className="px-3 py-2 font-mono text-blue-700">{p.name}</td>
+              <td className="px-3 py-2 text-muted-foreground">{p.type}</td>
+              <td className="px-3 py-2">
+                {p.required ? (
+                  <span className="text-red-600 font-semibold">Yes</span>
+                ) : (
+                  <span className="text-muted-foreground">No</span>
+                )}
+              </td>
+              <td className="px-3 py-2 text-muted-foreground">{p.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ApiFieldTable({ fields }) {
+  return (
+    <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+      <table className="w-full text-xs">
+        <thead className="bg-muted sticky top-0">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Field</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {fields.map((f) => (
+            <tr key={f.name}>
+              <td className="px-3 py-2 font-mono text-blue-700">{f.name}</td>
+              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{f.type}</td>
+              <td className="px-3 py-2 text-muted-foreground">{f.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ApiCodeBlock({ title, code }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      {title && (
+        <div className="px-3 py-1.5 bg-muted border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
+          <span>{title}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => {
+              navigator.clipboard.writeText(code);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+      )}
+      <pre className="p-3 text-xs font-mono bg-muted/30 overflow-x-auto whitespace-pre-wrap break-all">
+        {code}
+      </pre>
     </div>
   );
 }

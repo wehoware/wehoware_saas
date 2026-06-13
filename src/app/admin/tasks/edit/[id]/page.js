@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'react-hot-toast';
 import { useAuth } from "@/contexts/auth-context";
+import { ArrowLeft } from "lucide-react";
 
 const formatActivity = (activity, usersList) => {
   const { activity_type, details, user } = activity;
@@ -260,8 +261,8 @@ export default function EditTaskPage() {
       <AdminPageHeader
         title={`Edit Task: ${task.title}`}
         description={`Update details for task ID: ${task.id}`}
-        showBackButton={true}
-        backButtonHref="/admin/tasks"
+        backLink="/admin/tasks"
+        backIcon={<ArrowLeft className="h-4 w-4" />}
       />      
       <Card>
         <CardHeader>

@@ -10,6 +10,11 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
+import {
+  buildTaskWhere,
+  canMutateTask,
+  validateAssignee,
+} from "../../../utils/task-access";
 
 // Fields whose changes we audit in wehoware_task_activities. The left side
 // is the snake_case body key; the right side is the Prisma/camelCase column.
@@ -70,28 +75,14 @@ function shapeTask(task) {
 }
 
 /**
- * Load a task and enforce role-based access.
- *
- * Returns the Prisma task (with relations), or null when not found / not
- * accessible — the caller decides whether to 404 or 403.
+ * Load a task the user is allowed to access.
+ * Returns the Prisma task (with relations), or null when not found / not accessible.
  */
 async function loadTask(prisma, user, id) {
-  const where = { id };
-  if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") {
-    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
-    where.clientId = clientId;
-    // Editors may only see tasks assigned to them
-    if (user.activeClientRole === "editor") {
-      where.assigneeId = user.id;
-    }
-  }
-  if (user.role === "admin" && user.activeClientId) {
-    where.clientId = user.activeClientId;
-  }
-
+  const visibilityWhere = await buildTaskWhere(prisma, user);
+  visibilityWhere.id = id;
   return prisma.wehowareTask.findFirst({
-    where,
+    where: visibilityWhere,
     include: TASK_INCLUDE,
   });
 }
@@ -109,7 +100,11 @@ export const GET = withAuth(
       if (!task) {
         return NextResponse.json({ error: "Task not found" }, { status: 404 });
       }
-      return NextResponse.json(shapeTask(task));
+
+      // Attach mutation permission flag for the UI
+      const out = shapeTask(task);
+      out._permissions = canMutateTask(user, task);
+      return NextResponse.json(out);
     } catch (err) {
       console.error("[GET /api/v1/tasks/[id]] error:", err);
       return NextResponse.json(
@@ -130,17 +125,36 @@ export const PUT = withAuth(
       const { prisma, user } = request;
       const { id } = await params;
 
-      // Viewers may not edit tasks
-      if (user.role === "client" && user.activeClientRole === "viewer") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+      const body = await request.json();
 
       const existing = await loadTask(prisma, user, id);
       if (!existing) {
         return NextResponse.json({ error: "Task not found" }, { status: 404 });
       }
 
-      const body = await request.json();
+      // Check edit permission
+      const mutationCheck = canMutateTask(user, existing);
+      if (!mutationCheck.allowed) {
+        return NextResponse.json({ error: mutationCheck.reason }, { status: 403 });
+      }
+
+      // Validate assignee change if present
+      const assigneeVal = body.assignee_id ?? body.assigneeId ?? undefined;
+      if (assigneeVal !== undefined) {
+        const clientId = existing.clientId;
+        const isValid = await validateAssignee(
+          prisma,
+          user,
+          clientId,
+          assigneeVal || null
+        );
+        if (!isValid) {
+          return NextResponse.json(
+            { error: "Invalid assignee for this client" },
+            { status: 400 }
+          );
+        }
+      }
       const data = {};
 
       // Accept both snake_case and camelCase from callers.
@@ -254,14 +268,15 @@ export const DELETE = withAuth(
       const { prisma, user } = request;
       const { id } = await params;
 
-      // Viewers and editors may not delete tasks
-      if (user.role === "client" && ["viewer", "editor"].includes(user.activeClientRole)) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-
       const existing = await loadTask(prisma, user, id);
       if (!existing) {
         return NextResponse.json({ error: "Task not found" }, { status: 404 });
+      }
+
+      // Check delete permission
+      const mutationCheck = canMutateTask(user, existing);
+      if (!mutationCheck.allowed) {
+        return NextResponse.json({ error: mutationCheck.reason }, { status: 403 });
       }
 
       // Log deletion BEFORE deleting, so if the activity insert fails we

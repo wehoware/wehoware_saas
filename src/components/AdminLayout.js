@@ -382,7 +382,9 @@ const AdminLayout = ({ children }) => {
   const isRouteAllowed =
     pathname === "/admin" ||
     Boolean(activeRoute) ||
-    (role === "admin" && hiddenAllowedRoutes.some((r) => pathname === r || pathname.startsWith(`${r}/`)));
+    ((role === "admin" || role === "employee" ||
+      (role === "client" && ["client", "manager", "editor"].includes(user?.activeClientRole)))
+     && hiddenAllowedRoutes.some((r) => pathname === r || pathname.startsWith(`${r}/`)));
 
   // Guard: if the current route isn’t allowed, show an error and redirect.
   useEffect(() => {

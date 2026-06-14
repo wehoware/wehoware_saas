@@ -75,7 +75,7 @@ export default function BlogCategoriesPage() {
   const handleAddCategory = async (e) => {
     e.preventDefault();
 
-    if (isEmployee && !activeClient?.id) {
+    if (user?.role !== "admin" && !activeClient?.id) {
       setErrorMessage(
         "Please select an active client from the header dropdown before adding a category."
       );

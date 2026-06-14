@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
+import { canAccessTask } from "../../../../../utils/task-access";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -39,27 +40,6 @@ function shapeEntry(e) {
         }
       : null,
   };
-}
-
-/**
- * Check whether the requesting user is allowed to access the given task.
- */
-async function canAccessTask(prisma, user, taskId) {
-  const where = { id: taskId };
-  if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") {
-    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
-    where.clientId = clientId;
-    if (user.activeClientRole === "editor") where.assigneeId = user.id;
-  }
-  if (user.role === "admin" && user.activeClientId) {
-    where.clientId = user.activeClientId;
-  }
-  const hit = await prisma.wehowareTask.findFirst({
-    where,
-    select: { id: true },
-  });
-  return Boolean(hit);
 }
 
 // ---------------------------------------------------------------------------

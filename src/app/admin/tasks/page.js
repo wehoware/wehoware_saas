@@ -33,7 +33,7 @@ function StatsCard({ title, value, icon }) {
 }
 
 export default function TasksPage() {
-  const { activeClient, user, isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer } = useAuth();
+  const { activeClient, isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer } = useAuth();
   const canCreate = isAdmin || isEmployee || isClientOwner || isManager || isEditor;
   const isReadOnly = isViewer;
   const [tasks, setTasks] = useState([]);
@@ -53,7 +53,7 @@ export default function TasksPage() {
     total: 0,
   });
   const [filters, setFilters] = useState({
-    status: "",
+    status: "active",
     priority: "",
     search: "",
     assignee_id: "", // Added assignee_id to filters
@@ -257,6 +257,7 @@ export default function TasksPage() {
             handleSort={handleSort}
             userRole={currentUser?.role}
             isReadOnly={isReadOnly}
+            currentUser={currentUser}
           />
         </CardContent>
       </Card>
@@ -267,6 +268,7 @@ export default function TasksPage() {
         onTaskCreated={handleTaskCreated}
         users={assignableUsers}
         clients={clients}
+        currentUser={currentUser}
       />
     </div>
   );

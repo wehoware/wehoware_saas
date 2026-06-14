@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 
 // Define options arrays within the component
 const statusOptions = [
+  { value: "active", label: "Active" },
   { value: "all", label: "All Statuses" },
   { value: "To Do", label: "To Do" },
   { value: "In Progress", label: "In Progress" },
   { value: "Done", label: "Done" },
+  { value: "Backlog", label: "Backlog" },
 ];
 
 const priorityOptions = [

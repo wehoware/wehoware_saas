@@ -274,9 +274,10 @@ export default function EditTaskPage() {
             initialData={task}
             onSubmit={handleUpdateTask}
             users={users}
-            clients={clients} // Pass clients to TaskForm
+            clients={clients}
             isLoading={isLoading}
             submitButtonText="Save Changes"
+            currentUser={user}
           />
         </CardContent>
       </Card>

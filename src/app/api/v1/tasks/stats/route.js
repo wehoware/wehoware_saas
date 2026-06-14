@@ -7,6 +7,7 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
+import { buildTaskWhere } from "../../../utils/task-access";
 
 // Prisma JS enum identifiers (the underscore form, NOT the DB-mapped
 // "To Do" / "In Progress" values) must be used when filtering via Prisma.
@@ -16,27 +17,11 @@ const STATUSES = {
   done: "Done",
 };
 
-function baseWhere(user) {
-  const where = {};
-  if (user.role === "employee") {
-    where.assigneeId = user.id;
-  } else if (user.role === "client") {
-    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
-    where.clientId = clientId;
-    if (user.activeClientRole === "editor") {
-      where.assigneeId = user.id;
-    }
-  } else if (user.role === "admin" && user.activeClientId) {
-    where.clientId = user.activeClientId;
-  }
-  return where;
-}
-
 export const GET = withAuth(
   async (request) => {
     try {
       const { prisma, user } = request;
-      const where = baseWhere(user);
+      const where = await buildTaskWhere(prisma, user);
 
       const [total, todo, inProgress, done] = await Promise.all([
         prisma.wehowareTask.count({ where }),

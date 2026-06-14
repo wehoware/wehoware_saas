@@ -8,6 +8,11 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
+import {
+  buildTaskWhere,
+  validateAssignee,
+  canMutateTask,
+} from "../../utils/task-access";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -121,47 +126,30 @@ export const GET = withAuth(async (request) => {
     const searchQuery = searchParams.get("q");
     const assigneeFilter = searchParams.get("assignee_id");
 
-    const where = {};
-    if (status) where.status = toPrismaStatus(status);
-    if (priority) where.priority = priority;
+    const visibilityWhere = await buildTaskWhere(prisma, user);
+    const filterWhere = {};
 
-    // Role-based scoping
-    if (user.role === "employee") {
-      // Employees ONLY see tasks assigned to them
-      where.assigneeId = user.id;
-    } else if (user.role === "client") {
-      const clientId = user.activeClientId ?? user.clientId ?? "__none__";
-      where.clientId = clientId;
-      // Editors only see tasks assigned to them
-      if (user.activeClientRole === "editor") {
-        where.assigneeId = user.id;
-      }
-    } else if (user.role === "admin") {
-      // Admin scoped to active client context (if any); optional assignee filter
-      if (user.activeClientId) {
-        where.clientId = user.activeClientId;
-      }
-      if (assigneeFilter) {
-        where.assigneeId = assigneeFilter;
+    if (status) {
+      if (status === "active") {
+        filterWhere.status = { in: ["To_Do", "In_Progress"] };
       } else {
-        // Admins only see tasks assigned to employees or admins (not clients)
-        const adminAndEmployeeUsers = await prisma.wehowareProfile.findMany({
-          where: {
-            role: { in: ["admin", "employee"] }
-          },
-          select: { id: true }
-        });
-        const adminAndEmployeeIds = adminAndEmployeeUsers.map(u => u.id);
-        where.assigneeId = { in: adminAndEmployeeIds };
+        filterWhere.status = toPrismaStatus(status);
       }
     }
-
+    if (priority) filterWhere.priority = priority;
+    if (assigneeFilter) filterWhere.assigneeId = assigneeFilter;
     if (searchQuery) {
-      where.OR = [
+      filterWhere.OR = [
         { title: { contains: searchQuery } },
         { description: { contains: searchQuery } },
       ];
     }
+
+    const conditions = [visibilityWhere];
+    if (Object.keys(filterWhere).length > 0) {
+      conditions.push(filterWhere);
+    }
+    const where = conditions.length === 1 ? conditions[0] : { AND: conditions };
 
     // Sort — "clientName" sorts by the related client's companyName
     let orderBy;
@@ -186,7 +174,11 @@ export const GET = withAuth(async (request) => {
     ]);
 
     return NextResponse.json({
-      tasks: items.map(shapeTask),
+      tasks: items.map((task) => {
+        const shaped = shapeTask(task);
+        shaped._permissions = canMutateTask(user, task);
+        return shaped;
+      }),
       total,
       page,
       limit,
@@ -229,6 +221,22 @@ export const POST = withAuth(
           { error: "Title and Client are required" },
           { status: 400 }
         );
+      }
+
+      // Validate assignee is in the correct role group for this client
+      if (assignee_id) {
+        const isValid = await validateAssignee(
+          prisma,
+          user,
+          client_id,
+          assignee_id
+        );
+        if (!isValid) {
+          return NextResponse.json(
+            { error: "Invalid assignee for this client" },
+            { status: 400 }
+          );
+        }
       }
 
       const task = await prisma.wehowareTask.create({

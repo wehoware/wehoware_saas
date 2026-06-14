@@ -7,6 +7,7 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../utils/auth-middleware";
+import { canAccessTask } from "../../../../utils/task-access";
 
 function serializeComment(c) {
   return {
@@ -26,28 +27,6 @@ function serializeComment(c) {
   };
 }
 
-/**
- * Enforce the same access rules as /api/v1/tasks/[id] before allowing a
- * comment to land. Prevents employees from commenting on tasks they can't
- * even see.
- */
-async function canAccessTask(prisma, user, taskId) {
-  const where = { id: taskId };
-  if (user.role === "employee") where.assigneeId = user.id;
-  if (user.role === "client") {
-    const clientId = user.activeClientId ?? user.clientId ?? "__none__";
-    where.clientId = clientId;
-    if (user.activeClientRole === "editor") where.assigneeId = user.id;
-  }
-  if (user.role === "admin" && user.activeClientId) {
-    where.clientId = user.activeClientId;
-  }
-  const hit = await prisma.wehowareTask.findFirst({
-    where,
-    select: { id: true },
-  });
-  return Boolean(hit);
-}
 
 // -------------------------------------------------------------------
 // POST

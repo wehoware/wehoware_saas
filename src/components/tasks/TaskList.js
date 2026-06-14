@@ -86,12 +86,13 @@ const TaskList = ({
   isLoading,
   error,
   onUpdateTask,
-  onTaskDelete, // Changed from onDeleteTask
-  userRole, // Added userRole prop
-  sort, // Changed from sortField and onSort
-  handleSort, // Changed from sortField and onSort
+  onTaskDelete,
+  userRole,
+  sort,
+  handleSort,
   pagination,
   setPagination,
+  currentUser = null,
 }) => {
   const router = useRouter();
   const today = new Date();
@@ -308,68 +309,80 @@ const TaskList = ({
                       {formatDate(task.dueDate)}
                     </TableCell>
                     <TableCell onClick={stopPropagation}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full justify-start text-left"
-                          >
-                            {task.status || "Select"}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuRadioGroup
-                            value={task.status}
-                            onValueChange={(status) =>
-                              onUpdateTask(task.id, { status })
-                            }
-                          >
-                            <DropdownMenuRadioItem value="To Do">
-                              To Do
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="In Progress">
-                              In Progress
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="Done">
-                              Done
-                            </DropdownMenuRadioItem>
-                          </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {task._permissions?.allowed ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-start text-left"
+                            >
+                              {task.status || "Select"}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuRadioGroup
+                              value={task.status}
+                              onValueChange={(status) =>
+                                onUpdateTask(task.id, { status })
+                              }
+                            >
+                              <DropdownMenuRadioItem value="To Do">
+                                To Do
+                              </DropdownMenuRadioItem>
+                              <DropdownMenuRadioItem value="In Progress">
+                                In Progress
+                              </DropdownMenuRadioItem>
+                              <DropdownMenuRadioItem value="Done">
+                                Done
+                              </DropdownMenuRadioItem>
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {task.status || "N/A"}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell onClick={stopPropagation}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`w-full justify-start text-left font-semibold ${getPriorityProps(
-                              task.priority
-                            ).color}`}
-                          >
-                            {task.priority || "Select"}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuRadioGroup
-                            value={task.priority}
-                            onValueChange={(priority) =>
-                              onUpdateTask(task.id, { priority })
-                            }
-                          >
-                            <DropdownMenuRadioItem value="Low">
-                              Low
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="Medium">
-                              Medium
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="High">
-                              High
-                            </DropdownMenuRadioItem>
-                          </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {task._permissions?.allowed ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`w-full justify-start text-left font-semibold ${getPriorityProps(
+                                task.priority
+                              ).color}`}
+                            >
+                              {task.priority || "Select"}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuRadioGroup
+                              value={task.priority}
+                              onValueChange={(priority) =>
+                                onUpdateTask(task.id, { priority })
+                              }
+                            >
+                              <DropdownMenuRadioItem value="Low">
+                                Low
+                              </DropdownMenuRadioItem>
+                              <DropdownMenuRadioItem value="Medium">
+                                Medium
+                              </DropdownMenuRadioItem>
+                              <DropdownMenuRadioItem value="High">
+                                High
+                              </DropdownMenuRadioItem>
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span className={`text-sm font-semibold ${getPriorityProps(task.priority).color}`}>
+                          {task.priority || "N/A"}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell
                       className="text-right"
@@ -391,10 +404,10 @@ const TaskList = ({
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          {userRole === 'admin' && (
+                          {task._permissions?.allowed && (
                             <DropdownMenuItem
                               className="text-destructive"
-                              onClick={() => onTaskDelete(task.id)} // Changed to onTaskDelete
+                              onClick={() => onTaskDelete(task.id)}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete

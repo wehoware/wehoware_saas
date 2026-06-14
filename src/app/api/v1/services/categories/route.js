@@ -52,9 +52,19 @@ export const GET = withAuth(async (request) => {
   }
 }, { allowedRoles: ["client", "employee", "admin"] });
 
+function canManageCategories(user) {
+  if (user.role === "client") {
+    return ["client", "manager", "editor"].includes(user.activeClientRole);
+  }
+  return true;
+}
+
 export const POST = withAuth(async (request) => {
   try {
     const { prisma, user } = request;
+    if (!canManageCategories(user)) {
+      return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+    }
     const clientId = resolveClientId(user);
     if (!clientId) return NextResponse.json({ error: "Active client context required" }, { status: 400 });
 
@@ -81,4 +91,4 @@ export const POST = withAuth(async (request) => {
     console.error("[POST /api/v1/services/categories]", err);
     return NextResponse.json({ error: "Failed to create service category" }, { status: 500 });
   }
-}, { allowedRoles: ["employee", "admin"] });
+}, { allowedRoles: ["client", "employee", "admin"] });

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/sheet';
 import TaskForm from './TaskForm';
 
-const AssignTaskSheet = ({ isOpen, onOpenChange, onTaskCreated, users = [], clients = [] }) => {
+const AssignTaskSheet = ({ isOpen, onOpenChange, onTaskCreated, users = [], clients = [], currentUser = null }) => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -36,9 +36,10 @@ const AssignTaskSheet = ({ isOpen, onOpenChange, onTaskCreated, users = [], clie
           <TaskForm
             onSubmit={handleSubmit}
             users={users}
-            clients={clients} // Pass clients to TaskForm
+            clients={clients}
             isLoading={isSubmitting}
             submitButtonText="Create Task"
+            currentUser={currentUser}
           />
         </div>
       </SheetContent>

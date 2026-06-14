@@ -15,6 +15,7 @@ const TaskForm = ({
   clients = [],
   isLoading = false,
   submitButtonText = "Submit Task",
+  currentUser = null,
 }) => {
   const [formData, setFormData] = useState({
     title: "",
@@ -37,11 +38,29 @@ const TaskForm = ({
 
   const userOptions = useMemo(() => {
     if (!Array.isArray(users)) return [];
-    return users.map((user) => ({
-      value: String(user.id),
-      label: (`${user.first_name || ""} ${user.last_name || ""}`.trim()) || user.email || `User ID: ${user.id}`, // Fallback label
-    }));
-  }, [users]);
+
+    let filtered = users;
+    if (currentUser) {
+      const isInternal = currentUser.role === "admin" || currentUser.role === "employee";
+      filtered = users.filter((u) => {
+        if (isInternal) {
+          return u.role === "admin" || u.role === "employee";
+        }
+        return u.role === "client";
+      });
+    }
+
+    return [
+      { value: "", label: "Unassigned" },
+      ...filtered.map((user) => ({
+        value: String(user.id),
+        label:
+          (`${user.first_name || ""} ${user.last_name || ""}`.trim()) ||
+          user.email ||
+          `User ID: ${user.id}`,
+      })),
+    ];
+  }, [users, currentUser]);
 
   useEffect(() => {
     if (initialData) {

@@ -41,9 +41,19 @@ export const GET = withAuth(async (request, { params }) => {
   }
 }, { allowedRoles: ["client", "employee", "admin"] });
 
+function canManageCategories(user) {
+  if (user.role === "client") {
+    return ["client", "manager", "editor"].includes(user.activeClientRole);
+  }
+  return true;
+}
+
 export const PUT = withAuth(async (request, { params }) => {
   try {
     const { prisma, user } = request;
+    if (!canManageCategories(user)) {
+      return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+    }
     const { id } = await params;
     const auth = await load(prisma, user, id);
     if (auth.status !== 200) return NextResponse.json(auth.body, { status: auth.status });
@@ -64,11 +74,14 @@ export const PUT = withAuth(async (request, { params }) => {
     console.error("[PUT /api/v1/blogs/categories/[id]]", err);
     return NextResponse.json({ error: "Failed to update category" }, { status: 500 });
   }
-}, { allowedRoles: ["employee", "admin"] });
+}, { allowedRoles: ["client", "employee", "admin"] });
 
 export const DELETE = withAuth(async (request, { params }) => {
   try {
     const { prisma, user } = request;
+    if (!canManageCategories(user)) {
+      return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+    }
     const { id } = await params;
     const auth = await load(prisma, user, id);
     if (auth.status !== 200) return NextResponse.json(auth.body, { status: auth.status });
@@ -78,4 +91,4 @@ export const DELETE = withAuth(async (request, { params }) => {
     console.error("[DELETE /api/v1/blogs/categories/[id]]", err);
     return NextResponse.json({ error: "Failed to delete category" }, { status: 500 });
   }
-}, { allowedRoles: ["employee", "admin"] });
+}, { allowedRoles: ["client", "employee", "admin"] });

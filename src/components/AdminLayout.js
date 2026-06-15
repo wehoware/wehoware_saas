@@ -204,6 +204,12 @@ const sidebarSections = [
         roles: ["admin", "employee", "client"],
       },
       {
+        title: "Daily Work Reports",
+        href: "/admin/daily-reports",
+        icon: <Calendar className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
         title: "Reports",
         href: "/admin/tasks/reports",
         icon: <BarChart className="h-4 w-4" />,

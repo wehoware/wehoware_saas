@@ -166,6 +166,26 @@ const TEMPLATES = {
     });
     return { subject, html, text: bodyText };
   },
+
+  "daily_report.reminder": (ctx) => {
+    const { name, report_date, link } = ctx;
+    const dateStr = report_date || "today";
+    const subject = `Reminder: Submit your daily work report for ${dateStr}`;
+    const text = `Hi ${name || "there"},\n\nThis is a friendly reminder to submit your daily work report for ${dateStr}.\n\nYou can submit it here: ${link || "https://app.wehoware.com/admin/daily-reports"}\n\nThanks,\nWehoware Team`;
+    const html = shell({
+      title: subject,
+      bodyHtml: `
+        <h2 style="margin-top:0;">Daily Work Report Reminder</h2>
+        <p>Hi ${escapeHtml(name || "there")},</p>
+        <p>This is a friendly reminder to submit your daily work report for <strong>${escapeHtml(dateStr)}</strong>.</p>
+        <p style="margin:16px 0;">
+          <a href="${escapeHtml(link || "#")}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Submit Report</a>
+        </p>
+        <p>Thanks,<br>Wehoware Team</p>
+      `,
+    });
+    return { subject, html, text };
+  },
 };
 
 export function listTemplates() {

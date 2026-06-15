@@ -195,9 +195,89 @@ export async function runPlaidSyncDispatcher() {
   return output;
 }
 
+/**
+ * Send daily work report reminders to users who have not submitted a report
+ * for today. Uses lastReminderSentAt on WehowareProfile for idempotency.
+ */
+export async function runDailyReportReminderDispatcher() {
+  const today = startOfDayUTC();
+  const tomorrow = addDays(today, 1);
+
+  // Find users who have an active client association and haven't been reminded today
+  const users = await prisma.wehowareProfile.findMany({
+    where: {
+      active: true,
+      OR: [
+        { lastReminderSentAt: { lt: today } },
+        { lastReminderSentAt: null },
+      ],
+      userClients: { some: {} },
+    },
+    include: {
+      userClients: {
+        where: { active: true },
+        include: { client: true },
+        take: 1,
+      },
+    },
+  });
+
+  const output = { checked: users.length, reminded: 0, failed: 0, skipped: 0 };
+
+  for (const user of users) {
+    const activeClient = user.userClients[0]?.client;
+    if (!activeClient) {
+      output.skipped += 1;
+      continue;
+    }
+
+    // Check if user already submitted a report for today
+    const existing = await prisma.wehowareDailyWorkReport.findFirst({
+      where: {
+        userId: user.id,
+        clientId: activeClient.id,
+        reportDate: { gte: today, lt: tomorrow },
+        status: "submitted",
+      },
+    });
+
+    if (existing) {
+      output.skipped += 1;
+      continue;
+    }
+
+    try {
+      const dateStr = today.toISOString().slice(0, 10);
+      await sendEmail({
+        clientId: activeClient.id,
+        to: user.email,
+        template: "daily_report.reminder",
+        context: {
+          name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
+          report_date: dateStr,
+          link: `https://app.wehoware.com/admin/daily-reports`,
+        },
+      });
+      output.reminded += 1;
+    } catch (err) {
+      // Email send failure is counted in output.failed; continue to next user
+      output.failed += 1;
+    }
+
+    // Always update lastReminderSentAt to prevent spam, even on failure
+    await prisma.wehowareProfile.update({
+      where: { id: user.id },
+      data: { lastReminderSentAt: new Date() },
+    });
+  }
+
+  return output;
+}
+
 export const JOBS = {
   "send-reminders": runReminderDispatcher,
   "sync-plaid": runPlaidSyncDispatcher,
+  "send-daily-report-reminders": runDailyReportReminderDispatcher,
 };
 
 export function listJobs() {

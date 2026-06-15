@@ -70,6 +70,7 @@ model WehowareClient {
   socialAccounts       WehowareSocialAccount[]
   socialPosts          WehowareSocialPost[]
   inboxConversations   WehowareSocialInboxConversation[]
+  dailyWorkReports     WehowareDailyWorkReport[]
 
   @@map("wehoware_clients")
 }
@@ -83,6 +84,8 @@ model WehowareProfile {
   avatarUrl                String?                       @map("avatar_url") @db.VarChar(500)
   role                     UserRole                      @default(client)
   clientId                 String?                       @map("client_id") @db.VarChar(36)
+  settings                 Json?                         @db.Json
+  lastReminderSentAt       DateTime?                     @map("last_reminder_sent_at")
   createdAt                DateTime                      @default(now()) @map("created_at")
   updatedAt                DateTime                      @updatedAt @map("updated_at")
   createdAppointmentTypes  WehowareAppointmentType[]     @relation("AppointmentTypeCreator")
@@ -143,6 +146,7 @@ model WehowareProfile {
   updatedSocialPosts       WehowareSocialPost[]        @relation("SocialPostUpdater")
   savedBlogVersions        WehowareBlogVersion[]       @relation("BlogVersionSaver")
   savedServiceVersions     WehowareServiceVersion[]    @relation("ServiceVersionSaver")
+  dailyWorkReports         WehowareDailyWorkReport[]
 
   @@index([role])
   @@index([clientId])
@@ -708,6 +712,7 @@ model WehowareTask {
   subtasks         WehowareSubtask[]
   timeEntries      WehowareTaskTimeEntry[]
   linkedGoals      WehowareGoalTaskLink[]
+  dailyReportItems WehowareDailyWorkReportItem[]
   assignee         WehowareProfile?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   client           WehowareClient?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   creator          WehowareProfile?        @relation("TaskCreator", fields: [createdBy], references: [id])
@@ -765,6 +770,7 @@ model WehowareSubtask {
   assignee    WehowareProfile?        @relation("SubtaskAssignee", fields: [assigneeId], references: [id])
   creator     WehowareProfile?        @relation("SubtaskCreator", fields: [createdBy], references: [id])
   timeEntries WehowareTaskTimeEntry[]
+  dailyReportItems WehowareDailyWorkReportItem[]
 
   @@index([taskId])
   @@index([status])
@@ -1899,6 +1905,11 @@ enum SocialMessageDirection {
   Outbound
 }
 
+enum DailyWorkReportStatus {
+  draft
+  submitted
+}
+
 // ─── Blog version history ────────────────────────────────────────────────────
 
 model WehowareBlogVersion {
@@ -1994,4 +2005,53 @@ model WehowareBlogFaq {
   @@index([clientId])
   @@index([displayOrder])
   @@map("wehoware_blog_faqs")
+}
+
+// ─── Daily Work Reports ──────────────────────────────────────────────────────
+
+model WehowareDailyWorkReport {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  userId      String   @map("user_id") @db.VarChar(36)
+  clientId    String   @map("client_id") @db.VarChar(36)
+  creatorRole String   @map("creator_role") @db.VarChar(50)
+  reportDate  DateTime @map("report_date") @db.Date
+  summary     String?  @db.Text
+  totalHours  Decimal  @default(0) @map("total_hours") @db.Decimal(5, 2)
+  status      DailyWorkReportStatus @default(draft)
+  submittedBy String?  @map("submitted_by") @db.VarChar(36)
+  submittedAt DateTime? @map("submitted_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        WehowareProfile @relation(fields: [userId], references: [id])
+  client      WehowareClient  @relation(fields: [clientId], references: [id])
+  items       WehowareDailyWorkReportItem[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([reportDate])
+  @@index([creatorRole])
+  @@unique([userId, clientId, reportDate])
+  @@map("wehoware_daily_work_reports")
+}
+
+model WehowareDailyWorkReportItem {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  reportId     String   @map("report_id") @db.VarChar(36)
+  taskId       String   @map("task_id") @db.VarChar(36)
+  subtaskId    String?  @map("subtask_id") @db.VarChar(36)
+  startTime    DateTime @map("start_time")
+  endTime      DateTime @map("end_time")
+  hoursWorked  Decimal  @map("hours_worked") @db.Decimal(5, 2)
+  description  String?  @db.Text
+  sequence     Int      @default(0) @map("sequence")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  report       WehowareDailyWorkReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  task         WehowareTask @relation(fields: [taskId], references: [id])
+  subtask      WehowareSubtask? @relation(fields: [subtaskId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([taskId])
+  @@map("wehoware_daily_work_report_items")
 }

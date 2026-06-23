@@ -79,6 +79,10 @@ export const GET = withAuth(
       const where = {};
       if (user.activeClientId) where.clientId = user.activeClientId;
 
+      // Optional employee filter
+      const userIdFilter = searchParams.get("user_id");
+      if (userIdFilter) where.assigneeId = userIdFilter;
+
       if (dateFrom || dateTo) {
         where.createdAt = {};
         if (dateFrom) where.createdAt.gte = new Date(dateFrom);
@@ -190,5 +194,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

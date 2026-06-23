@@ -51,6 +51,10 @@ export const GET = withAuth(
         if (dateTo) where.updatedAt.lte = new Date(dateTo);
       }
 
+      // Optional employee filter
+      const userIdFilter = searchParams.get("user_id");
+      if (userIdFilter) where.assigneeId = userIdFilter;
+
       const tasks = await prisma.wehowareTask.findMany({
         where,
         select: {
@@ -121,5 +125,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

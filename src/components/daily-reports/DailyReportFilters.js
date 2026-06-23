@@ -17,6 +17,7 @@ export default function DailyReportFilters({
   onChange,
   onApply,
   onClear,
+  employees,
 }) {
   const [local, setLocal] = useState(filters);
 
@@ -62,6 +63,27 @@ export default function DailyReportFilters({
           </SelectContent>
         </Select>
       </div>
+      {employees && employees.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="employee">Employee</Label>
+          <Select
+            value={local.user_id || "all"}
+            onValueChange={(v) => update("user_id", v === "all" ? "" : v)}
+          >
+            <SelectTrigger id="employee" className="w-[180px]">
+              <SelectValue placeholder="All Employees" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Employees</SelectItem>
+              {employees.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="flex items-center gap-2 ml-auto">
         <Button variant="outline" onClick={onClear}>
           Clear

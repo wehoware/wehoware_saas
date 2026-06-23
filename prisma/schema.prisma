@@ -2015,6 +2015,8 @@ model WehowareDailyWorkReport {
   clientId    String   @map("client_id") @db.VarChar(36)
   creatorRole String   @map("creator_role") @db.VarChar(50)
   reportDate  DateTime @map("report_date") @db.Date
+  startTime   DateTime? @map("start_time")
+  endTime     DateTime? @map("end_time")
   summary     String?  @db.Text
   totalHours  Decimal  @default(0) @map("total_hours") @db.Decimal(5, 2)
   status      DailyWorkReportStatus @default(draft)

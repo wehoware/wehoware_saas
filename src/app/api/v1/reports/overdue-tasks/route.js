@@ -42,6 +42,12 @@ export const GET = withAuth(
       };
       if (user.activeClientId) where.clientId = user.activeClientId;
 
+      // Optional filters
+      const userIdFilter = searchParams.get("user_id");
+      const priorityFilter = searchParams.get("priority");
+      if (userIdFilter) where.assigneeId = userIdFilter;
+      if (priorityFilter) where.priority = priorityFilter;
+
       const tasks = await prisma.wehowareTask.findMany({
         where,
         select: {
@@ -97,5 +103,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

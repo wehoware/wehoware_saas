@@ -13,6 +13,7 @@ export default function DailyReportsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [filters, setFilters] = useState({});
+  const [employees, setEmployees] = useState([]);
 
   async function fetchReports(currentPage = 1, currentFilters = filters) {
     setLoading(true);
@@ -23,6 +24,7 @@ export default function DailyReportsPage() {
       if (currentFilters.start_date) qs.set("start_date", currentFilters.start_date);
       if (currentFilters.end_date) qs.set("end_date", currentFilters.end_date);
       if (currentFilters.status) qs.set("status", currentFilters.status);
+      if (currentFilters.user_id) qs.set("user_id", currentFilters.user_id);
 
       const res = await fetch(`/api/v1/daily-reports?${qs.toString()}`);
       const data = await res.json();
@@ -48,6 +50,7 @@ export default function DailyReportsPage() {
         if (filters.start_date) qs.set("start_date", filters.start_date);
         if (filters.end_date) qs.set("end_date", filters.end_date);
         if (filters.status) qs.set("status", filters.status);
+        if (filters.user_id) qs.set("user_id", filters.user_id);
         const res = await fetch(`/api/v1/daily-reports?${qs.toString()}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to fetch reports");
@@ -65,6 +68,19 @@ export default function DailyReportsPage() {
     load();
     return () => { cancelled = true; };
   }, [filters]);
+
+  useEffect(() => {
+    async function loadEmployees() {
+      try {
+        const res = await fetch("/api/v1/daily-reports/analytics/employees");
+        const data = await res.json();
+        if (res.ok) setEmployees(data.employees || []);
+      } catch {
+        // ignore — employee filter is optional
+      }
+    }
+    loadEmployees();
+  }, []);
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this report?")) return;
@@ -116,6 +132,7 @@ export default function DailyReportsPage() {
 
       <DailyReportFilters
         filters={filters}
+        employees={employees}
         onChange={setFilters}
         onApply={(f) => { setFilters(f); fetchReports(1, f); }}
         onClear={() => { setFilters({}); fetchReports(1, {}); }}

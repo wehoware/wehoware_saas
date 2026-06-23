@@ -21,6 +21,8 @@ const Header = () => {
 
   // Handle admin and print paths specially
   const isAdminPage = pathname.startsWith('/admin') || pathname.startsWith('/print');
+  // Landing page uses PremiumNav instead
+  const isLandingPage = pathname === '/';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -33,8 +35,8 @@ const Header = () => {
   
   const isActive = (path) => pathname === path;
 
-  // Don't render the header on admin pages
-  if (isAdminPage) return null;
+  // Don't render the header on admin pages or landing page
+  if (isAdminPage || isLandingPage) return null;
   
   return (
     <header className={`header ${isScrolled ? 'header-scrolled' : ''}`}>
@@ -46,7 +48,7 @@ const Header = () => {
           transition={{ duration: 0.5 }}
         >
           <Link href="/" className="logo">
-            Wehoware
+            <span className="gradient-text">Wehoware</span>
           </Link>
         </motion.div>
 
@@ -74,7 +76,8 @@ const Header = () => {
           >
             <Link 
               href="/login" 
-              className="btn btn-primary"
+              className="btn-glow"
+              style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}
             >
               Login
             </Link>
@@ -117,8 +120,8 @@ const Header = () => {
             ))}
             <Link 
               href="/login" 
-              className="btn btn-primary"
-              style={{display: 'block', marginTop: '1rem', textAlign: 'center'}}
+              className="btn-glow"
+              style={{display: 'block', marginTop: '1rem', textAlign: 'center', padding: '0.5rem 1.25rem', fontSize: '0.875rem'}}
               onClick={() => setMobileMenuOpen(false)}
             >
               Login

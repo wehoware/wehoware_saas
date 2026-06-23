@@ -34,6 +34,12 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
   const [reportDate, setReportDate] = useState(
     toIsoDate(initialReport?.reportDate) || toIsoDate(new Date())
   );
+  const [reportStartTime, setReportStartTime] = useState(
+    initialReport?.start_time ? initialReport.start_time.slice(11, 16) : ""
+  );
+  const [reportEndTime, setReportEndTime] = useState(
+    initialReport?.end_time ? initialReport.end_time.slice(11, 16) : ""
+  );
   const [summary, setSummary] = useState(initialReport?.summary || "");
   const [items, setItems] = useState(
     (initialReport?.items || []).map((it) => ({
@@ -80,6 +86,8 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
     try {
       const payload = {
         report_date: reportDate,
+        start_time: reportStartTime ? `2000-01-01T${reportStartTime}:00Z` : null,
+        end_time: reportEndTime ? `2000-01-01T${reportEndTime}:00Z` : null,
         summary: summary || null,
         items: items
           .filter((it) => it.taskId)
@@ -103,7 +111,9 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
     }
   };
 
-  const totalHours = items.reduce((sum, it) => sum + (Number(it.hoursWorked) || 0), 0);
+  const itemHours = items.reduce((sum, it) => sum + (Number(it.hoursWorked) || 0), 0);
+  const reportLevelHours = computeHours(reportStartTime, reportEndTime);
+  const totalHours = itemHours > 0 ? itemHours : reportLevelHours;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -123,6 +133,31 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
           <div className="h-10 flex items-center text-sm font-medium">
             {totalHours.toFixed(2)}
           </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="report_start_time">Start Time</Label>
+          <Input
+            id="report_start_time"
+            type="time"
+            value={reportStartTime}
+            onChange={(e) => setReportStartTime(e.target.value)}
+            placeholder="Overall work start time"
+          />
+          <p className="text-xs text-muted-foreground">Used to calculate total hours when no work items are added.</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="report_end_time">End Time</Label>
+          <Input
+            id="report_end_time"
+            type="time"
+            value={reportEndTime}
+            onChange={(e) => setReportEndTime(e.target.value)}
+            placeholder="Overall work end time"
+          />
+          <p className="text-xs text-muted-foreground">Used to calculate total hours when no work items are added.</p>
         </div>
       </div>
 

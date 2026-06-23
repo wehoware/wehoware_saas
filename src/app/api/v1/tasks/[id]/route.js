@@ -126,6 +126,7 @@ export const PUT = withAuth(
       const { id } = await params;
 
       const body = await request.json();
+      console.log('[API PUT /tasks/' + id + '] body.priority:', body.priority, 'full body:', JSON.stringify(body));
 
       const existing = await loadTask(prisma, user, id);
       if (!existing) {
@@ -181,11 +182,13 @@ export const PUT = withAuth(
         );
       }
 
+      console.log('[API PUT /tasks/' + id + '] Prisma data:', JSON.stringify(data));
       const updated = await prisma.wehowareTask.update({
         where: { id },
         data,
         include: TASK_INCLUDE,
       });
+      console.log('[API PUT /tasks/' + id + '] updated.priority:', updated.priority);
 
       // Build activity log entries for any tracked field that changed.
       const activities = [];

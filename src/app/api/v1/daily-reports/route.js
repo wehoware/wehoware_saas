@@ -69,7 +69,9 @@ export const GET = withAuth(async (request) => {
       // Only admin/owner/manager can filter by other users
       const canFilterByUser =
         user.role === "admin" ||
-        (user.role === "client" && user.activeClientRole === "client");
+        (user.role === "client" &&
+          (user.activeClientRole === "client" ||
+            user.activeClientRole === "manager"));
       if (canFilterByUser) {
         filterWhere.userId = userIdFilter;
       }
@@ -117,10 +119,29 @@ export const POST = withAuth(
       const { prisma, user } = request;
 
       const body = await request.json();
-      const { report_date, summary, items = [] } = body ?? {};
+      const { report_date, summary, items = [], start_time, end_time } = body ?? {};
 
       if (!report_date) {
         return NextResponse.json({ error: "report_date is required" }, { status: 400 });
+      }
+
+      // Parse report-level start/end times (optional)
+      let reportStartTime = null;
+      let reportEndTime = null;
+      if (start_time) {
+        reportStartTime = new Date(start_time);
+        if (Number.isNaN(reportStartTime.getTime())) {
+          return NextResponse.json({ error: "Invalid start_time" }, { status: 400 });
+        }
+      }
+      if (end_time) {
+        reportEndTime = new Date(end_time);
+        if (Number.isNaN(reportEndTime.getTime())) {
+          return NextResponse.json({ error: "Invalid end_time" }, { status: 400 });
+        }
+      }
+      if (reportStartTime && reportEndTime && reportEndTime < reportStartTime) {
+        return NextResponse.json({ error: "end_time must be after start_time" }, { status: 400 });
       }
 
       const reportDate = toDateOnly(report_date);
@@ -170,8 +191,12 @@ export const POST = withAuth(
         };
       });
 
-      // Check total hours cap
-      const totalHours = itemData.reduce((sum, item) => sum + item.hoursWorked, 0);
+      // Compute total hours: prefer item sum, fall back to report-level time diff
+      let totalHours = itemData.reduce((sum, item) => sum + item.hoursWorked, 0);
+      if (itemData.length === 0 && reportStartTime && reportEndTime) {
+        const diffMs = reportEndTime.getTime() - reportStartTime.getTime();
+        totalHours = Math.max(0, diffMs / (1000 * 60 * 60));
+      }
       if (totalHours > 24) {
         return NextResponse.json(
           { error: "Total hours cannot exceed 24 per report" },
@@ -187,6 +212,8 @@ export const POST = withAuth(
             clientId,
             creatorRole: user.role,
             reportDate,
+            startTime: reportStartTime,
+            endTime: reportEndTime,
             summary: summary ?? null,
             totalHours,
             items: {

@@ -64,6 +64,7 @@ const TaskForm = ({
 
   useEffect(() => {
     if (initialData) {
+      console.log('[TaskForm] initialData.priority:', initialData.priority, 'initialData:', initialData);
       setFormData({
         title: initialData.title || "",
         description: initialData.description || "",
@@ -90,6 +91,10 @@ const TaskForm = ({
       processedValue = value ? String(value) : "";
     }
 
+    if (name === "priority") {
+      console.log('[TaskForm] handleChange priority:', value, '-> processed:', processedValue);
+    }
+
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
@@ -114,6 +119,7 @@ const TaskForm = ({
       priority,
       status,
     };
+    console.log('[TaskForm] submitting payload.priority:', payload.priority, 'full payload:', payload);
 
     onSubmit(payload);
   };

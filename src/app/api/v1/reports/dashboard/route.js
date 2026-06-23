@@ -37,6 +37,14 @@ export const GET = withAuth(
         if (dateTo) baseWhere.createdAt.lte = new Date(dateTo);
       }
 
+      // Optional filters
+      const statusFilter = searchParams.get("status");
+      const priorityFilter = searchParams.get("priority");
+      const userIdFilter = searchParams.get("user_id");
+      if (statusFilter) baseWhere.status = statusFilter;
+      if (priorityFilter) baseWhere.priority = priorityFilter;
+      if (userIdFilter) baseWhere.assigneeId = userIdFilter;
+
       // All status enum values to iterate
       const allStatuses = ["To_Do", "In_Progress", "Done", "Backlog"];
       const allPriorities = ["High", "Medium", "Low"];
@@ -147,5 +155,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

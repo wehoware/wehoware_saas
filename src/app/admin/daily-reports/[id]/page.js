@@ -191,6 +191,16 @@ export default function DailyReportDetailPage() {
             {report.summary || "No summary provided."}
           </p>
           <div className="mt-4 grid gap-2 text-sm">
+            <div className="flex gap-4">
+              <div>
+                <span className="font-medium">Start Time:</span>{" "}
+                {report.start_time ? report.start_time.slice(11, 16) : "—"}
+              </div>
+              <div>
+                <span className="font-medium">End Time:</span>{" "}
+                {report.end_time ? report.end_time.slice(11, 16) : "—"}
+              </div>
+            </div>
             <div>
               <span className="font-medium">Total Hours:</span>{" "}
               {Number(report.totalHours || 0).toFixed(2)}

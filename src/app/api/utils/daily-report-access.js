@@ -52,8 +52,14 @@ async function buildReportWhere(prisma, user, extraWhere = {}) {
       // Owner sees all Group 2 reports for their client
       return where;
     }
-    if (role === "manager" || role === "editor") {
-      // Manager/Editor sees only their own reports
+    if (role === "manager") {
+      // Manager sees own + editor + viewer reports for this client
+      const subordinateUserIds = await _getSubordinateUserIds(prisma, user, clientId, role);
+      where.userId = { in: [user.id, ...subordinateUserIds] };
+      return where;
+    }
+    if (role === "editor") {
+      // Editor sees only their own reports
       where.userId = user.id;
       return where;
     }
@@ -262,6 +268,8 @@ function canCreateReport(user) {
 function shapeReport(report) {
   if (!report) return report;
   const out = { ...report };
+  out.start_time = report.startTime?.toISOString() ?? null;
+  out.end_time = report.endTime?.toISOString() ?? null;
   if (report.user) {
     out.user = {
       id: report.user.id,
@@ -283,6 +291,78 @@ function shapeReport(report) {
   return out;
 }
 
+/**
+ * Get user IDs that the current user can monitor based on client role hierarchy.
+ * - client (owner): all client-side users for this client
+ * - manager: own + editors + viewers for this client
+ * - editor: own only
+ * - viewer: own only
+ * Returns array of userIds (excluding the current user).
+ */
+async function getMonitoredUserIds(prisma, user) {
+  if (user.role === "admin") {
+    // Admin can see all admin+employee users for this client
+    const userClients = await prisma.wehowareUserClient.findMany({
+      where: { clientId: user.activeClientId ?? user.clientId, active: true },
+      select: {
+        userId: true,
+        user: { select: { role: true } },
+      },
+    });
+    return userClients
+      .filter((uc) => uc.user.role === "admin" || uc.user.role === "employee")
+      .map((uc) => uc.userId)
+      .filter((uid) => uid !== user.id);
+  }
+
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId;
+    const role = user.activeClientRole;
+
+    if (role === "client") {
+      // Owner sees all client-side users
+      const userClients = await prisma.wehowareUserClient.findMany({
+        where: { clientId, active: true },
+        select: { userId: true },
+      });
+      return userClients.map((uc) => uc.userId).filter((uid) => uid !== user.id);
+    }
+
+    if (role === "manager") {
+      // Manager sees editors + viewers
+      const userClients = await prisma.wehowareUserClient.findMany({
+        where: { clientId, active: true, role: { in: ["editor", "viewer"] } },
+        select: { userId: true },
+      });
+      return userClients.map((uc) => uc.userId).filter((uid) => uid !== user.id);
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Check if the user can access analytics (admin, client owner, or manager).
+ */
+function canViewAnalytics(user) {
+  if (user.role === "admin") return true;
+  if (user.role === "client") {
+    return user.activeClientRole === "client" || user.activeClientRole === "manager";
+  }
+  return false;
+}
+
+async function _getSubordinateUserIds(prisma, user, clientId, role) {
+  if (role === "manager") {
+    const subordinates = await prisma.wehowareUserClient.findMany({
+      where: { clientId, active: true, role: { in: ["editor", "viewer"] } },
+      select: { userId: true },
+    });
+    return subordinates.map((s) => s.userId);
+  }
+  return [];
+}
+
 export {
   buildReportWhere,
   canAccessReport,
@@ -292,4 +372,6 @@ export {
   recalcTotalHours,
   canCreateReport,
   shapeReport,
+  getMonitoredUserIds,
+  canViewAnalytics,
 };

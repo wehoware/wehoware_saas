@@ -110,6 +110,7 @@ export default function EditTaskPage() {
         throw new Error(`Failed to fetch task: ${taskResponse.statusText}`);
       }
       const taskData = await taskResponse.json();
+      console.log('[EditPage] taskData.priority:', taskData.priority, 'full task:', taskData);
       setTask(taskData);
 
       let usersList = [];
@@ -152,6 +153,7 @@ export default function EditTaskPage() {
   }, [fetchData, activeClient?.id]);
 
   const handleUpdateTask = async (formData) => {
+    console.log('[EditPage] handleUpdateTask formData.priority:', formData.priority, 'full formData:', formData);
     setIsLoading(true);
     const promise = fetch(`/api/v1/tasks/${taskId}`, {
       method: 'PUT',

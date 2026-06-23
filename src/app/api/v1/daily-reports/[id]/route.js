@@ -151,6 +151,33 @@ export const PUT = withAuth(
       const data = { ...dateCheck.data };
       if (body.summary !== undefined) data.summary = body.summary ?? null;
 
+      // Handle report-level start_time / end_time updates
+      if (body.start_time !== undefined) {
+        if (body.start_time === null) {
+          data.startTime = null;
+        } else {
+          const st = new Date(body.start_time);
+          if (Number.isNaN(st.getTime())) {
+            return NextResponse.json({ error: "Invalid start_time" }, { status: 400 });
+          }
+          data.startTime = st;
+        }
+      }
+      if (body.end_time !== undefined) {
+        if (body.end_time === null) {
+          data.endTime = null;
+        } else {
+          const et = new Date(body.end_time);
+          if (Number.isNaN(et.getTime())) {
+            return NextResponse.json({ error: "Invalid end_time" }, { status: 400 });
+          }
+          data.endTime = et;
+        }
+      }
+      if (data.startTime && data.endTime && data.endTime < data.startTime) {
+        return NextResponse.json({ error: "end_time must be after start_time" }, { status: 400 });
+      }
+
       // Validate and rebuild items if provided
       let itemData = null;
       const items = body.items;
@@ -185,6 +212,20 @@ export const PUT = withAuth(
         // Recalc totalHours if items were replaced
         if (itemData) {
           await recalcTotalHours(tx, id);
+        } else if (data.startTime || data.endTime) {
+          // If no items but report-level times changed, recompute from times
+          const report = await tx.wehowareDailyWorkReport.findUnique({
+            where: { id },
+            select: { startTime: true, endTime: true, items: { select: { hoursWorked: true } } },
+          });
+          if (report && (!report.items || report.items.length === 0) && report.startTime && report.endTime) {
+            const diffMs = report.endTime.getTime() - report.startTime.getTime();
+            const computedHours = Math.max(0, diffMs / (1000 * 60 * 60));
+            await tx.wehowareDailyWorkReport.update({
+              where: { id },
+              data: { totalHours: computedHours },
+            });
+          }
         }
 
         // Reload to get updated totalHours

@@ -39,6 +39,9 @@ export default function SelectInput({
   // Handle value change without causing an infinite update loop
   const handleValueChange = (newValue) => {
     const actualValue = newValue === EMPTY_SENTINEL ? "" : newValue;
+    if (name === "priority") {
+      console.log('[SelectInput] handleValueChange name:', name, 'newValue:', newValue, 'actualValue:', actualValue, 'current value:', value);
+    }
     if (actualValue !== value) {
       onChange({ target: { name, value: actualValue } });
     }

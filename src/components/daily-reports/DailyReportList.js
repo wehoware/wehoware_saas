@@ -65,6 +65,8 @@ export default function DailyReportList({
           <TableRow>
             <TableHead>Date</TableHead>
             <TableHead>User</TableHead>
+            <TableHead>Start</TableHead>
+            <TableHead>End</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Items</TableHead>
             <TableHead>Total Hours</TableHead>
@@ -88,6 +90,12 @@ export default function DailyReportList({
                   {report.user
                     ? `${report.user.first_name || ""} ${report.user.last_name || ""}`.trim() || report.user.email
                     : "—"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {report.start_time ? report.start_time.slice(11, 16) : "—"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {report.end_time ? report.end_time.slice(11, 16) : "—"}
                 </TableCell>
                 <TableCell>{statusBadge(report.status)}</TableCell>
                 <TableCell>{report.items?.length ?? 0}</TableCell>

@@ -11,6 +11,8 @@ import {
   Users,
   TrainFront,
   NotebookPen,
+  Mail,
+  Shield,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -39,7 +41,9 @@ const AdminHeader = ({ className }) => {
     isManager,
     canViewTeam,
     activeClientRole,
+    logout,
   } = useAuth();
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   // Compute user initials with memoization for performance.
@@ -148,25 +152,82 @@ const AdminHeader = ({ className }) => {
             )}
           </div>
 
-          {/* Right Section: Desktop Profile & Actions */}
+          {/* Right Section: Desktop Profile Dropdown */}
           <div className="hidden items-center gap-4 md:flex">
-            <span className="text-xs text-muted-foreground capitalize">
-              {activeClientRole ? `${activeClientRole} (client)` : (user?.role || "Role")}
-            </span>
-            <span className="flex items-center gap-2">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
-                <AvatarFallback>{userInitials}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col items-start text-sm">
-                <span className="font-medium">
-                  {(user?.firstName && user.firstName.toUpperCase()) ||
-                    (user?.lastName && user.lastName.toUpperCase()) ||
-                    (user?.email && user.email.toUpperCase()) ||
-                    "User"}
-                </span>
-              </div>
-            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
+                    <AvatarFallback>{userInitials}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium leading-tight">
+                      {(user?.firstName && user.firstName.toUpperCase()) ||
+                        (user?.lastName && user.lastName.toUpperCase()) ||
+                        (user?.email && user.email.toUpperCase()) ||
+                        "User"}
+                    </span>
+                    <span className="text-xs text-muted-foreground capitalize leading-tight">
+                      {activeClientRole ? `${activeClientRole} (client)` : (user?.role || "Role")}
+                    </span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                {/* Profile summary header */}
+                <div className="flex items-center gap-3 p-2">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
+                    <AvatarFallback>{userInitials}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="truncate text-sm font-medium">
+                      {user?.firstName || user?.lastName
+                        ? `${user?.firstName || ""} ${user?.lastName || ""}`.trim()
+                        : "User"}
+                    </span>
+                    {user?.email && (
+                      <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                        <Mail className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{user.email}</span>
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground capitalize">
+                      <Shield className="h-3 w-3 shrink-0" />
+                      {activeClientRole ? `${activeClientRole} (client)` : (user?.role || "Role")}
+                    </span>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => router.push("/admin/settings")}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Account Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/admin/users/edit?userId=${user?.id}`)}
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Edit Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                  onClick={() => logout()}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Mobile Menu: Visible on smaller screens */}
@@ -242,6 +303,34 @@ const AdminHeader = ({ className }) => {
                         </div>
                       </div>
                     )}
+
+                    {/* Mobile Profile Actions */}
+                    <div className="mt-auto border-t pt-4">
+                      <div className="grid gap-2">
+                        <Button
+                          variant="outline"
+                          className="justify-start"
+                          onClick={() => {
+                            router.push(`/admin/users/edit?userId=${user?.id}`);
+                            setIsMobileMenuOpen(false);
+                          }}
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          Edit Profile
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="justify-start text-destructive"
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            logout();
+                          }}
+                        >
+                          <LogOut className="mr-2 h-4 w-4" />
+                          Log out
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </SheetContent>

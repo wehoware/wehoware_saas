@@ -13,7 +13,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 
-const VALID_GRANULARITIES = new Set(["daily", "weekly", "monthly"]);
+const VALID_GRANULARITIES = new Set(["daily", "weekly", "monthly", "yearly"]);
 
 /**
  * Returns the ISO date string representing the period bucket for a given date.
@@ -35,6 +35,10 @@ function getPeriodKey(date, granularity) {
     const monday = new Date(d);
     monday.setUTCDate(d.getUTCDate() - daysToMonday);
     return monday.toISOString().split("T")[0];
+  }
+
+  if (granularity === "yearly") {
+    return String(d.getUTCFullYear());
   }
 
   // monthly
@@ -65,6 +69,10 @@ export const GET = withAuth(
         if (dateTo) where.updatedAt.lte = new Date(dateTo);
       }
 
+      // Optional employee filter
+      const userIdFilter = searchParams.get("user_id");
+      if (userIdFilter) where.assigneeId = userIdFilter;
+
       const tasks = await prisma.wehowareTask.findMany({
         where,
         select: { updatedAt: true },
@@ -93,5 +101,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

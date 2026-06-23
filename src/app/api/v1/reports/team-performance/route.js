@@ -31,6 +31,10 @@ export const GET = withAuth(
         if (dateTo) taskWhere.createdAt.lte = new Date(dateTo);
       }
 
+      // Optional employee filter
+      const userIdFilter = searchParams.get("user_id");
+      if (userIdFilter) taskWhere.assigneeId = userIdFilter;
+
       // Fetch all tasks in scope (only columns needed for aggregation)
       const [tasks, profiles] = await Promise.all([
         prisma.wehowareTask.findMany({
@@ -121,5 +125,5 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin"] }
+  { allowedRoles: ["admin", "client"] }
 );

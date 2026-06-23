@@ -49,28 +49,16 @@ export default function AboutPage() {
   // Team members
   const team = [
     {
-      name: 'Alex Johnson',
-      position: 'CEO & Founder',
-      bio: 'With over 15 years of experience in software development and business management, Alex leads Wehoware with a focus on innovation and client success.',
+      name: 'Sai Akhil',
+      position: 'Founder & CEO',
+      bio: 'Visionary leader driving innovation and growth at Wehoware, with a focus on delivering cutting-edge solutions and client success.',
       image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8OHx8YnVzaW5lc3MlMjBwZXJzb258ZW58MHx8MHx8&auto=format&fit=crop&w=500&q=60'
     },
     {
-      name: 'Sarah Patel',
-      position: 'CTO',  
-      bio: 'Sarah brings a wealth of technical expertise and a passion for cutting-edge technologies. She oversees all technical aspects of Wehoware solutions.',
+      name: 'Abhinay',
+      position: 'Operation Manager',
+      bio: 'Streamlining operations for seamless delivery, ensuring every project runs efficiently from start to finish.',
       image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8NXx8YnVzaW5lc3MlMjB3b21hbnxlbnwwfHwwfHw%3D&auto=format&fit=crop&w=500&q=60'
-    },
-    {
-      name: 'Michael Lee',
-      position: 'Head of Design',
-      bio: 'Michael leads our design team with a keen eye for aesthetics and user experience. His work ensures our solutions are both beautiful and functional.',
-      image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8MTh8fGJ1c2luZXNzJTIwcGVyc29ufGVufDB8fDB8fA%3D%3D&auto=format&fit=crop&w=500&q=60'
-    },
-    {
-      name: 'Emily Rodriguez',
-      position: 'Client Relations Director',
-      bio: 'Emily ensures our clients receive exceptional service from the first interaction to project completion and beyond.',
-      image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxzZWFyY2h8Mnx8Y29ycG9yYXRlJTIwd29tYW58ZW58MHx8MHx8&auto=format&fit=crop&w=500&q=60'
     }
   ];
 
@@ -292,7 +280,7 @@ export default function AboutPage() {
           </div>
           
           <motion.div 
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto"
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"

@@ -13,26 +13,26 @@ const Footer = () => {
   }
 
   return (
-    <footer className="bg-muted/40 backdrop-blur-sm border-t mt-12">
+    <footer className="bg-[#050505] border-t border-white/5">
       <div className="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 mt-12 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {/* Company Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Wehoware</h3>
-            <p className="text-muted-foreground mb-4">
-              Wehoware is a leading provider of services, helping individuals and businesses navigate the complexities of processes with ease and confidence.
+            <h3 className="text-lg font-semibold mb-4 gradient-text">Wehoware</h3>
+            <p className="text-gray-400 mb-4">
+              We architect, build, and scale software products and marketing systems that drive measurable growth for ambitious companies.
             </p>
             <div className="flex space-x-4">
-              <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link href="#" className="text-gray-500 hover:text-[#00d4ff] transition-colors">
                 <Facebook size={20} />
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link href="#" className="text-gray-500 hover:text-[#00d4ff] transition-colors">
                 <Twitter size={20} />
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link href="#" className="text-gray-500 hover:text-[#00d4ff] transition-colors">
                 <Instagram size={20} />
               </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Link href="#" className="text-gray-500 hover:text-[#00d4ff] transition-colors">
                 <Linkedin size={20} />
               </Link>
             </div>
@@ -40,30 +40,30 @@ const Footer = () => {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
+            <h3 className="text-lg font-semibold mb-4 text-[#00d4ff]">Quick Links</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
                   Home
                 </Link>
               </li>
               <li>
-                <Link href="/services" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/services" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
                   Services
                 </Link>
               </li>
               <li>
-                <Link href="/blog" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/blog" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
                   Blog
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/about" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
                   About Us
                 </Link>
               </li>
               <li>
-                <Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">
+                <Link href="/contact" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
                   Contact
                 </Link>
               </li>
@@ -72,31 +72,31 @@ const Footer = () => {
 
           {/* Services */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Our Services</h3>
+            <h3 className="text-lg font-semibold mb-4 text-[#00d4ff]">Our Services</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/services/visa-applications" className="text-muted-foreground hover:text-primary transition-colors">
-                  Visa Applications
+                <Link href="/services" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
+                  Web Development
                 </Link>
               </li>
               <li>
-                <Link href="/services/permanent-residence" className="text-muted-foreground hover:text-primary transition-colors">
-                  Permanent Residence
+                <Link href="/services" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
+                  Mobile Apps
                 </Link>
               </li>
               <li>
-                <Link href="/services/citizenship" className="text-muted-foreground hover:text-primary transition-colors">
-                  Citizenship
+                <Link href="/services" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
+                  Cloud & DevOps
                 </Link>
               </li>
               <li>
-                <Link href="/services/business" className="text-muted-foreground hover:text-primary transition-colors">
-                  Business
+                <Link href="/services" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
+                  UI/UX Design
                 </Link>
               </li>
               <li>
-                <Link href="/services/family-sponsorship" className="text-muted-foreground hover:text-primary transition-colors">
-                  Family Sponsorship
+                <Link href="/services" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
+                  SEO & Marketing
                 </Link>
               </li>
             </ul>
@@ -104,44 +104,44 @@ const Footer = () => {
 
           {/* Contact Information */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Contact Us</h3>
+            <h3 className="text-lg font-semibold mb-4 text-[#00d4ff]">Contact Us</h3>
             <ul className="space-y-4">
               <li className="flex items-start">
-                <MapPin className="mr-2 h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <span className="text-muted-foreground">
-                  123 Service Blvd, Suite 500<br />
-                  New York, NY 10001
+                <MapPin className="mr-2 h-5 w-5 text-[#3b82f6] shrink-0 mt-0.5" />
+                <span className="text-gray-400">
+                  123 Tech Plaza, Suite 500<br />
+                  San Francisco, CA 94105
                 </span>
               </li>
               <li className="flex items-center">
-                <Phone className="mr-2 h-5 w-5 text-primary" />
-                <a href="tel:+12345678900" className="text-muted-foreground hover:text-primary transition-colors">
+                <Phone className="mr-2 h-5 w-5 text-[#3b82f6]" />
+                <a href="tel:+12345678900" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
                   +1 (234) 567-8900
                 </a>
               </li>
               <li className="flex items-center">
-                <Mail className="mr-2 h-5 w-5 text-primary" />
-                <a href="mailto:sales@wehoware.com" className="text-muted-foreground hover:text-primary transition-colors">
-                  sales@wehoware.com
+                <Mail className="mr-2 h-5 w-5 text-[#3b82f6]" />
+                <a href="mailto:hello@wehoware.com" className="text-gray-400 hover:text-[#00d4ff] transition-colors">
+                  hello@wehoware.com
                 </a>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-muted">
+        <div className="mt-12 pt-8 border-t border-white/5">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-500">
               © {new Date().getFullYear()} Wehoware Technologies. All rights reserved.
             </p>
             <div className="flex space-x-6 mt-4 md:mt-0">
-              <Link href="/privacy-policy" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/privacy-policy" className="text-sm text-gray-500 hover:text-[#00d4ff] transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="/terms-of-service" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/terms-of-service" className="text-sm text-gray-500 hover:text-[#00d4ff] transition-colors">
                 Terms of Service
               </Link>
-              <Link href="/disclaimer" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Link href="/disclaimer" className="text-sm text-gray-500 hover:text-[#00d4ff] transition-colors">
                 Disclaimer
               </Link>
             </div>

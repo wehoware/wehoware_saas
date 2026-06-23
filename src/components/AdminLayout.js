@@ -46,6 +46,7 @@ import {
 // Groups auto-expand when the current pathname matches any child href.
 const ACCOUNTING_GROUP_ID = "accounting";
 const TASKS_GROUP_ID = "tasks";
+const REPORTS_SUBGROUP_ID = "task-reports";
 const SOCIAL_MEDIA_GROUP_ID = "social-media";
 
 const sidebarSections = [
@@ -203,24 +204,42 @@ const sidebarSections = [
         icon: <ClipboardList className="h-4 w-4" />,
         roles: ["admin", "employee", "client"],
       },
-      {
-        title: "Daily Work Reports",
-        href: "/admin/daily-reports",
-        icon: <Calendar className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-      },
-      {
-        title: "Reports",
-        href: "/admin/tasks/reports",
-        icon: <BarChart className="h-4 w-4" />,
-        roles: ["admin"],
-      },
-      {
+            {
         title: "Goals",
         href: "/admin/tasks/goals",
         icon: <Target className="h-4 w-4" />,
         roles: ["admin", "employee"],
       },
+      {
+        title: "Submit Work",
+        href: "/admin/daily-reports",
+        icon: <Calendar className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        type: "subgroup",
+        id: REPORTS_SUBGROUP_ID,
+        title: "Reports",
+        icon: <BarChart className="h-4 w-4" />,
+        roles: ["admin", "client"],
+        clientRoles: ["client", "manager"],
+        children: [
+          {
+            title: "Work Report Analytics",
+            href: "/admin/daily-reports/analytics",
+            icon: <BarChart className="h-3.5 w-3.5" />,
+            roles: ["admin", "client"],
+            clientRoles: ["client", "manager"],
+          },
+          {
+            title: "Task Reports",
+            href: "/admin/tasks/reports",
+            icon: <PieChart className="h-3.5 w-3.5" />,
+            roles: ["admin"],
+          },
+        ],
+      },
+
     ],
   },
   {
@@ -304,16 +323,40 @@ function filterSectionsByRole(sections, role, activeClientRole) {
       visible.push(section);
       continue;
     }
-    const allowedChildren = (section.children || []).filter((c) => {
-      if (!c.roles.includes(role)) return false;
-      if (
-        role === "client" &&
-        c.clientRoles &&
-        !c.clientRoles.includes(activeClientRole)
-      )
-        return false;
-      return true;
-    });
+    const allowedChildren = (section.children || [])
+      .map((c) => {
+        // Subgroup: check role on subgroup itself, then filter its children
+        if (c.type === "subgroup") {
+          if (!c.roles.includes(role)) return null;
+          if (
+            role === "client" &&
+            c.clientRoles &&
+            !c.clientRoles.includes(activeClientRole)
+          )
+            return null;
+          const allowedSubChildren = (c.children || []).filter((sc) => {
+            if (!sc.roles.includes(role)) return false;
+            if (
+              role === "client" &&
+              sc.clientRoles &&
+              !sc.clientRoles.includes(activeClientRole)
+            )
+              return false;
+            return true;
+          });
+          if (allowedSubChildren.length === 0) return null;
+          return { ...c, children: allowedSubChildren };
+        }
+        if (!c.roles.includes(role)) return null;
+        if (
+          role === "client" &&
+          c.clientRoles &&
+          !c.clientRoles.includes(activeClientRole)
+        )
+          return null;
+        return c;
+      })
+      .filter(Boolean);
     if (allowedChildren.length === 0) continue;
     visible.push({ ...section, children: allowedChildren });
   }
@@ -334,6 +377,14 @@ function findActiveRoute(sections, pathname) {
       continue;
     }
     for (const child of section.children) {
+      if (child.type === "subgroup") {
+        for (const subChild of child.children) {
+          if (isLinkActive(subChild.href, pathname, subChild.matchExact)) {
+            return { section, child: subChild, subgroup: child };
+          }
+        }
+        continue;
+      }
       if (isLinkActive(child.href, pathname, child.matchExact)) {
         return { section, child };
       }
@@ -373,7 +424,8 @@ const AdminLayout = ({ children }) => {
   const isGroupExpanded = (groupId) =>
     Object.hasOwn(groupOverrides, groupId)
       ? groupOverrides[groupId]
-      : activeRoute?.section?.id === groupId;
+      : activeRoute?.section?.id === groupId ||
+        activeRoute?.subgroup?.id === groupId;
 
   const toggleGroup = (groupId) => {
     const currentlyExpanded = isGroupExpanded(groupId);
@@ -518,9 +570,14 @@ const AdminLayout = ({ children }) => {
 
                   // Group rendering
                   const isExpanded = isGroupExpanded(section.id);
-                  const hasActiveChild = section.children.some((child) =>
-                    isLinkActive(child.href, pathname, child.matchExact),
-                  );
+                  const hasActiveChild = section.children.some((child) => {
+                    if (child.type === "subgroup") {
+                      return child.children.some((sc) =>
+                        isLinkActive(sc.href, pathname, sc.matchExact),
+                      );
+                    }
+                    return isLinkActive(child.href, pathname, child.matchExact);
+                  });
                   return (
                     <div key={section.id} className="flex flex-col">
                       <button
@@ -551,6 +608,62 @@ const AdminLayout = ({ children }) => {
                       {isSidebarOpen && isExpanded && (
                         <div className="mt-1 ml-3 border-l border-border pl-3 flex flex-col gap-1">
                           {section.children.map((child) => {
+                            // Subgroup: expandable nested item with chevron
+                            if (child.type === "subgroup") {
+                              const subExpanded = isGroupExpanded(child.id);
+                              const subHasActive = child.children.some((sc) =>
+                                isLinkActive(sc.href, pathname, sc.matchExact),
+                              );
+                              return (
+                                <div key={child.id} className="flex flex-col">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleGroup(child.id)}
+                                    className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all w-full text-left ${
+                                      subHasActive
+                                        ? "text-accent-foreground"
+                                        : "hover:bg-accent/50 text-muted-foreground hover:text-accent-foreground"
+                                    }`}
+                                    aria-expanded={subExpanded}
+                                  >
+                                    {child.icon}
+                                    <span className="flex-1">{child.title}</span>
+                                    {subExpanded ? (
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ChevronRight className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                  {subExpanded && (
+                                    <div className="mt-1 ml-3 border-l border-border pl-3 flex flex-col gap-1">
+                                      {child.children.map((subChild) => {
+                                        const subChildActive = isLinkActive(
+                                          subChild.href,
+                                          pathname,
+                                          subChild.matchExact,
+                                        );
+                                        return (
+                                          <Link
+                                            key={subChild.href}
+                                            href={subChild.href}
+                                            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all ${
+                                              subChildActive
+                                                ? "bg-accent text-accent-foreground"
+                                                : "hover:bg-accent/50 text-muted-foreground hover:text-accent-foreground"
+                                            }`}
+                                          >
+                                            {subChild.icon}
+                                            <span>{subChild.title}</span>
+                                          </Link>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            // Regular link child
                             const childActive = isLinkActive(
                               child.href,
                               pathname,

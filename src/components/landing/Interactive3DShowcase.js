@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, BarChart3, Cpu, ShoppingCart, HeartPulse } from "lucide-react";
 import ScrollReveal from "@/components/gsap/ScrollReveal";
 import Scroll3DTilt from "@/components/gsap/Scroll3DTilt";
-import ScrollParallax from "@/components/gsap/ScrollParallax";
 
-const projects = [
+const vault = [
   {
     title: "Real-Time Trading Platform",
     category: "FinTech",
@@ -18,7 +18,8 @@ const projects = [
       { label: "Daily Trades", value: "2.4M" },
     ],
     tags: ["React", "WebSocket", "Redis", "TimescaleDB"],
-    gradient: "from-blue-600/20 via-cyan-500/10 to-transparent",
+    color: "#3b82f6",
+    glow: "rgba(59,130,246,0.2)",
   },
   {
     title: "AI Content Engine",
@@ -31,7 +32,8 @@ const projects = [
       { label: "Content/Mo", value: "50M+" },
     ],
     tags: ["Next.js", "OpenAI", "Pinecone", "Vercel"],
-    gradient: "from-purple-600/20 via-indigo-500/10 to-transparent",
+    color: "#00d4ff",
+    glow: "rgba(0,212,255,0.2)",
   },
   {
     title: "Headless E-Commerce",
@@ -44,7 +46,8 @@ const projects = [
       { label: "SKUs", value: "1.2M" },
     ],
     tags: ["Next.js", "Shopify", "Algolia", "Stripe"],
-    gradient: "from-green-600/20 via-emerald-500/10 to-transparent",
+    color: "#818cf8",
+    glow: "rgba(129,140,248,0.2)",
   },
   {
     title: "Healthcare Portal",
@@ -57,7 +60,8 @@ const projects = [
       { label: "Telemed Visits", value: "500k" },
     ],
     tags: ["React", "WebRTC", "AWS", "Python"],
-    gradient: "from-rose-600/20 via-pink-500/10 to-transparent",
+    color: "#34d399",
+    glow: "rgba(52,211,153,0.2)",
   },
 ];
 
@@ -66,100 +70,147 @@ export default function Interactive3DShowcase() {
 
   return (
     <section id="showcase" className="relative py-32 overflow-hidden">
-      <div className="absolute inset-0 gradient-mesh opacity-30" />
-      <ScrollParallax speed={0.08} className="absolute top-1/4 right-0 w-96 h-96 rounded-full bg-[#818cf8]/5 blur-[120px] pointer-events-none" />
+      {/* Ambient glow */}
+      <div className="glow-orb w-[600px] h-[600px] bg-[#818cf8]/5 top-[15%] right-[10%]" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <ScrollReveal y={20} rotateX={10}>
-            <span className="section-label mb-6">Showcase</span>
+        {/* Header */}
+        <div className="text-center mb-20">
+          <ScrollReveal y={20}>
+            <div className="cinematic-badge mb-6">
+              <span>Product Vault</span>
+            </div>
           </ScrollReveal>
-          <ScrollReveal y={30} delay={0.1} rotateX={15}>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tight mt-6 mb-4">
-              Projects that
-              <br />
-              <span className="gradient-text-premium">define industries</span>
+          <ScrollReveal y={30} delay={0.1}>
+            <h2 className="cinematic-headline mb-4">
+              PRODUCTS THAT <span className="cinematic-headline-accent">DEFINE INDUSTRIES</span>
             </h2>
           </ScrollReveal>
-          <ScrollReveal y={20} delay={0.2} opacity={0}>
+          <ScrollReveal y={20} delay={0.2}>
             <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-              Explore our portfolio of enterprise-grade products trusted by millions of users.
+              Explore our vault of enterprise-grade products trusted by millions of users worldwide.
             </p>
           </ScrollReveal>
         </div>
 
-        <div className="grid lg:grid-cols-[300px_1fr] gap-8">
-          <div className="space-y-2">
-            {projects.map((p, i) => {
-              const Icon = p.icon;
+        {/* Vault layout */}
+        <div className="grid lg:grid-cols-[320px_1fr] gap-8">
+          {/* Vault selector */}
+          <div className="space-y-3">
+            {vault.map((item, i) => {
+              const Icon = item.icon;
               return (
-                <ScrollReveal key={p.title} y={15} delay={i * 0.05} opacity={0}>
+                <ScrollReveal key={item.title} y={15} delay={i * 0.05}>
                   <button
                     onClick={() => setActive(i)}
-                    className={`w-full text-left p-4 rounded-xl transition-all duration-300 flex items-center gap-3 ${
-                      active === i
-                        ? "glass-card border-[#3b82f6]/30 bg-white/5"
-                        : "hover:bg-white/2 border border-transparent"
+                    className={`vault-item w-full text-left p-5 rounded-2xl transition-all duration-500 flex items-center gap-4 ${
+                      active === i ? "vault-item-active" : ""
                     }`}
+                    style={active === i ? { borderColor: `${item.color}40`, background: `${item.color}08` } : {}}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                      active === i ? "bg-gradient-to-br from-[#3b82f6]/30 to-[#00d4ff]/20" : "bg-white/5"
-                    }`}>
-                      <Icon className={`w-5 h-5 ${active === i ? "text-[#60a5fa]" : "text-gray-500"}`} />
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all duration-500"
+                      style={{
+                        background: active === i ? `linear-gradient(135deg, ${item.color}30, ${item.color}10)` : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${active === i ? item.color + "40" : "rgba(255,255,255,0.05)"}`,
+                      }}
+                    >
+                      <Icon className="w-6 h-6" style={{ color: active === i ? item.color : "#666" }} />
                     </div>
-                    <div className="min-w-0">
-                      <div className={`text-sm font-semibold truncate ${active === i ? "text-white" : "text-gray-400"}`}>
-                        {p.title}
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm font-bold truncate transition-colors ${active === i ? "text-white" : "text-gray-400"}`}>
+                        {item.title}
                       </div>
-                      <div className="text-xs text-gray-500">{p.category}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{item.category}</div>
                     </div>
+                    {active === i && (
+                      <motion.div
+                        layoutId="vault-indicator"
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: item.color }}
+                      />
+                    )}
                   </button>
                 </ScrollReveal>
               );
             })}
           </div>
 
-          <ScrollReveal y={30} rotateX={8} scale={0.98}>
-            <Scroll3DTilt max={5} className="showcase-card p-8 lg:p-12 min-h-[500px] flex flex-col">
-              <div className={`absolute inset-0 bg-gradient-to-br ${projects[active].gradient} pointer-events-none`} />
-
-              <div className="relative z-10 flex flex-col h-full">
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <span className="premium-badge mb-3">{projects[active].category}</span>
-                    <h3 className="text-3xl font-bold text-white mt-3">{projects[active].title}</h3>
-                  </div>
-                </div>
-
-                <p className="text-gray-400 text-lg leading-relaxed mb-8">
-                  {projects[active].desc}
-                </p>
-
-                <div className="grid grid-cols-3 gap-4 mb-8">
-                  {projects[active].metrics.map((m) => (
-                    <div key={m.label} className="glass-card p-4 rounded-xl text-center">
-                      <div className="text-2xl font-bold gradient-text-premium">{m.value}</div>
-                      <div className="text-xs text-gray-500 mt-1">{m.label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap gap-2 mb-8">
-                  {projects[active].tags.map((tag) => (
-                    <span key={tag} className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-300">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-auto">
-                  <a
-                    href="/contact"
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-white hover:gap-3 transition-all"
+          {/* Vault display */}
+          <ScrollReveal y={30} delay={0.1}>
+            <Scroll3DTilt max={6}>
+              <div className="vault-display relative min-h-[520px] overflow-hidden">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={active}
+                    initial={{ opacity: 0, y: 30, filter: "blur(10px)" }}
+                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                    exit={{ opacity: 0, y: -30, filter: "blur(10px)" }}
+                    transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                    className="relative z-10 p-8 lg:p-12 h-full flex flex-col"
                   >
-                    View case study <ArrowRight className="w-4 h-4 text-[#60a5fa]" />
-                  </a>
-                </div>
+                    {/* Background glow */}
+                    <div
+                      className="absolute inset-0 opacity-30 pointer-events-none"
+                      style={{ background: `radial-gradient(circle at 50% 50%, ${vault[active].glow}, transparent 70%)` }}
+                    />
+
+                    {/* Category badge */}
+                    <div className="flex items-center gap-2 mb-6">
+                      <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: vault[active].color }} />
+                      <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: vault[active].color }}>
+                        {vault[active].category}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="text-3xl lg:text-4xl font-black text-white mb-6">{vault[active].title}</h3>
+
+                    {/* Description */}
+                    <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-2xl">{vault[active].desc}</p>
+
+                    {/* Metrics */}
+                    <div className="grid grid-cols-3 gap-4 mb-10">
+                      {vault[active].metrics.map((m) => (
+                        <div key={m.label} className="holo-glass p-5 text-center">
+                          <div className="text-3xl font-black mb-1" style={{ color: vault[active].color }}>
+                            {m.value}
+                          </div>
+                          <div className="text-xs text-gray-500 uppercase tracking-wider">{m.label}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Tech tags */}
+                    <div className="flex flex-wrap gap-2 mb-10">
+                      {vault[active].tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 bg-white/[0.03] border border-white/5"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* CTA */}
+                    <div className="mt-auto">
+                      <a
+                        href="/contact"
+                        className="inline-flex items-center gap-2 text-sm font-semibold text-white group"
+                      >
+                        <span>View case study</span>
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" style={{ color: vault[active].color }} />
+                      </a>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+
+                {/* Corner accents */}
+                <div className="vault-corner top-0 left-0" style={{ borderColor: vault[active].color }} />
+                <div className="vault-corner top-0 right-0" style={{ borderColor: vault[active].color }} />
+                <div className="vault-corner bottom-0 left-0" style={{ borderColor: vault[active].color }} />
+                <div className="vault-corner bottom-0 right-0" style={{ borderColor: vault[active].color }} />
               </div>
             </Scroll3DTilt>
           </ScrollReveal>

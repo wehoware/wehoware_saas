@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ArrowRight } from "lucide-react";
 
 const navItems = [
-  { name: "Platform", href: "/#platform" },
-  { name: "Solutions", href: "/#solutions" },
-  { name: "Showcase", href: "/#showcase" },
+  { name: "Ecosystem", href: "/#solutions" },
+  { name: "Process", href: "/#process" },
+  { name: "Vault", href: "/#showcase" },
+  { name: "AI Core", href: "/#ai-command" },
+  { name: "Growth", href: "/#growth" },
   { name: "Pricing", href: "/#pricing" },
   { name: "About", href: "/about" },
 ];
@@ -16,6 +18,8 @@ const navItems = [
 export default function PremiumNav() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const navRef = useRef(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -24,41 +28,69 @@ export default function PremiumNav() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (navRef.current) {
+        const rect = navRef.current.getBoundingClientRect();
+        setMousePos({
+          x: e.clientX - rect.left - rect.width / 2,
+          y: e.clientY - rect.top - rect.height / 2,
+        });
+      }
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
   const isAdminPage = pathname.startsWith("/admin") || pathname.startsWith("/print");
   if (isAdminPage) return null;
 
   return (
-    <header className={`premium-nav ${isScrolled ? "premium-nav-scrolled" : ""}`}>
+    <header
+      ref={navRef}
+      className={`cinematic-nav ${isScrolled ? "cinematic-nav-scrolled" : ""}`}
+    >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#00d4ff] flex items-center justify-center text-white font-bold text-sm group-hover:scale-110 transition-transform" style={{ transition: "transform 0.3s" }}>
+        {/* Logo with magnetic effect */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div
+            className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#00d4ff] flex items-center justify-center text-white font-bold text-sm transition-all duration-300 group-hover:scale-110"
+            style={{
+              boxShadow: "0 0 20px rgba(59,130,246,0.3)",
+              transform: `translate(${mousePos.x * 0.02}px, ${mousePos.y * 0.02}px)`,
+            }}
+          >
             W
           </div>
           <span className="text-lg font-bold text-white tracking-tight">Wehoware</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8">
+        {/* Desktop nav with magnetic links */}
+        <nav className="hidden lg:flex items-center gap-1">
           {navItems.map((item) => (
-            <Link key={item.name} href={item.href} className="premium-nav-link">
+            <Link
+              key={item.name}
+              href={item.href}
+              className="cinematic-nav-link"
+            >
               {item.name}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
-          <Link href="/login" className="premium-nav-link">
+        {/* CTA buttons */}
+        <div className="hidden lg:flex items-center gap-3">
+          <Link href="/login" className="cinematic-nav-link">
             Sign in
           </Link>
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-gray-200 transition-colors"
-          >
+          <Link href="/contact" className="btn-cinematic-sm">
             Get Started <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
+        {/* Mobile toggle */}
         <button
-          className="md:hidden text-white"
+          className="lg:hidden text-white p-2"
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu"
         >
@@ -66,13 +98,14 @@ export default function PremiumNav() {
         </button>
       </div>
 
+      {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden absolute top-16 left-0 right-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/5 px-6 py-6 space-y-4">
+        <div className="lg:hidden absolute top-16 left-0 right-0 bg-[#030308]/95 backdrop-blur-2xl border-b border-white/5 px-6 py-6 space-y-3">
           {navItems.map((item) => (
             <Link
               key={item.name}
               href={item.href}
-              className="block text-gray-300 hover:text-white text-sm font-medium"
+              className="block text-gray-300 hover:text-white text-sm font-medium py-2"
               onClick={() => setMobileOpen(false)}
             >
               {item.name}
@@ -84,7 +117,7 @@ export default function PremiumNav() {
             </Link>
             <Link
               href="/contact"
-              className="block text-center px-4 py-2.5 rounded-lg bg-white text-black text-sm font-semibold"
+              className="block text-center px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#3b82f6] to-[#00d4ff] text-white text-sm font-semibold"
               onClick={() => setMobileOpen(false)}
             >
               Get Started

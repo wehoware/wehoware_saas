@@ -35,9 +35,7 @@ async function getHandler(request) {
       // Admin sees all admin+employee users, plus any user who has submitted
       // a report for the active client (covers edge cases where a user's
       // role changed but old reports remain).
-      const reportUserWhere = clientId
-        ? { clientId, creatorRole: { in: ["admin", "employee"] } }
-        : { creatorRole: { in: ["admin", "employee"] } };
+      const reportUserWhere = { creatorRole: { in: ["admin", "employee"] } };
       const clientReportUsers = await prisma.wehowareDailyWorkReport.findMany({
         where: reportUserWhere,
         select: { userId: true },

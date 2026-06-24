@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
         >
           <AuthProvider>
             <Header />
-            <main className="flex-grow overflow-hidden">{children}</main>
+            <main className="flex-grow">{children}</main>
             <Footer />
             <Toaster position="top-right" />
           </AuthProvider>

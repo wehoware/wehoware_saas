@@ -28,10 +28,12 @@ async function buildReportWhere(prisma, user, extraWhere = {}) {
     where.creatorRole = "client";
   }
 
-  // Client scoping
-  const clientId = user.activeClientId ?? user.clientId;
-  if (clientId) {
-    where.clientId = clientId;
+  // Client scoping — only for client roles; admin/employee see across all clients
+  if (user.role === "client") {
+    const clientId = user.activeClientId ?? user.clientId;
+    if (clientId) {
+      where.clientId = clientId;
+    }
   }
 
   // Role-specific visibility within the group
@@ -301,16 +303,14 @@ function shapeReport(report) {
  */
 async function getMonitoredUserIds(prisma, user) {
   if (user.role === "admin") {
-    // Admin can see all admin+employee users for this client
+    // Admin can see all admin+employee users across all clients
     const userClients = await prisma.wehowareUserClient.findMany({
-      where: { clientId: user.activeClientId ?? user.clientId, active: true },
+      where: { active: true, user: { role: { in: ["admin", "employee"] } } },
       select: {
         userId: true,
-        user: { select: { role: true } },
       },
     });
     return userClients
-      .filter((uc) => uc.user.role === "admin" || uc.user.role === "employee")
       .map((uc) => uc.userId)
       .filter((uid) => uid !== user.id);
   }

@@ -13,23 +13,23 @@ export default function BlogSection({ posts = [] }) {
   ];
 
   return (
-    <section className="relative py-24 overflow-hidden">
-      <div className="absolute inset-0 grid-bg opacity-10" />
+    <section className="relative py-32 overflow-hidden">
+      <div className="absolute inset-0 grid-bg opacity-5" />
       <div className="relative z-10 max-w-6xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-4">
           <div>
-            <ScrollReveal y={20} rotateX={10}>
-              <div className="inline-block px-3 py-1 rounded-full glass-card text-sm text-[#00d4ff] mb-4">
-                Insights
+            <ScrollReveal y={20}>
+              <div className="cinematic-badge mb-6">
+                <span>Insights</span>
               </div>
             </ScrollReveal>
-            <ScrollReveal y={30} delay={0.1} rotateX={15}>
-              <h2 className="text-4xl md:text-5xl font-bold">
-                Latest <span className="gradient-text">Articles</span>
+            <ScrollReveal y={30} delay={0.1}>
+              <h2 className="cinematic-headline mb-4">
+                LATEST <span className="cinematic-headline-accent">ARTICLES</span>
               </h2>
             </ScrollReveal>
           </div>
-          <ScrollReveal y={20} delay={0.2} opacity={0}>
+          <ScrollReveal y={20} delay={0.2}>
             <Link href="/blog" className="text-[#00d4ff] inline-flex items-center gap-1 hover:gap-2 transition-all">
               View all posts <ArrowRight className="w-4 h-4" />
             </Link>
@@ -38,16 +38,16 @@ export default function BlogSection({ posts = [] }) {
 
         <ScrollReveal stagger={0.1} className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {displayPosts.map((post, i) => (
-            <Scroll3DTilt key={i} max={10} className="glass-card p-6 group block">
+            <Scroll3DTilt key={post.slug} max={8} className="ai-module p-6 group block">
               <Link href={`/blog/${post.slug}`} className="block">
-                <div className="w-full h-40 rounded-lg bg-gradient-to-br from-[#3b82f6]/20 to-[#00d4ff]/10 mb-4 flex items-center justify-center">
-                  <span className="text-4xl font-bold text-[#3b82f6]/30">{String(i + 1).padStart(2, "0")}</span>
+                <div className="w-full h-40 rounded-xl bg-gradient-to-br from-[#3b82f6]/10 to-[#00d4ff]/5 mb-4 flex items-center justify-center border border-white/5">
+                  <span className="text-5xl font-black text-[#3b82f6]/20">{String(i + 1).padStart(2, "0")}</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                   <Calendar className="w-3 h-3" />
                   {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </div>
-                <h3 className="font-bold text-gray-100 mb-2 group-hover:text-[#00d4ff] transition-colors">{post.title}</h3>
+                <h3 className="font-bold text-white mb-2 group-hover:text-[#00d4ff] transition-colors">{post.title}</h3>
                 <p className="text-sm text-gray-400 mb-4">{post.excerpt}</p>
                 <span className="text-sm text-[#60a5fa] inline-flex items-center gap-1 group-hover:gap-2 transition-all">
                   Read more <ArrowRight className="w-3 h-3" />

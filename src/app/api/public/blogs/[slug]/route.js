@@ -34,6 +34,24 @@ function serialize(b) {
     meta_title: b.metaTitle,
     meta_description: b.metaDescription,
     meta_keywords: b.metaKeywords,
+    open_graph_title: b.openGraphTitle,
+    open_graph_description: b.openGraphDescription,
+    open_graph_image: b.openGraphImage,
+    twitter_title: b.twitterTitle,
+    twitter_description: b.twitterDescription,
+    twitter_image: b.twitterImage,
+    canonical_url: b.canonicalUrl,
+    robots_meta: b.robotsMeta,
+    schema_type: b.schemaType,
+    seo_score: b.seoScore,
+    target_keywords: b.targetKeywords,
+    show_toc: b.showToc,
+    show_author_box: b.showAuthorBox,
+    cta_heading: b.ctaHeading,
+    cta_body: b.ctaBody,
+    cta_button_text: b.ctaButtonText,
+    cta_button_url: b.ctaButtonUrl,
+    allow_social_share: b.allowSocialShare,
     wehoware_blog_categories: b.category
       ? { id: b.category.id, name: b.category.name }
       : null,
@@ -77,6 +95,37 @@ function buildFaqSchema(faqs) {
   };
 }
 
+function buildBlogSchema(blog, client) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": blog.schemaType || "BlogPosting",
+    headline: blog.title,
+    description: blog.metaDescription || blog.excerpt || "",
+  };
+
+  if (blog.thumbnail || blog.openGraphImage) {
+    schema.image = blog.thumbnail || blog.openGraphImage;
+  }
+  if (blog.publishedAt) {
+    schema.datePublished = blog.publishedAt.toISOString();
+  }
+  if (blog.updatedAt) {
+    schema.dateModified = blog.updatedAt.toISOString();
+  }
+  if (client?.companyName) {
+    schema.author = { "@type": "Organization", name: client.companyName };
+    schema.publisher = { "@type": "Organization", name: client.companyName };
+  }
+  if (blog.canonicalUrl) {
+    schema.mainEntityOfPage = { "@type": "WebPage", "@id": blog.canonicalUrl };
+  }
+  if (blog.metaKeywords) {
+    schema.keywords = blog.metaKeywords;
+  }
+
+  return schema;
+}
+
 async function resolveClient(domain, clientId) {
   if (!domain && !clientId) return null;
   const where = {};
@@ -84,7 +133,7 @@ async function resolveClient(domain, clientId) {
   if (clientId) where.id = clientId;
   const client = await prisma.wehowareClient.findFirst({
     where,
-    select: { id: true, active: true },
+    select: { id: true, active: true, companyName: true },
   });
   if (!client) return null;
   if (!client.active) return { inactive: true, id: client.id };
@@ -134,7 +183,10 @@ export async function GET(request, { params }) {
       data: { views: { increment: 1 } },
     }).catch(() => {});
 
-    return NextResponse.json({ blog: serialize(blog) });
+    return NextResponse.json({
+      blog: serialize(blog),
+      blog_schema: buildBlogSchema(blog, client),
+    });
   } catch (err) {
     console.error("[GET /api/public/blogs/[slug]] error:", err);
     return NextResponse.json({ error: "Failed to fetch blog" }, { status: 500 });

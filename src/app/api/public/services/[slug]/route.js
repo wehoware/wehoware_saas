@@ -30,12 +30,30 @@ function serialize(s) {
     tags: s.tags,
     active: s.active,
     featured: s.featured,
+    rating: s.rating ? Number(s.rating) : 0,
+    reviews_count: s.reviewsCount,
     views: s.views,
     created_at: s.createdAt,
     updated_at: s.updatedAt,
     meta_title: s.metaTitle,
     meta_description: s.metaDescription,
     meta_keywords: s.metaKeywords,
+    open_graph_title: s.openGraphTitle,
+    open_graph_description: s.openGraphDescription,
+    open_graph_image: s.openGraphImage,
+    twitter_title: s.twitterTitle,
+    twitter_description: s.twitterDescription,
+    twitter_image: s.twitterImage,
+    canonical_url: s.canonicalUrl,
+    robots_meta: s.robotsMeta,
+    schema_type: s.schemaType,
+    seo_score: s.seoScore,
+    target_keywords: s.targetKeywords,
+    cta_heading: s.ctaHeading,
+    cta_body: s.ctaBody,
+    cta_button_text: s.ctaButtonText,
+    cta_button_url: s.ctaButtonUrl,
+    allow_social_share: s.allowSocialShare,
     wehoware_service_categories: s.category
       ? { id: s.category.id, name: s.category.name, slug: s.category.slug }
       : null,
@@ -77,6 +95,34 @@ function buildFaqSchema(faqs) {
   };
 }
 
+function buildServiceSchema(service, client) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": service.schemaType || "Service",
+    name: service.title,
+    description: service.metaDescription || service.description || "",
+  };
+
+  if (service.thumbnail || service.openGraphImage) {
+    schema.image = service.thumbnail || service.openGraphImage;
+  }
+  if (client?.companyName) {
+    schema.provider = { "@type": "Organization", name: client.companyName };
+  }
+  if (service.fee && Number(service.fee) > 0) {
+    schema.offers = {
+      "@type": "Offer",
+      price: Number(service.fee),
+      priceCurrency: service.feeCurrency || "CAD",
+    };
+  }
+  if (service.metaKeywords) {
+    schema.keywords = service.metaKeywords;
+  }
+
+  return schema;
+}
+
 async function resolveClient(domain, clientId) {
   if (!domain && !clientId) return null;
   const where = {};
@@ -84,7 +130,7 @@ async function resolveClient(domain, clientId) {
   if (clientId) where.id = clientId;
   const client = await prisma.wehowareClient.findFirst({
     where,
-    select: { id: true, active: true },
+    select: { id: true, active: true, companyName: true },
   });
   if (!client) return null;
   if (!client.active) return { inactive: true, id: client.id };
@@ -129,7 +175,10 @@ export async function GET(request, { params }) {
       data: { views: { increment: 1 } },
     }).catch(() => {});
 
-    return NextResponse.json({ service: serialize(service) });
+    return NextResponse.json({
+      service: serialize(service),
+      service_schema: buildServiceSchema(service, client),
+    });
   } catch (err) {
     console.error("[GET /api/public/services/[slug]] error:", err);
     return NextResponse.json({ error: "Failed to fetch service" }, { status: 500 });

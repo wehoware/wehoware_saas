@@ -66,7 +66,7 @@ export default function CompanyStorySection() {
             <span>Our Process</span>
           </div>
           <h2 className="cinematic-headline mb-4">
-            FROM IDEA TO <span className="cinematic-headline-accent">IMPACT</span>
+            FROM IDEA TO IMPACT
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto text-lg">
             Four chambers of innovation. One seamless journey from concept to scale.

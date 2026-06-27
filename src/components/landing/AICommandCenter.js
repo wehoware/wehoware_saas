@@ -108,7 +108,7 @@ export default function AICommandCenter() {
           </ScrollReveal>
           <ScrollReveal y={30} delay={0.1}>
             <h2 className="cinematic-headline mb-4">
-              INTELLIGENCE <span className="cinematic-headline-accent">AT WORK</span>
+              INTELLIGENCE AT WORK
             </h2>
           </ScrollReveal>
           <ScrollReveal y={20} delay={0.2}>

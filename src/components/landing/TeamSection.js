@@ -24,7 +24,7 @@ export default function TeamSection() {
           </ScrollReveal>
           <ScrollReveal y={30} delay={0.1}>
             <h2 className="cinematic-headline mb-4">
-              MINDS BEHIND <span className="cinematic-headline-accent">WEHOWARE</span>
+              MINDS BEHIND WEHOWARE
             </h2>
           </ScrollReveal>
         </div>

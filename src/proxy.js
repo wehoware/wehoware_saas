@@ -33,7 +33,8 @@ function addSecurityHeaders(response) {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https:",
+      "connect-src 'self' https: blob:",
+      "worker-src 'self' blob:",
       "frame-src 'self' https://cdn.plaid.com",
       "frame-ancestors 'none'",
     ].join("; ")
@@ -90,7 +91,7 @@ export function proxy(request) {
     h.set("Referrer-Policy", "strict-origin-when-cross-origin");
     h.set(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors *"
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: blob:; worker-src 'self' blob:; frame-ancestors *"
     );
     return response;
   }

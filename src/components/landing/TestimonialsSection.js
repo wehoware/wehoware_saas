@@ -26,7 +26,7 @@ export default function TestimonialsSection() {
           </ScrollReveal>
           <ScrollReveal y={30} delay={0.1}>
             <h2 className="cinematic-headline mb-4">
-              TRUSTED BY <span className="cinematic-headline-accent">LEADERS</span>
+              TRUSTED BY LEADERS
             </h2>
           </ScrollReveal>
         </div>

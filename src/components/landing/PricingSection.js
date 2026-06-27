@@ -51,7 +51,7 @@ export default function PricingSection() {
           </ScrollReveal>
           <ScrollReveal y={30} delay={0.1}>
             <h2 className="cinematic-headline mb-4">
-              PRICING THAT <span className="cinematic-headline-accent">SCALES WITH YOU</span>
+              PRICING THAT SCALES WITH YOU
             </h2>
           </ScrollReveal>
           <ScrollReveal y={20} delay={0.2}>

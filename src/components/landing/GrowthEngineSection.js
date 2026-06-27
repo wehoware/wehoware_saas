@@ -66,7 +66,7 @@ export default function GrowthEngineSection() {
           </ScrollReveal>
           <ScrollReveal y={30} delay={0.1}>
             <h2 className="cinematic-headline mb-4">
-              ENGINEERED FOR <span className="cinematic-headline-accent">GROWTH</span>
+              ENGINEERED FOR GROWTH
             </h2>
           </ScrollReveal>
           <ScrollReveal y={20} delay={0.2}>

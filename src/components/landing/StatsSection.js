@@ -26,7 +26,7 @@ export default function StatsSection() {
           </ScrollReveal>
           <ScrollReveal y={30} delay={0.1}>
             <h2 className="cinematic-headline mb-4">
-              PROVEN <span className="cinematic-headline-accent">IMPACT</span>
+              PROVEN IMPACT
             </h2>
           </ScrollReveal>
         </div>

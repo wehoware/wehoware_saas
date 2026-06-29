@@ -71,6 +71,10 @@ model WehowareClient {
   socialPosts          WehowareSocialPost[]
   inboxConversations   WehowareSocialInboxConversation[]
   dailyWorkReports     WehowareDailyWorkReport[]
+  inventoryCategories  WehowareInventoryCategory[]
+  inventoryItems       WehowareInventoryItem[]
+  inventorySettings    WehowareInventorySetting?
+  inventoryStockMovements WehowareInventoryStockMovement[]
 
   @@map("wehoware_clients")
 }
@@ -147,6 +151,11 @@ model WehowareProfile {
   savedBlogVersions        WehowareBlogVersion[]       @relation("BlogVersionSaver")
   savedServiceVersions     WehowareServiceVersion[]    @relation("ServiceVersionSaver")
   dailyWorkReports         WehowareDailyWorkReport[]
+  createdInventoryCategories WehowareInventoryCategory[] @relation("InventoryCategoryCreator")
+  updatedInventoryCategories WehowareInventoryCategory[] @relation("InventoryCategoryUpdater")
+  createdInventoryItems      WehowareInventoryItem[]    @relation("InventoryItemCreator")
+  updatedInventoryItems      WehowareInventoryItem[]    @relation("InventoryItemUpdater")
+  inventoryStockMovements    WehowareInventoryStockMovement[]
 
   @@index([role])
   @@index([clientId])
@@ -2035,6 +2044,134 @@ model WehowareDailyWorkReport {
   @@index([creatorRole])
   @@unique([userId, clientId, reportDate])
   @@map("wehoware_daily_work_reports")
+}
+
+model WehowareInventoryCategory {
+  id          String            @id @default(uuid()) @db.VarChar(36)
+  clientId    String            @map("client_id") @db.VarChar(36)
+  name        String            @db.VarChar(255)
+  slug        String            @db.VarChar(255)
+  description String?           @db.Text
+  iconUrl     String?           @map("icon_url") @db.VarChar(500)
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  createdBy   String?           @map("created_by") @db.VarChar(36)
+  updatedBy   String?           @map("updated_by") @db.VarChar(36)
+  client      WehowareClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator     WehowareProfile?  @relation("InventoryCategoryCreator", fields: [createdBy], references: [id])
+  updater     WehowareProfile?  @relation("InventoryCategoryUpdater", fields: [updatedBy], references: [id])
+  items       WehowareInventoryItem[]
+
+  @@unique([clientId, slug])
+  @@index([clientId], map: "wehoware_inventory_categories_client_id_fkey")
+  @@index([createdBy], map: "wehoware_inventory_categories_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_inventory_categories_updated_by_fkey")
+  @@map("wehoware_inventory_categories")
+}
+
+model WehowareInventoryItem {
+  id              String                      @id @default(uuid()) @db.VarChar(36)
+  clientId        String                      @map("client_id") @db.VarChar(36)
+  categoryId      String?                     @map("category_id") @db.VarChar(36)
+  title           String                      @db.VarChar(500)
+  slug            String                      @db.VarChar(500)
+  type            String                      @default("product") @db.VarChar(50)
+  sku             String?                     @db.VarChar(100)
+  description     String?                     @db.Text
+  content         String?                     @db.LongText
+  thumbnail       String?                     @db.VarChar(500)
+  thumbnailAlt    String?                     @map("thumbnail_alt") @db.VarChar(255)
+  price           Decimal?                    @db.Decimal(10, 2)
+  currency        String                      @default("CAD") @db.VarChar(10)
+  priceVisible    Boolean                     @default(true) @map("price_visible")
+  quantity        Int                         @default(0)
+  reorderThreshold Int                        @default(0) @map("reorder_threshold")
+  status          String                      @default("in_stock") @db.VarChar(50)
+  tags            Json
+  featured        Boolean                     @default(false)
+  active          Boolean                     @default(true)
+  attributes      Json?
+  images          Json?
+  videos          Json?
+  metaTitle       String?                     @map("meta_title") @db.VarChar(255)
+  metaDescription String?                     @map("meta_description") @db.VarChar(500)
+  metaKeywords    String?                     @map("meta_keywords") @db.VarChar(500)
+  views           Int                         @default(0)
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  updatedAt       DateTime                    @updatedAt @map("updated_at")
+  createdBy       String?                     @map("created_by") @db.VarChar(36)
+  updatedBy       String?                     @map("updated_by") @db.VarChar(36)
+  client          WehowareClient              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  category        WehowareInventoryCategory?  @relation(fields: [categoryId], references: [id])
+  creator         WehowareProfile?            @relation("InventoryItemCreator", fields: [createdBy], references: [id])
+  updater         WehowareProfile?            @relation("InventoryItemUpdater", fields: [updatedBy], references: [id])
+  stockMovements  WehowareInventoryStockMovement[]
+
+  @@unique([clientId, slug])
+  @@index([categoryId])
+  @@index([active])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@index([clientId], map: "wehoware_inventory_items_client_id_fkey")
+  @@index([createdBy], map: "wehoware_inventory_items_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_inventory_items_updated_by_fkey")
+  @@map("wehoware_inventory_items")
+}
+
+model WehowareInventoryStockMovement {
+  id              String                 @id @default(uuid()) @db.VarChar(36)
+  itemId          String                 @map("item_id") @db.VarChar(36)
+  clientId        String                 @map("client_id") @db.VarChar(36)
+  movementType    String                 @map("movement_type") @db.VarChar(50)
+  quantityChange  Int                    @map("quantity_change")
+  quantityAfter   Int                    @map("quantity_after")
+  reason          String?                @db.Text
+  createdBy       String?                @map("created_by") @db.VarChar(36)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  item            WehowareInventoryItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  client          WehowareClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator         WehowareProfile?       @relation(fields: [createdBy], references: [id])
+
+  @@index([itemId])
+  @@index([clientId])
+  @@index([movementType])
+  @@index([createdAt])
+  @@map("wehoware_inventory_stock_movements")
+}
+
+model WehowareInventorySetting {
+  id                    String           @id @default(uuid()) @db.VarChar(36)
+  clientId              String           @unique @map("client_id") @db.VarChar(36)
+  defaultCurrency       String           @default("CAD") @map("default_currency") @db.VarChar(10)
+  lowStockThreshold     Int              @default(5) @map("low_stock_threshold")
+  autoArchiveDays       Int              @default(90) @map("auto_archive_days")
+  enableStockTracking   Boolean          @default(true) @map("enable_stock_tracking")
+  enableLowStockAlerts  Boolean          @default(true) @map("enable_low_stock_alerts")
+  enablePublicListing   Boolean          @default(true) @map("enable_public_listing")
+  enableInquiries       Boolean          @default(true) @map("enable_inquiries")
+  enableTestDrive       Boolean          @default(false) @map("enable_test_drive")
+  defaultItemType       String           @default("product") @map("default_item_type") @db.VarChar(50)
+  listingPageTitle      String?          @map("listing_page_title") @db.VarChar(255)
+  listingPageDescription String?         @map("listing_page_description") @db.Text
+  contactEmail          String?          @map("contact_email") @db.VarChar(255)
+  contactPhone          String?          @map("contact_phone") @db.VarChar(50)
+  businessHours         String?          @map("business_hours") @db.VarChar(255)
+  address               String?          @db.Text
+  socialFacebook        String?          @map("social_facebook") @db.VarChar(500)
+  socialInstagram       String?          @map("social_instagram") @db.VarChar(500)
+  socialTwitter         String?          @map("social_twitter") @db.VarChar(500)
+  socialYoutube         String?          @map("social_youtube") @db.VarChar(500)
+  seoTitle              String?          @map("seo_title") @db.VarChar(255)
+  seoDescription        String?          @map("seo_description") @db.VarChar(500)
+  seoKeywords           String?          @map("seo_keywords") @db.VarChar(500)
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  client                WehowareClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId], map: "wehoware_inventory_settings_client_id_fkey")
+  @@map("wehoware_inventory_settings")
 }
 
 model WehowareDailyWorkReportItem {

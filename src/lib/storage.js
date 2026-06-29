@@ -32,6 +32,7 @@ const VALID_ENTITY_TYPES = new Set([
   "general",
   "avatars",
   "invoices",
+  "inventory",
 ]);
 
 // ----------------------------------------------------------------

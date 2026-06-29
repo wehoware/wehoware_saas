@@ -20,6 +20,7 @@ const MOCKS = {
   "@/lib/auth": pathResolve(testsDir, "mocks", "auth.mjs"),
   "@/lib/invoiceTemplates": pathResolve(testsDir, "mocks", "invoice-templates.mjs"),
   "@/lib/storage": pathResolve(testsDir, "mocks", "storage.mjs"),
+  "@/lib/sanitize": pathResolve(testsDir, "mocks", "sanitize.mjs"),
 };
 
 function toFileHref(absolute) {

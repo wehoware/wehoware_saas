@@ -1,0 +1,127 @@
+-- =============================================================
+-- Migration 004: Inventory management tables
+--
+-- 1. wehoware_inventory_categories — category grouping for inventory items
+-- 2. wehoware_inventory_items — individual inventory items (products, services, etc.)
+-- 3. wehoware_inventory_stock_movements — audit trail of stock quantity changes
+-- 4. wehoware_inventory_settings — per-client inventory configuration
+-- =============================================================
+
+CREATE TABLE wehoware_inventory_categories (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  client_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  icon_url VARCHAR(500) NULL,
+  active BOOLEAN DEFAULT TRUE,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  created_by VARCHAR(36) NULL,
+  updated_by VARCHAR(36) NULL,
+  UNIQUE INDEX wehoware_inventory_categories_client_id_slug_unique (client_id, slug),
+  INDEX wehoware_inventory_categories_client_id_fkey (client_id),
+  INDEX wehoware_inventory_categories_created_by_fkey (created_by),
+  INDEX wehoware_inventory_categories_updated_by_fkey (updated_by),
+  CONSTRAINT wehoware_inventory_categories_client_id_fk FOREIGN KEY (client_id) REFERENCES wehoware_clients(id) ON DELETE CASCADE,
+  CONSTRAINT wehoware_inventory_categories_created_by_fk FOREIGN KEY (created_by) REFERENCES wehoware_profiles(id),
+  CONSTRAINT wehoware_inventory_categories_updated_by_fk FOREIGN KEY (updated_by) REFERENCES wehoware_profiles(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE wehoware_inventory_items (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  client_id VARCHAR(36) NOT NULL,
+  category_id VARCHAR(36) NULL,
+  title VARCHAR(500) NOT NULL,
+  slug VARCHAR(500) NOT NULL,
+  type VARCHAR(50) NOT NULL DEFAULT 'product',
+  sku VARCHAR(100) NULL,
+  description TEXT NULL,
+  content LONGTEXT NULL,
+  thumbnail VARCHAR(500) NULL,
+  thumbnail_alt VARCHAR(255) NULL,
+  price DECIMAL(10, 2) NULL,
+  currency VARCHAR(10) NOT NULL DEFAULT 'CAD',
+  price_visible BOOLEAN DEFAULT TRUE,
+  quantity INT NOT NULL DEFAULT 0,
+  reorder_threshold INT NOT NULL DEFAULT 0,
+  status VARCHAR(50) NOT NULL DEFAULT 'in_stock',
+  tags JSON NOT NULL,
+  featured BOOLEAN DEFAULT FALSE,
+  active BOOLEAN DEFAULT TRUE,
+  attributes JSON NULL,
+  images JSON NULL,
+  videos JSON NULL,
+  meta_title VARCHAR(255) NULL,
+  meta_description VARCHAR(500) NULL,
+  meta_keywords VARCHAR(500) NULL,
+  views INT NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  created_by VARCHAR(36) NULL,
+  updated_by VARCHAR(36) NULL,
+  UNIQUE INDEX wehoware_inventory_items_client_id_slug_unique (client_id, slug),
+  INDEX wehoware_inventory_items_category_id_idx (category_id),
+  INDEX wehoware_inventory_items_active_idx (active),
+  INDEX wehoware_inventory_items_status_idx (status),
+  INDEX wehoware_inventory_items_type_idx (type),
+  INDEX wehoware_inventory_items_created_at_idx (created_at),
+  INDEX wehoware_inventory_items_client_id_fkey (client_id),
+  INDEX wehoware_inventory_items_created_by_fkey (created_by),
+  INDEX wehoware_inventory_items_updated_by_fkey (updated_by),
+  CONSTRAINT wehoware_inventory_items_client_id_fk FOREIGN KEY (client_id) REFERENCES wehoware_clients(id) ON DELETE CASCADE,
+  CONSTRAINT wehoware_inventory_items_category_id_fk FOREIGN KEY (category_id) REFERENCES wehoware_inventory_categories(id),
+  CONSTRAINT wehoware_inventory_items_created_by_fk FOREIGN KEY (created_by) REFERENCES wehoware_profiles(id),
+  CONSTRAINT wehoware_inventory_items_updated_by_fk FOREIGN KEY (updated_by) REFERENCES wehoware_profiles(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE wehoware_inventory_stock_movements (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  item_id VARCHAR(36) NOT NULL,
+  client_id VARCHAR(36) NOT NULL,
+  movement_type VARCHAR(50) NOT NULL,
+  quantity_change INT NOT NULL,
+  quantity_after INT NOT NULL,
+  reason TEXT NULL,
+  created_by VARCHAR(36) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX wehoware_inventory_stock_movements_item_id_idx (item_id),
+  INDEX wehoware_inventory_stock_movements_client_id_idx (client_id),
+  INDEX wehoware_inventory_stock_movements_movement_type_idx (movement_type),
+  INDEX wehoware_inventory_stock_movements_created_at_idx (created_at),
+  CONSTRAINT wehoware_inventory_stock_movements_item_id_fk FOREIGN KEY (item_id) REFERENCES wehoware_inventory_items(id) ON DELETE CASCADE,
+  CONSTRAINT wehoware_inventory_stock_movements_client_id_fk FOREIGN KEY (client_id) REFERENCES wehoware_clients(id) ON DELETE CASCADE,
+  CONSTRAINT wehoware_inventory_stock_movements_created_by_fk FOREIGN KEY (created_by) REFERENCES wehoware_profiles(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE wehoware_inventory_settings (
+  id VARCHAR(36) NOT NULL PRIMARY KEY,
+  client_id VARCHAR(36) NOT NULL,
+  default_currency VARCHAR(10) NOT NULL DEFAULT 'CAD',
+  low_stock_threshold INT NOT NULL DEFAULT 5,
+  auto_archive_days INT NOT NULL DEFAULT 90,
+  enable_stock_tracking BOOLEAN DEFAULT TRUE,
+  enable_low_stock_alerts BOOLEAN DEFAULT TRUE,
+  enable_public_listing BOOLEAN DEFAULT TRUE,
+  enable_inquiries BOOLEAN DEFAULT TRUE,
+  enable_test_drive BOOLEAN DEFAULT FALSE,
+  default_item_type VARCHAR(50) NOT NULL DEFAULT 'product',
+  listing_page_title VARCHAR(255) NULL,
+  listing_page_description TEXT NULL,
+  contact_email VARCHAR(255) NULL,
+  contact_phone VARCHAR(50) NULL,
+  business_hours VARCHAR(255) NULL,
+  address TEXT NULL,
+  social_facebook VARCHAR(500) NULL,
+  social_instagram VARCHAR(500) NULL,
+  social_twitter VARCHAR(500) NULL,
+  social_youtube VARCHAR(500) NULL,
+  seo_title VARCHAR(255) NULL,
+  seo_description VARCHAR(500) NULL,
+  seo_keywords VARCHAR(500) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE INDEX wehoware_inventory_settings_client_id_unique (client_id),
+  INDEX wehoware_inventory_settings_client_id_fkey (client_id),
+  CONSTRAINT wehoware_inventory_settings_client_id_fk FOREIGN KEY (client_id) REFERENCES wehoware_clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

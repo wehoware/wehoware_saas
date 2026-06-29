@@ -11,9 +11,10 @@
     "db:push": "prisma db push --skip-generate",
     "db:seed": "node prisma/seed.mjs",
     "db:studio": "prisma studio",
-    "test": "node --import ./tests/setup.mjs --test 'tests/accounting/**/*.test.mjs' 'tests/integrations/**/*.test.mjs'",
-    "test:unit": "node --import ./tests/setup.mjs --test 'tests/accounting/lib-*.test.mjs' 'tests/integrations/lib-*.test.mjs'",
-    "test:api": "node --import ./tests/setup.mjs --test 'tests/accounting/api-*.test.mjs' 'tests/integrations/api-*.test.mjs'"
+    "test": "node --import ./tests/setup.mjs --test 'tests/accounting/**/*.test.mjs' 'tests/integrations/**/*.test.mjs' 'tests/inventory/**/*.test.mjs'",
+    "test:unit": "node --import ./tests/setup.mjs --test 'tests/accounting/lib-*.test.mjs' 'tests/integrations/lib-*.test.mjs' 'tests/inventory/lib-*.test.mjs'",
+    "test:api": "node --import ./tests/setup.mjs --test 'tests/accounting/api-*.test.mjs' 'tests/integrations/api-*.test.mjs' 'tests/inventory/api-*.test.mjs'",
+    "test:inventory": "node --import ./tests/setup.mjs --test 'tests/inventory/**/*.test.mjs'"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",

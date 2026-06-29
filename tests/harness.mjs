@@ -65,7 +65,7 @@ export function seedAdmin({
   ]);
   __seed("wehowareClient", [{ id: clientId, name: "Test Client" }]);
   __seed("wehowareUserClient", [
-    { userId, clientId, isPrimary: true },
+    { userId, clientId, isPrimary: true, active: true, role },
   ]);
   __setSession({ user: { id: userId, email, role } });
   return { userId, clientId, role };

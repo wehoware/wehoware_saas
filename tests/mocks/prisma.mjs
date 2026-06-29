@@ -38,6 +38,10 @@ function makeEmptyStore() {
     wehowareEmailLog: [],
     wehowareReminderRule: [],
     wehowareCronJobRun: [],
+    wehowareInventoryCategory: [],
+    wehowareInventoryItem: [],
+    wehowareInventoryStockMovement: [],
+    wehowareInventorySetting: [],
   };
 }
 
@@ -247,6 +251,24 @@ const RELATIONS = {
       );
     },
   },
+  wehowareInventoryItem: {
+    category(row) {
+      return store.wehowareInventoryCategory.find((c) => c.id === row.categoryId) || null;
+    },
+    stockMovements(row) {
+      return store.wehowareInventoryStockMovement.filter((m) => m.itemId === row.id);
+    },
+  },
+  wehowareInventoryCategory: {
+    items(row) {
+      return store.wehowareInventoryItem.filter((i) => i.categoryId === row.id);
+    },
+  },
+  wehowareInventoryStockMovement: {
+    item(row) {
+      return store.wehowareInventoryItem.find((i) => i.id === row.itemId) || null;
+    },
+  },
 };
 
 // -----------------------------------------------------------------
@@ -331,6 +353,35 @@ const DEFAULTS = {
     currency: "CAD",
     type: "Checking",
     balance: 0,
+  },
+  wehowareInventoryCategory: {
+    active: true,
+  },
+  wehowareInventoryItem: {
+    type: "product",
+    currency: "CAD",
+    priceVisible: true,
+    quantity: 0,
+    reorderThreshold: 0,
+    status: "in_stock",
+    tags: [],
+    featured: false,
+    active: true,
+    images: null,
+    videos: null,
+    views: 0,
+  },
+  wehowareInventoryStockMovement: {},
+  wehowareInventorySetting: {
+    defaultCurrency: "CAD",
+    lowStockThreshold: 5,
+    autoArchiveDays: 90,
+    enableStockTracking: true,
+    enableLowStockAlerts: true,
+    enablePublicListing: true,
+    enableInquiries: true,
+    enableTestDrive: false,
+    defaultItemType: "product",
   },
 };
 
@@ -489,6 +540,20 @@ export const prisma = {
   wehowareEmailLog: makeModel("wehowareEmailLog"),
   wehowareReminderRule: makeModel("wehowareReminderRule"),
   wehowareCronJobRun: makeModel("wehowareCronJobRun"),
+  wehowareInventoryCategory: makeModel("wehowareInventoryCategory"),
+  wehowareInventoryItem: makeModel("wehowareInventoryItem"),
+  wehowareInventoryStockMovement: makeModel("wehowareInventoryStockMovement"),
+  wehowareInventorySetting: makeModel("wehowareInventorySetting"),
+
+  async $queryRaw(strings, ...values) {
+    // Simplified mock for the lowStock query
+    // SELECT COUNT(*) AS cnt FROM wehoware_inventory_items WHERE client_id = ? AND active = 1 AND quantity <= reorder_threshold
+    const clientId = values[0];
+    const count = store.wehowareInventoryItem.filter(
+      (r) => r.clientId === clientId && r.active === true && r.quantity <= (r.reorderThreshold || 0)
+    ).length;
+    return [{ cnt: count }];
+  },
 
   async $transaction(handlerOrOps) {
     // Same-process mock — just run sequentially. If passed an array of

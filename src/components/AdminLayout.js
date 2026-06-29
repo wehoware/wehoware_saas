@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   FormInput,
+  FolderTree,
   Link as LinkIcon,
   BarChart,
   Users,
@@ -40,6 +41,8 @@ import {
   ClipboardList,
   Share2,
   Inbox,
+  Package,
+  Archive,
 } from "lucide-react";
 
 // Sidebar configuration. Each entry is either a flat link or a group with children.
@@ -47,6 +50,7 @@ import {
 const ACCOUNTING_GROUP_ID = "accounting";
 const TASKS_GROUP_ID = "tasks";
 const REPORTS_SUBGROUP_ID = "task-reports";
+const INVENTORY_GROUP_ID = "inventory";
 const SOCIAL_MEDIA_GROUP_ID = "social-media";
 
 const sidebarSections = [
@@ -75,51 +79,91 @@ const sidebarSections = [
   },
   {
     type: "group",
-    id: SOCIAL_MEDIA_GROUP_ID,
-    title: "Social Media",
-    icon: <Share2 className="h-5 w-5" />,
+    id: TASKS_GROUP_ID,
+    title: "Tasks",
+    icon: <CheckCircle className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
     clientRoles: ["client", "manager", "editor", "viewer"],
     children: [
       {
-        title: "Overview",
-        href: "/admin/social-media",
-        icon: <LayoutDashboard className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-        matchExact: true,
-      },
-      {
-        title: "Inbox",
-        href: "/admin/social-media/inbox",
-        icon: <Inbox className="h-4 w-4" />,
+        title: "All Tasks",
+        href: "/admin/tasks",
+        icon: <ClipboardList className="h-4 w-4" />,
         roles: ["admin", "employee", "client"],
       },
       {
-        title: "Posts",
-        href: "/admin/social-media/posts",
-        icon: <FileText className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
+        title: "Goals",
+        href: "/admin/tasks/goals",
+        icon: <Target className="h-4 w-4" />,
+        roles: ["admin", "employee"],
       },
       {
-        title: "Calendar",
-        href: "/admin/social-media/calendar",
+        title: "Submit Work",
+        href: "/admin/daily-reports",
         icon: <Calendar className="h-4 w-4" />,
         roles: ["admin", "employee", "client"],
       },
       {
-        title: "Analytics",
-        href: "/admin/social-media/analytics",
+        type: "subgroup",
+        id: REPORTS_SUBGROUP_ID,
+        title: "Reports",
         icon: <BarChart className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
-      },
-      {
-        title: "Accounts",
-        href: "/admin/social-media/accounts",
-        icon: <Users className="h-4 w-4" />,
-        roles: ["admin", "employee", "client"],
+        roles: ["admin", "client"],
+        clientRoles: ["client", "manager"],
+        children: [
+          {
+            title: "Work Report Analytics",
+            href: "/admin/daily-reports/analytics",
+            icon: <BarChart className="h-3.5 w-3.5" />,
+            roles: ["admin", "client"],
+            clientRoles: ["client", "manager"],
+          },
+          {
+            title: "Task Reports",
+            href: "/admin/tasks/reports",
+            icon: <PieChart className="h-3.5 w-3.5" />,
+            roles: ["admin"],
+          },
+        ],
       },
     ],
   },
+
+  {
+    type: "group",
+    id: INVENTORY_GROUP_ID,
+    title: "Inventory",
+    icon: <Package className="h-5 w-5" />,
+    roles: ["admin", "employee", "client"],
+    clientRoles: ["client", "manager", "editor", "viewer"],
+    children: [
+      {
+        title: "All Items",
+        href: "/admin/inventory",
+        icon: <Package className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Categories",
+        href: "/admin/inventory/categories",
+        icon: <FolderTree className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Stock Movements",
+        href: "/admin/inventory/stock-movements",
+        icon: <Archive className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Settings",
+        href: "/admin/inventory/settings",
+        icon: <Settings className="h-4 w-4" />,
+        roles: ["admin"],
+      },
+    ],
+  },
+
   {
     type: "group",
     id: ACCOUNTING_GROUP_ID,
@@ -190,58 +234,54 @@ const sidebarSections = [
       },
     ],
   },
-  {
+    {
     type: "group",
-    id: TASKS_GROUP_ID,
-    title: "Tasks",
-    icon: <CheckCircle className="h-5 w-5" />,
+    id: SOCIAL_MEDIA_GROUP_ID,
+    title: "Social Media",
+    icon: <Share2 className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
     clientRoles: ["client", "manager", "editor", "viewer"],
     children: [
       {
-        title: "All Tasks",
-        href: "/admin/tasks",
-        icon: <ClipboardList className="h-4 w-4" />,
+        title: "Overview",
+        href: "/admin/social-media",
+        icon: <LayoutDashboard className="h-4 w-4" />,
         roles: ["admin", "employee", "client"],
-      },
-            {
-        title: "Goals",
-        href: "/admin/tasks/goals",
-        icon: <Target className="h-4 w-4" />,
-        roles: ["admin", "employee"],
+        matchExact: true,
       },
       {
-        title: "Submit Work",
-        href: "/admin/daily-reports",
+        title: "Inbox",
+        href: "/admin/social-media/inbox",
+        icon: <Inbox className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Posts",
+        href: "/admin/social-media/posts",
+        icon: <FileText className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
+      {
+        title: "Calendar",
+        href: "/admin/social-media/calendar",
         icon: <Calendar className="h-4 w-4" />,
         roles: ["admin", "employee", "client"],
       },
       {
-        type: "subgroup",
-        id: REPORTS_SUBGROUP_ID,
-        title: "Reports",
+        title: "Analytics",
+        href: "/admin/social-media/analytics",
         icon: <BarChart className="h-4 w-4" />,
-        roles: ["admin", "client"],
-        clientRoles: ["client", "manager"],
-        children: [
-          {
-            title: "Work Report Analytics",
-            href: "/admin/daily-reports/analytics",
-            icon: <BarChart className="h-3.5 w-3.5" />,
-            roles: ["admin", "client"],
-            clientRoles: ["client", "manager"],
-          },
-          {
-            title: "Task Reports",
-            href: "/admin/tasks/reports",
-            icon: <PieChart className="h-3.5 w-3.5" />,
-            roles: ["admin"],
-          },
-        ],
+        roles: ["admin", "employee", "client"],
       },
-
+      {
+        title: "Accounts",
+        href: "/admin/social-media/accounts",
+        icon: <Users className="h-4 w-4" />,
+        roles: ["admin", "employee", "client"],
+      },
     ],
   },
+
   {
     type: "link",
     title: "Appointments",
@@ -433,16 +473,23 @@ const AdminLayout = ({ children }) => {
   };
 
   // Routes accessible to admins that should not appear in the sidebar.
-  const hiddenAllowedRoutes = ["/admin/categories/blog", "/admin/categories/service"];
+  const hiddenAllowedRoutes = [
+    "/admin/categories/blog",
+    "/admin/categories/service",
+  ];
 
   // Always allow the '/admin' dashboard. Otherwise allow only routes that
   // appear in the user's allowed sections OR are in the hidden allowed list.
   const isRouteAllowed =
     pathname === "/admin" ||
     Boolean(activeRoute) ||
-    ((role === "admin" || role === "employee" ||
-      (role === "client" && ["client", "manager", "editor"].includes(user?.activeClientRole)))
-     && hiddenAllowedRoutes.some((r) => pathname === r || pathname.startsWith(`${r}/`)));
+    ((role === "admin" ||
+      role === "employee" ||
+      (role === "client" &&
+        ["client", "manager", "editor"].includes(user?.activeClientRole))) &&
+      hiddenAllowedRoutes.some(
+        (r) => pathname === r || pathname.startsWith(`${r}/`),
+      ));
 
   // Guard: if the current route isn’t allowed, show an error and redirect.
   useEffect(() => {
@@ -627,7 +674,9 @@ const AdminLayout = ({ children }) => {
                                     aria-expanded={subExpanded}
                                   >
                                     {child.icon}
-                                    <span className="flex-1">{child.title}</span>
+                                    <span className="flex-1">
+                                      {child.title}
+                                    </span>
                                     {subExpanded ? (
                                       <ChevronDown className="h-3.5 w-3.5" />
                                     ) : (

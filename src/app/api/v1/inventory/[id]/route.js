@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { computeSeoScore, normalizeTargetKeywords } from "@/lib/seoScore";
 
 function serialize(item) {
   const price = item.price !== null && item.price !== undefined ? Number(item.price) : null;
@@ -38,6 +39,22 @@ function serialize(item) {
     meta_title: item.metaTitle,
     meta_description: item.metaDescription,
     meta_keywords: item.metaKeywords,
+    open_graph_title: item.openGraphTitle,
+    open_graph_description: item.openGraphDescription,
+    open_graph_image: item.openGraphImage,
+    twitter_title: item.twitterTitle,
+    twitter_description: item.twitterDescription,
+    twitter_image: item.twitterImage,
+    canonical_url: item.canonicalUrl,
+    robots_meta: item.robotsMeta,
+    schema_type: item.schemaType,
+    seo_score: item.seoScore,
+    target_keywords: item.targetKeywords,
+    cta_heading: item.ctaHeading,
+    cta_body: item.ctaBody,
+    cta_button_text: item.ctaButtonText,
+    cta_button_url: item.ctaButtonUrl,
+    allow_social_share: item.allowSocialShare,
     views: item.views,
     created_at: item.createdAt,
     updated_at: item.updatedAt,
@@ -113,7 +130,70 @@ export const PUT = withAuth(async (request, { params }) => {
     if (body.meta_title !== undefined) data.metaTitle = body.meta_title || null;
     if (body.meta_description !== undefined) data.metaDescription = body.meta_description || null;
     if (body.meta_keywords !== undefined) data.metaKeywords = body.meta_keywords || null;
+    if (body.open_graph_title !== undefined) data.openGraphTitle = body.open_graph_title || null;
+    if (body.open_graph_description !== undefined) data.openGraphDescription = body.open_graph_description || null;
+    if (body.open_graph_image !== undefined) data.openGraphImage = body.open_graph_image || null;
+    if (body.twitter_title !== undefined) data.twitterTitle = body.twitter_title || null;
+    if (body.twitter_description !== undefined) data.twitterDescription = body.twitter_description || null;
+    if (body.twitter_image !== undefined) data.twitterImage = body.twitter_image || null;
+    if (body.canonical_url !== undefined) data.canonicalUrl = body.canonical_url || null;
+    if (body.robots_meta !== undefined) data.robotsMeta = body.robots_meta || "index,follow";
+    if (body.schema_type !== undefined) data.schemaType = body.schema_type || "Product";
+    if (body.cta_heading !== undefined) data.ctaHeading = body.cta_heading || null;
+    if (body.cta_body !== undefined) data.ctaBody = body.cta_body || null;
+    if (body.cta_button_text !== undefined) data.ctaButtonText = body.cta_button_text || null;
+    if (body.cta_button_url !== undefined) data.ctaButtonUrl = body.cta_button_url || null;
+    if (body.allow_social_share !== undefined) data.allowSocialShare = Boolean(body.allow_social_share);
     if (body.updated_at !== undefined) delete data.updated_at;
+
+    // Recompute SEO score if any SEO-related field changed
+    const seoRelevantFields = [
+      "meta_title", "meta_description", "meta_keywords", "thumbnail", "thumbnail_alt",
+      "open_graph_title", "open_graph_description", "open_graph_image", "slug", "content", "description", "target_keywords",
+    ];
+    const shouldRecomputeSeo = seoRelevantFields.some((f) => body[f] !== undefined);
+    if (shouldRecomputeSeo) {
+      const existing = await prisma.wehowareInventoryItem.findUnique({
+        where: { id },
+        select: {
+          metaTitle: true, metaDescription: true, metaKeywords: true,
+          thumbnail: true, thumbnailAlt: true, slug: true,
+          content: true, description: true, targetKeywords: true,
+          openGraphTitle: true, openGraphDescription: true, openGraphImage: true,
+        },
+      });
+      const merged = { ...existing, ...data };
+      const normalizedKeywords = body.target_keywords !== undefined
+        ? normalizeTargetKeywords(body.target_keywords)
+        : (merged.targetKeywords ?? []);
+      data.seoScore = computeSeoScore({
+        metaTitle: merged.metaTitle,
+        metaDescription: merged.metaDescription,
+        metaKeywords: merged.metaKeywords,
+        thumbnail: merged.thumbnail,
+        thumbnailAlt: merged.thumbnailAlt,
+        openGraphTitle: merged.openGraphTitle,
+        openGraphDescription: merged.openGraphDescription,
+        openGraphImage: merged.openGraphImage,
+        slug: merged.slug,
+        content: merged.content ?? merged.description,
+        targetKeywords: normalizedKeywords,
+      });
+      if (body.target_keywords !== undefined) data.targetKeywords = normalizedKeywords;
+    }
+
+    // Auto-generate canonical URL from client domain + slug if not explicitly provided
+    if (body.canonical_url === undefined || body.canonical_url === null || body.canonical_url === "") {
+      const clientId = resolveClientId(user);
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: clientId },
+        select: { domain: true },
+      });
+      if (client?.domain) {
+        const effectiveSlug = data.slug || auth.data.slug;
+        data.canonicalUrl = `https://${client.domain}/inventory/${effectiveSlug}`;
+      }
+    }
 
     const updated = await prisma.wehowareInventoryItem.update({
       where: { id },

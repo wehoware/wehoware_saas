@@ -23,7 +23,7 @@ const priorityOptions = [
 ];
 
 // TaskFilters now receives currentFilters and assignableUsers as props
-const TaskFilters = ({ onFilterChange, assignableUsers = [], currentFilters }) => {
+const TaskFilters = ({ onFilterChange, assignableUsers = [], clients = [], currentFilters, showClientFilter = false }) => {
   // Internal state is removed. We use currentFilters prop directly.
 
   const handleInputChange = (e) => {
@@ -56,6 +56,7 @@ const TaskFilters = ({ onFilterChange, assignableUsers = [], currentFilters }) =
       status: "",
       priority: "",
       assignee_id: "", // Ensure this matches the key in TasksPage state
+      client_id: "",
     });
   };
 
@@ -113,6 +114,26 @@ const TaskFilters = ({ onFilterChange, assignableUsers = [], currentFilters }) =
         {/* TODO: Add Assignee Select - needs dynamic population */}
         {/* Replace the temporary one below with logic to fetch actual assignees */}
       </div>
+      {showClientFilter && (
+        <div>
+          <label
+            htmlFor="client_id"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Client
+          </label>
+          <FilterableSelectInput
+            id="client_id"
+            name="client_id"
+            options={[
+              { value: "", label: "All Clients" },
+              ...clients.map((c) => ({ value: c.id, label: c.company_name || c.name || "Unknown" })),
+            ]}
+            value={currentFilters.client_id || ""}
+            onChange={handleSelectChange}
+          />
+        </div>
+      )}
       <div>
         <label 
           htmlFor="assignee_id" 

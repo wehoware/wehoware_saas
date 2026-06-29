@@ -536,12 +536,6 @@ export default function ServicesPage() {
                           </th>
                           <th
                             scope="col"
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                          >
-                            Category
-                          </th>
-                          <th
-                            scope="col"
                             className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort("fee")}
                           >
@@ -643,7 +637,7 @@ export default function ServicesPage() {
                                 className="w-16 h-16 object-cover rounded"
                               />
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-4 py-3 whitespace-nowrap max-w-[250px]">
                               <div className="flex items-center">
                                 <div>
                                   <div className="text-sm font-medium text-gray-900">
@@ -653,13 +647,6 @@ export default function ServicesPage() {
                                     {service.service_code}
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {service.wehoware_service_categories?.name || (
-                                  <span className="text-gray-400 italic">Uncategorized</span>
-                                )}
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">

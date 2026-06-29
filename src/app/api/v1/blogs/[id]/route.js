@@ -269,8 +269,23 @@ export const PUT = withAuth(
         return NextResponse.json({ error: "Blog not found" }, { status: 404 });
       }
 
+      // Fetch client domain for canonical URL auto-generation
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: clientId },
+        select: { domain: true },
+      });
+
       const slug = await resolveSlug(prisma, { slugInput, title, existing, clientId });
       const updateData = buildUpdateData(body, slug, user.id, existing);
+
+      // Auto-generate canonical URL from domain + slug if not explicitly provided
+      const { canonical_url: canonicalUrlInput } = body ?? {};
+      if (canonicalUrlInput === undefined || canonicalUrlInput === null || canonicalUrlInput === "") {
+        const domain = client?.domain;
+        if (domain) {
+          updateData.canonicalUrl = `https://${domain}/blog/${slug}`;
+        }
+      }
 
       const blog = await prisma.wehowareBlog.update({
         where: { id },

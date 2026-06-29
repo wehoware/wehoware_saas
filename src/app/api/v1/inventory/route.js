@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { computeSeoScore, normalizeTargetKeywords } from "@/lib/seoScore";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -51,6 +52,22 @@ function serialize(item) {
     meta_title: item.metaTitle,
     meta_description: item.metaDescription,
     meta_keywords: item.metaKeywords,
+    open_graph_title: item.openGraphTitle,
+    open_graph_description: item.openGraphDescription,
+    open_graph_image: item.openGraphImage,
+    twitter_title: item.twitterTitle,
+    twitter_description: item.twitterDescription,
+    twitter_image: item.twitterImage,
+    canonical_url: item.canonicalUrl,
+    robots_meta: item.robotsMeta,
+    schema_type: item.schemaType,
+    seo_score: item.seoScore,
+    target_keywords: item.targetKeywords,
+    cta_heading: item.ctaHeading,
+    cta_body: item.ctaBody,
+    cta_button_text: item.ctaButtonText,
+    cta_button_url: item.ctaButtonUrl,
+    allow_social_share: item.allowSocialShare,
     views: item.views,
     created_at: item.createdAt,
     updated_at: item.updatedAt,
@@ -206,6 +223,12 @@ export const POST = withAuth(
         status, tags, featured, active,
         attributes, images, videos,
         meta_title: metaTitle, meta_description: metaDescription, meta_keywords: metaKeywords,
+        open_graph_title: openGraphTitle, open_graph_description: openGraphDescription, open_graph_image: openGraphImage,
+        twitter_title: twitterTitle, twitter_description: twitterDescription, twitter_image: twitterImage,
+        canonical_url: canonicalUrl, robots_meta: robotsMeta, schema_type: schemaType,
+        target_keywords: targetKeywords,
+        cta_heading: ctaHeading, cta_body: ctaBody, cta_button_text: ctaButtonText, cta_button_url: ctaButtonUrl,
+        allow_social_share: allowSocialShare,
         slug: slugInput,
       } = body ?? {};
 
@@ -220,6 +243,35 @@ export const POST = withAuth(
         ? await generateUniqueSlug(prisma, slugInput, clientId)
         : await generateUniqueSlug(prisma, title, clientId);
 
+      // Auto-generate canonical URL from client domain + slug if not explicitly provided
+      let resolvedCanonicalUrl = canonicalUrl ?? null;
+      if (!resolvedCanonicalUrl) {
+        const client = await prisma.wehowareClient.findUnique({
+          where: { id: clientId },
+          select: { domain: true },
+        });
+        if (client?.domain) {
+          resolvedCanonicalUrl = `https://${client.domain}/inventory/${slug}`;
+        }
+      }
+
+      const sanitizedContent = content ? sanitizeHtml(content) : null;
+      const sanitizedDescription = description ? sanitizeHtml(description) : null;
+      const normalizedKeywords = normalizeTargetKeywords(targetKeywords);
+      const seoScoreValue = computeSeoScore({
+        metaTitle: metaTitle ?? title,
+        metaDescription: metaDescription ?? sanitizedDescription,
+        metaKeywords: metaKeywords,
+        thumbnail: thumbnail,
+        thumbnailAlt: thumbnailAlt,
+        openGraphTitle: openGraphTitle,
+        openGraphDescription: openGraphDescription,
+        openGraphImage: openGraphImage,
+        slug,
+        content: sanitizedContent ?? sanitizedDescription,
+        targetKeywords: normalizedKeywords,
+      });
+
       const item = await prisma.wehowareInventoryItem.create({
         data: {
           clientId,
@@ -228,8 +280,8 @@ export const POST = withAuth(
           slug,
           type: type || "product",
           sku: sku || null,
-          description: description ? sanitizeHtml(description) : null,
-          content: content ? sanitizeHtml(content) : null,
+          description: sanitizedDescription,
+          content: sanitizedContent,
           thumbnail: thumbnail || null,
           thumbnailAlt: thumbnailAlt || null,
           price: price !== undefined && price !== null ? Number(price) : null,
@@ -247,6 +299,22 @@ export const POST = withAuth(
           metaTitle: metaTitle || null,
           metaDescription: metaDescription || null,
           metaKeywords: metaKeywords || null,
+          openGraphTitle: openGraphTitle || null,
+          openGraphDescription: openGraphDescription || null,
+          openGraphImage: openGraphImage || null,
+          twitterTitle: twitterTitle || null,
+          twitterDescription: twitterDescription || null,
+          twitterImage: twitterImage || null,
+          canonicalUrl: resolvedCanonicalUrl,
+          robotsMeta: robotsMeta || "index,follow",
+          schemaType: schemaType || "Product",
+          seoScore: seoScoreValue,
+          targetKeywords: normalizedKeywords,
+          ctaHeading: ctaHeading || null,
+          ctaBody: ctaBody || null,
+          ctaButtonText: ctaButtonText || null,
+          ctaButtonUrl: ctaButtonUrl || null,
+          allowSocialShare: allowSocialShare === undefined ? true : Boolean(allowSocialShare),
           createdBy: user.id,
           updatedBy: user.id,
         },

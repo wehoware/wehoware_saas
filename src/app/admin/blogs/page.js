@@ -641,9 +641,6 @@ export default function BlogsPage() {
                             Status
                           </th>
                           <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Updated
-                          </th>
-                          <th className="p-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -675,7 +672,7 @@ export default function BlogsPage() {
                                 className="w-16 h-16 object-cover rounded"
                               />
                             </td>
-                            <td className="p-3 max-w-[300px]">
+                            <td className="p-3 max-w-[250px]">
                               <div className="font-medium truncate">
                                 {blog.title}
                               </div>
@@ -728,13 +725,6 @@ export default function BlogsPage() {
                                   Featured
                                 </span>
                               )}
-                            </td>
-                            <td className="p-3 hidden md:table-cell">
-                              <div className="text-sm text-muted-foreground">
-                                {blog.updated_at
-                                  ? new Date(blog.updated_at).toISOString().split("T")[0]
-                                  : "—"}
-                              </div>
                             </td>
                             <td className="p-3">
                               <div className="flex space-x-2">

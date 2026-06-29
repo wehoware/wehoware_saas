@@ -33,7 +33,7 @@ function StatsCard({ title, value, icon }) {
 }
 
 export default function TasksPage() {
-  const { activeClient, isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer } = useAuth();
+  const { isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer } = useAuth();
   const canCreate = isAdmin || isEmployee || isClientOwner || isManager || isEditor;
   const isReadOnly = isViewer;
   const [tasks, setTasks] = useState([]);
@@ -57,6 +57,7 @@ export default function TasksPage() {
     priority: "",
     search: "",
     assignee_id: "", // Added assignee_id to filters
+    client_id: "", // Optional client filter for admin/employee
   });
   const [sort, setSort] = useState({ field: "created_at", order: "desc" });
   const [isAssignSheetOpen, setIsAssignSheetOpen] = useState(false);
@@ -87,10 +88,8 @@ export default function TasksPage() {
   }, [pagination.page, pagination.limit, sort.field, sort.order, filters]);
 
   useEffect(() => {
-    if (activeClient?.id) {
-      fetchTasks();
-    }
-  }, [activeClient?.id, fetchTasks]);
+    fetchTasks();
+  }, [fetchTasks]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -125,7 +124,7 @@ export default function TasksPage() {
       }
     };
     fetchInitialData();
-  }, [activeClient?.id]);
+  }, [isAdmin, isEmployee]);
 
   const handleFilterChange = (newFilters) => {
     setPagination((prev) => ({ ...prev, page: 1 }));
@@ -242,6 +241,8 @@ export default function TasksPage() {
           <TaskFilters 
             onFilterChange={handleFilterChange} 
             assignableUsers={assignableUsers} 
+            clients={clients}
+            showClientFilter={isAdmin || isEmployee}
             currentFilters={filters} // Pass all current filters
           />
           <TaskList

@@ -7,6 +7,46 @@ import Youtube from '@tiptap/extension-youtube';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import Color from '@tiptap/extension-color';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import LinkExtension from '@tiptap/extension-link';
+import TextStyle from '@tiptap/extension-text-style';
+
+// Custom FontSize extension extending TextStyle
+const FontSize = TextStyle.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fontSize: {
+        default: null,
+        parseHTML: (element) => element.style.fontSize || null,
+        renderHTML: (attributes) => {
+          if (!attributes.fontSize) return {};
+          return { style: `font-size: ${attributes.fontSize}` };
+        },
+      },
+    };
+  },
+});
+
+// Custom Table extension with alignment support
+const TableAligned = Table.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      align: {
+        default: 'center',
+        parseHTML: (element) => element.dataset.align || 'center',
+        renderHTML: (attributes) => {
+          if (!attributes.align) return {};
+          return { 'data-align': attributes.align };
+        },
+      },
+    };
+  },
+});
 
 // Add styles for the editor
 import "@/styles/rich-text-editor-styles.css";
@@ -33,7 +73,16 @@ import {
   Redo,
   Link,
   Unlink,
-  Palette
+  Palette,
+  Type,
+  Table as TableIcon,
+  Plus,
+  Minus,
+  Trash2,
+  ArrowLeft,
+  ArrowRight,
+  Combine,
+  Split,
 } from 'lucide-react';
 
 import { Button } from './button.jsx';
@@ -62,10 +111,17 @@ export default function RichTextEditor({
   const [isFocused, setIsFocused] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
+  const [linkTarget, setLinkTarget] = useState('_blank');
+  const [linkRel, setLinkRel] = useState('noopener noreferrer');
+  const [fontSizeOpen, setFontSizeOpen] = useState(false);
+  const [fontSizeValue, setFontSizeValue] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageOpen, setImageOpen] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeOpen, setYoutubeOpen] = useState(false);
+  const [tableOpen, setTableOpen] = useState(false);
+  const [tableRows, setTableRows] = useState(3);
+  const [tableCols, setTableCols] = useState(3);
   const imageInputRef = useRef(null);
   
   // Initialize editor with extensions
@@ -78,6 +134,7 @@ export default function RichTextEditor({
         alignments: ['left', 'center', 'right', 'justify'],
       }),
       Color,
+      FontSize,
       Youtube.configure({
         controls: true,
         nocookie: true,
@@ -85,8 +142,29 @@ export default function RichTextEditor({
       Placeholder.configure({
         placeholder,
       }),
+      TableAligned.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: 'rich-text-table',
+        },
+      }),
+      TableRow,
+      TableHeader,
+      TableCell.configure({
+        HTMLAttributes: {
+          class: 'rich-text-table-cell',
+        },
+      }),
+      LinkExtension.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
+      }),
     ],
     content: value,
+    immediatelyRender: false,
     onFocus: () => setIsFocused(true),
     onBlur: () => setIsFocused(false),
     onUpdate: ({ editor }) => {
@@ -143,19 +221,24 @@ export default function RichTextEditor({
   const addLink = useCallback(() => {
     if (editor && linkUrl) {
       // Check if the URL has http/https prefix
-      const url = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
+      const isExternal = linkUrl.startsWith('http');
+      const url = isExternal ? linkUrl : `https://${linkUrl}`;
+      const target = linkTarget || (isExternal ? '_blank' : '_self');
+      const rel = target === '_blank' ? (linkRel || 'noopener noreferrer') : null;
       
       editor
         .chain()
         .focus()
         .extendMarkRange('link')
-        .setLink({ href: url })
+        .setLink({ href: url, target, rel })
         .run();
       
       setLinkUrl('');
+      setLinkTarget('_blank');
+      setLinkRel('noopener noreferrer');
       setLinkOpen(false);
     }
-  }, [editor, linkUrl]);
+  }, [editor, linkUrl, linkTarget, linkRel]);
 
   // Remove link
   const removeLink = useCallback(() => {
@@ -163,6 +246,26 @@ export default function RichTextEditor({
       editor.chain().focus().unsetLink().run();
     }
   }, [editor]);
+
+  // Set font size on selected text
+  const setFontSize = useCallback((size) => {
+    if (editor) {
+      if (size) {
+        editor.chain().focus().setMark('textStyle', { fontSize: size }).run();
+      } else {
+        editor.chain().focus().setMark('textStyle', { fontSize: null }).run();
+      }
+      setFontSizeValue(size || '');
+    }
+  }, [editor]);
+
+  // Insert table
+  const insertTable = useCallback(() => {
+    if (editor) {
+      editor.chain().focus().insertTable({ rows: tableRows, cols: tableCols, withHeaderRow: true }).run();
+      setTableOpen(false);
+    }
+  }, [editor, tableRows, tableCols]);
 
   // Check if editor is ready
   if (!editor) {
@@ -398,8 +501,102 @@ export default function RichTextEditor({
 
           <Separator orientation="vertical" className="mx-1 h-6" />
 
+          {/* Font Size Control */}
+          <Popover open={fontSizeOpen} onOpenChange={(open) => {
+            setFontSizeOpen(open);
+            if (open) {
+              const attrs = editor.getAttributes('textStyle');
+              setFontSizeValue(attrs.fontSize || '');
+            }
+          }}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={editor.getAttributes('textStyle').fontSize ? 'bg-muted' : ''}
+                  >
+                    <Type className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Font Size</TooltipContent>
+            </Tooltip>
+            <PopoverContent className="w-56">
+              <div className="grid gap-3">
+                <div className="font-medium text-sm">Font Size</div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {['12px', '14px', '16px', '18px'].map((size) => (
+                    <Button
+                      key={size}
+                      type="button"
+                      variant={fontSizeValue === size ? 'default' : 'outline'}
+                      size="sm"
+                      className="text-xs"
+                      style={{ fontSize: size }}
+                      onClick={() => setFontSize(size)}
+                    >
+                      {size}
+                    </Button>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="font-size-custom">Custom Size</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="font-size-custom"
+                      type="text"
+                      placeholder="e.g. 22px"
+                      value={fontSizeValue}
+                      onChange={(e) => setFontSizeValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          setFontSize(fontSizeValue);
+                          setFontSizeOpen(false);
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => { setFontSize(fontSizeValue); setFontSizeOpen(false); }}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setFontSize(null); setFontSizeOpen(false); }}
+                >
+                  Reset Font Size
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Separator orientation="vertical" className="mx-1 h-6" />
+
           {/* Link Controls */}
-          <Popover open={linkOpen} onOpenChange={setLinkOpen}>
+          <Popover open={linkOpen} onOpenChange={(open) => {
+            setLinkOpen(open);
+            if (open && editor.isActive('link')) {
+              const attrs = editor.getAttributes('link');
+              setLinkUrl(attrs.href || '');
+              setLinkTarget(attrs.target || '_blank');
+              setLinkRel(attrs.rel || 'noopener noreferrer');
+            } else if (open) {
+              setLinkUrl('');
+              setLinkTarget('_blank');
+              setLinkRel('noopener noreferrer');
+            }
+          }}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <PopoverTrigger asChild>
@@ -421,10 +618,39 @@ export default function RichTextEditor({
                   <Label htmlFor="link">Link URL</Label>
                   <Input 
                     id="link" 
-                    placeholder="https://example.com" 
+                    placeholder="https://example.com or /internal-page" 
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addLink();
+                      }
+                    }}
                   />
+                  <p className="text-xs text-muted-foreground">Enter full URL for external links or path (e.g. /about) for internal links.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Link Target</Label>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      type="button"
+                      variant={linkTarget === '_blank' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => { setLinkTarget('_blank'); setLinkRel('noopener noreferrer'); }}
+                    >
+                      New Tab
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={linkTarget === '_self' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => { setLinkTarget('_self'); setLinkRel(null); }}
+                    >
+                      Same Tab
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Use New Tab for external links, Same Tab for internal links.</p>
                 </div>
                 <div className="flex justify-end space-x-2">
                   <Button type="button" variant="outline" onClick={() => setLinkOpen(false)}>
@@ -541,6 +767,227 @@ export default function RichTextEditor({
 
           <Separator orientation="vertical" className="mx-1 h-6" />
 
+          {/* Table Controls */}
+          <Popover open={tableOpen} onOpenChange={setTableOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={editor.isActive('table') ? 'bg-muted' : ''}
+                  >
+                    <TableIcon className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Insert Table</TooltipContent>
+            </Tooltip>
+            <PopoverContent className="w-72">
+              <div className="grid gap-3">
+                <div className="font-medium text-sm">Insert Table</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="table-rows">Rows</Label>
+                    <Input
+                      id="table-rows"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={tableRows}
+                      onChange={(e) => setTableRows(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="table-cols">Columns</Label>
+                    <Input
+                      id="table-cols"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={tableCols}
+                      onChange={(e) => setTableCols(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setTableOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={insertTable}>Insert Table</Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {editor.isActive('table') && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().addRowBefore().run()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add Row Before</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().addRowAfter().run()}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add Row After</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().addColumnBefore().run()}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add Column Before</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().addColumnAfter().run()}
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add Column After</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().mergeCells().run()}
+                    disabled={!editor.can().mergeCells()}
+                  >
+                    <Combine className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Merge Cells</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().splitCell().run()}
+                    disabled={!editor.can().splitCell()}
+                  >
+                    <Split className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Split Cell</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().toggleHeaderRow().run()}
+                  >
+                    <Heading3 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Toggle Header Row</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().deleteTable().run()}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete Table</TooltipContent>
+              </Tooltip>
+
+              <Separator orientation="vertical" className="mx-1 h-6" />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().updateAttributes('table', { align: 'left' }).run()}
+                    className={editor.getAttributes('table').align === 'left' ? 'bg-muted' : ''}
+                  >
+                    <AlignLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Table Align Left</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().updateAttributes('table', { align: 'center' }).run()}
+                    className={editor.getAttributes('table').align === 'center' ? 'bg-muted' : ''}
+                  >
+                    <AlignCenter className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Table Align Center</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => editor.chain().focus().updateAttributes('table', { align: 'right' }).run()}
+                    className={editor.getAttributes('table').align === 'right' ? 'bg-muted' : ''}
+                  >
+                    <AlignRight className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Table Align Right</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+
+          <Separator orientation="vertical" className="mx-1 h-6" />
+
           {/* History Controls */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -577,7 +1024,7 @@ export default function RichTextEditor({
       <EditorContent 
         editor={editor} 
         className={cn(
-          "rich-text-editor-content prose prose-sm sm:prose-base lg:prose-lg max-w-none p-4 focus:outline-none min-h-[200px] overflow-y-auto bg-white border rounded-md",
+          "rich-text-editor-content prose prose-sm sm:prose-base lg:prose-lg max-w-none p-4 focus:outline-none h-[400px] overflow-y-auto bg-white border rounded-md",
           editorClassName,
           isFocused ? 'ring-2 ring-ring ring-offset-2 border-primary' : ''
         )} 

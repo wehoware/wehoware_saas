@@ -248,6 +248,18 @@ export const POST = withAuth(
 
       const slug = await generateUniqueSlug(prisma, title, clientId);
 
+      // Auto-generate canonical URL from client domain + slug if not explicitly provided
+      let resolvedCanonicalUrl = canonicalUrl ?? null;
+      if (!resolvedCanonicalUrl) {
+        const client = await prisma.wehowareClient.findUnique({
+          where: { id: clientId },
+          select: { domain: true },
+        });
+        if (client?.domain) {
+          resolvedCanonicalUrl = `https://${client.domain}/services/${slug}`;
+        }
+      }
+
       const normalizedKeywords = normalizeTargetKeywords(targetKeywords);
       const seoScoreValue = computeSeoScore({
         metaTitle: metaTitle ?? title,
@@ -287,7 +299,7 @@ export const POST = withAuth(
           twitterTitle: twitterTitle ?? null,
           twitterDescription: twitterDescription ?? null,
           twitterImage: twitterImage ?? null,
-          canonicalUrl: canonicalUrl ?? null,
+          canonicalUrl: resolvedCanonicalUrl,
           robotsMeta: robotsMeta ?? "index,follow",
           schemaType: schemaType ?? "Service",
           seoScore: seoScoreValue,

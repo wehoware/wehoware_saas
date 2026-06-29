@@ -125,6 +125,7 @@ export const GET = withAuth(async (request) => {
     const priority = searchParams.get("priority");
     const searchQuery = searchParams.get("q");
     const assigneeFilter = searchParams.get("assignee_id");
+    const clientIdFilter = searchParams.get("client_id");
 
     const visibilityWhere = await buildTaskWhere(prisma, user);
     const filterWhere = {};
@@ -138,6 +139,7 @@ export const GET = withAuth(async (request) => {
     }
     if (priority) filterWhere.priority = priority;
     if (assigneeFilter) filterWhere.assigneeId = assigneeFilter;
+    if (clientIdFilter) filterWhere.clientId = clientIdFilter;
     if (searchQuery) {
       filterWhere.OR = [
         { title: { contains: searchQuery } },

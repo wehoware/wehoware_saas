@@ -270,6 +270,18 @@ export const POST = withAuth(
         ? slugInput.trim()
         : await generateUniqueSlug(prisma, title, clientId);
 
+      // Auto-generate canonical URL from client domain + slug if not explicitly provided
+      let resolvedCanonicalUrl = canonical_url ?? null;
+      if (!resolvedCanonicalUrl) {
+        const client = await prisma.wehowareClient.findUnique({
+          where: { id: clientId },
+          select: { domain: true },
+        });
+        if (client?.domain) {
+          resolvedCanonicalUrl = `https://${client.domain}/blog/${slug}`;
+        }
+      }
+
       const sanitizedContent = sanitizeHtml(content);
       const resolvedStatus = status || "Draft";
       const normalizedKeywords = normalizeTargetKeywords(target_keywords);
@@ -311,7 +323,7 @@ export const POST = withAuth(
           twitterTitle: twitter_title ?? null,
           twitterDescription: twitter_description ?? null,
           twitterImage: twitter_image ?? null,
-          canonicalUrl: canonical_url ?? null,
+          canonicalUrl: resolvedCanonicalUrl,
           robotsMeta: robots_meta ?? "index,follow",
           schemaType: schema_type ?? "BlogPosting",
           seoScore: seoScoreValue,

@@ -28,6 +28,7 @@ const ALLOWED_ATTRIBUTES = {
   a: ["href", "name", "target", "rel", "title"],
   img: ["src", "alt", "title", "width", "height", "loading"],
   "*": ["class", "id", "style"],
+  table: ["class", "id", "style", "data-align"],
   th: ["colspan", "rowspan", "scope"],
   td: ["colspan", "rowspan"],
 };

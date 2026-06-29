@@ -179,6 +179,21 @@ export default function EditInventoryPage({ params }) {
     seo_title: "",
     seo_description: "",
     seo_keywords: "",
+    open_graph_title: "",
+    open_graph_description: "",
+    open_graph_image: "",
+    twitter_title: "",
+    twitter_description: "",
+    twitter_image: "",
+    canonical_url: "",
+    robots_meta: "index,follow",
+    schema_type: "Product",
+    target_keywords: "",
+    cta_heading: "",
+    cta_body: "",
+    cta_button_text: "",
+    cta_button_url: "",
+    allow_social_share: true,
     slug_locked: false,
   });
 
@@ -231,6 +246,21 @@ export default function EditInventoryPage({ params }) {
           seo_title: data.meta_title || "",
           seo_description: data.meta_description || "",
           seo_keywords: data.meta_keywords || "",
+          open_graph_title: data.open_graph_title || "",
+          open_graph_description: data.open_graph_description || "",
+          open_graph_image: data.open_graph_image || "",
+          twitter_title: data.twitter_title || "",
+          twitter_description: data.twitter_description || "",
+          twitter_image: data.twitter_image || "",
+          canonical_url: data.canonical_url || "",
+          robots_meta: data.robots_meta || "index,follow",
+          schema_type: data.schema_type || "Product",
+          target_keywords: Array.isArray(data.target_keywords) ? data.target_keywords.join(", ") : (data.target_keywords || ""),
+          cta_heading: data.cta_heading || "",
+          cta_body: data.cta_body || "",
+          cta_button_text: data.cta_button_text || "",
+          cta_button_url: data.cta_button_url || "",
+          allow_social_share: data.allow_social_share !== false,
           slug_locked: true,
           ...vehicleAttrs,
         });
@@ -462,6 +492,21 @@ export default function EditInventoryPage({ params }) {
         meta_title: formData.seo_title || null,
         meta_description: formData.seo_description || null,
         meta_keywords: formData.seo_keywords || null,
+        open_graph_title: formData.open_graph_title || null,
+        open_graph_description: formData.open_graph_description || null,
+        open_graph_image: formData.open_graph_image || null,
+        twitter_title: formData.twitter_title || null,
+        twitter_description: formData.twitter_description || null,
+        twitter_image: formData.twitter_image || null,
+        canonical_url: formData.canonical_url || null,
+        robots_meta: formData.robots_meta || "index,follow",
+        schema_type: formData.schema_type || "Product",
+        target_keywords: formData.target_keywords || null,
+        cta_heading: formData.cta_heading || null,
+        cta_body: formData.cta_body || null,
+        cta_button_text: formData.cta_button_text || null,
+        cta_button_url: formData.cta_button_url || null,
+        allow_social_share: formData.allow_social_share,
       };
 
       toast.loading("Saving item...");
@@ -835,18 +880,126 @@ export default function EditInventoryPage({ params }) {
                   <div className="space-y-2">
                     <Label htmlFor="seo_title">Meta Title</Label>
                     <Input id="seo_title" name="seo_title" placeholder="Title for search engines" value={formData.seo_title} onChange={handleInputChange} />
+                    <p className="text-sm text-muted-foreground">SEO optimized title for search engines</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="seo_description">Meta Description</Label>
                     <Textarea id="seo_description" name="seo_description" placeholder="Brief description for search engines" value={formData.seo_description} onChange={handleInputChange} />
+                    <p className="text-sm text-muted-foreground">Short description for search engines (max 160 characters)</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="seo_keywords">Keywords</Label>
                     <Input id="seo_keywords" name="seo_keywords" placeholder="e.g. used toyota camry 2023" value={formData.seo_keywords} onChange={handleInputChange} />
+                    <p className="text-sm text-muted-foreground">Comma-separated keywords related to this item</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="slug">Slug</Label>
                     <Input id="slug" name="slug" placeholder="e.g. 2023-toyota-camry-xse" value={formData.slug} onChange={handleInputChange} required />
+                    <p className="text-sm text-muted-foreground">Unique identifier for the item URL</p>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Open Graph</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="open_graph_title">OG Title</Label>
+                      <Input id="open_graph_title" name="open_graph_title" placeholder="Title for social sharing" value={formData.open_graph_title} onChange={handleInputChange} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open_graph_description">OG Description</Label>
+                      <Textarea id="open_graph_description" name="open_graph_description" placeholder="Description for social sharing" value={formData.open_graph_description} onChange={handleInputChange} rows={2} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="open_graph_image">OG Image URL</Label>
+                      <Input id="open_graph_image" name="open_graph_image" type="url" placeholder="https://example.com/image.jpg" value={formData.open_graph_image} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Twitter Cards</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="twitter_title">Twitter Title</Label>
+                      <Input id="twitter_title" name="twitter_title" placeholder="Title for Twitter" value={formData.twitter_title} onChange={handleInputChange} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twitter_description">Twitter Description</Label>
+                      <Textarea id="twitter_description" name="twitter_description" placeholder="Description for Twitter" value={formData.twitter_description} onChange={handleInputChange} rows={2} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twitter_image">Twitter Image URL</Label>
+                      <Input id="twitter_image" name="twitter_image" type="url" placeholder="https://example.com/image.jpg" value={formData.twitter_image} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Advanced SEO</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="canonical_url">Canonical URL</Label>
+                      <Input id="canonical_url" name="canonical_url" type="url" placeholder="https://example.com/canonical-page" value={formData.canonical_url} onChange={handleInputChange} />
+                      <p className="text-sm text-muted-foreground">Auto-generated from client domain + slug if left empty</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="robots_meta">Robots Meta</Label>
+                        <SelectInput
+                          id="robots_meta"
+                          name="robots_meta"
+                          value={formData.robots_meta}
+                          onChange={handleInputChange}
+                          options={[
+                            { value: "index,follow", label: "Index, Follow" },
+                            { value: "noindex,follow", label: "No Index, Follow" },
+                            { value: "index,nofollow", label: "Index, No Follow" },
+                            { value: "noindex,nofollow", label: "No Index, No Follow" },
+                          ]}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="schema_type">Schema Type</Label>
+                        <Input id="schema_type" name="schema_type" placeholder="Product" value={formData.schema_type} onChange={handleInputChange} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="target_keywords">Target Keywords</Label>
+                      <Input id="target_keywords" name="target_keywords" placeholder="e.g. keyword1, keyword2" value={formData.target_keywords} onChange={handleInputChange} />
+                      <p className="text-sm text-muted-foreground">Comma-separated target keywords for SEO scoring.</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Call to Action</h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="cta_heading">CTA Heading</Label>
+                      <Input id="cta_heading" name="cta_heading" placeholder="e.g. Contact us for more info" value={formData.cta_heading} onChange={handleInputChange} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cta_body">CTA Body</Label>
+                      <Textarea id="cta_body" name="cta_body" placeholder="Body text for the call to action" value={formData.cta_body} onChange={handleInputChange} rows={2} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="cta_button_text">CTA Button Text</Label>
+                        <Input id="cta_button_text" name="cta_button_text" placeholder="e.g. Get Quote" value={formData.cta_button_text} onChange={handleInputChange} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cta_button_url">CTA Button URL</Label>
+                        <Input id="cta_button_url" name="cta_button_url" placeholder="https://example.com/contact" value={formData.cta_button_url} onChange={handleInputChange} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="text-sm font-semibold">Social Sharing</h4>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="allow_social_share"
+                        name="allow_social_share"
+                        checked={formData.allow_social_share}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({ ...prev, allow_social_share: checked }))
+                        }
+                      />
+                      <Label htmlFor="allow_social_share">Allow Social Sharing</Label>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

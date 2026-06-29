@@ -24,3 +24,40 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Table styles for rendered content (blogs, services) */
+.rich-text-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: auto;
+  max-width: 100%;
+  margin: 0.75rem auto;
+  overflow: hidden;
+}
+
+.rich-text-table td,
+.rich-text-table th {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.75rem;
+  vertical-align: top;
+}
+
+.rich-text-table th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+
+.rich-text-table[data-align="left"] {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.rich-text-table[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.rich-text-table[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
+}

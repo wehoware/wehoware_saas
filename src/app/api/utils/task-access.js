@@ -24,13 +24,13 @@ async function buildTaskWhere(prisma, user, extraWhere = {}) {
   const where = { ...extraWhere };
 
   if (user.role === "admin") {
-    where.clientId = user.activeClientId;
+    // Admin: see all tasks across all clients (unassigned or assigned to admin/employee)
     where.OR = [
       { assigneeId: null },
       { assignee: { role: { in: ["admin", "employee"] } } },
     ];
   } else if (user.role === "employee") {
-    where.clientId = user.activeClientId;
+    // Employee: see tasks assigned to me or created by me across all clients
     where.OR = [{ assigneeId: user.id }, { createdBy: user.id }];
   } else if (user.role === "client") {
     const clientId = user.activeClientId ?? user.clientId;

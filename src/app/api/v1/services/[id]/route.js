@@ -73,17 +73,22 @@ function resolveClientId(user) {
   return null;
 }
 
-async function generateUniqueSlug(prisma, title, clientId, currentSlug = null) {
-  const base = String(title)
+function sanitizeSlug(raw) {
+  return String(raw)
     .toLowerCase()
+    .trim()
     .replace(/\s+/g, "-")
     .replace(/[^\w-]+/g, "")
     .replace(/--+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
 
-  if (base && base === currentSlug) return base;
+async function generateUniqueSlug(prisma, title, clientId, currentSlug = null) {
+  const base = sanitizeSlug(title) || "service";
 
-  let candidate = base || "service";
+  if (base === currentSlug) return base;
+
+  let candidate = base;
   let counter = 1;
   while (counter < 100) {
     const notCurrent = currentSlug ? { NOT: { slug: currentSlug } } : {};
@@ -92,10 +97,29 @@ async function generateUniqueSlug(prisma, title, clientId, currentSlug = null) {
       select: { id: true },
     });
     if (!hit) return candidate;
-    candidate = `${base || "service"}-${counter}`;
+    candidate = `${base}-${counter}`;
     counter += 1;
   }
-  return `${base || "service"}-${Date.now()}`;
+  return `${base}-${Date.now()}`;
+}
+
+async function resolveSlug(prisma, { slugInput, title, existing, clientId }) {
+  if (slugInput !== undefined && slugInput?.trim()) {
+    const cleaned = sanitizeSlug(slugInput);
+    if (cleaned && cleaned !== existing.slug) {
+      const hit = await prisma.wehowareService.findFirst({
+        where: { clientId, slug: cleaned, NOT: { slug: existing.slug } },
+        select: { id: true },
+      });
+      if (hit) throw Object.assign(new Error("A service with this slug already exists"), { code: "P2002" });
+      return cleaned;
+    }
+    return cleaned || existing.slug;
+  }
+  if (title !== undefined && title !== existing.title) {
+    return generateUniqueSlug(prisma, title, clientId, existing.slug);
+  }
+  return existing.slug;
 }
 
 // -------------------------------------------------------------------
@@ -168,6 +192,11 @@ export const PUT = withAuth(
         where: { id: serviceId },
         select: { id: true, clientId: true, title: true, slug: true },
       });
+      // Fetch client domain for canonical URL auto-generation
+      const client = await prisma.wehowareClient.findUnique({
+        where: { id: activeClientId },
+        select: { domain: true },
+      });
       if (!existing) {
         return NextResponse.json(
           { error: "Service not found" },
@@ -186,6 +215,7 @@ export const PUT = withAuth(
 
       const {
         title,
+        slug: slugInput,
         description,
         content,
         category_id: categoryId,
@@ -276,8 +306,17 @@ export const PUT = withAuth(
 
       updateData.updatedBy = user.id;
 
-      if (title !== undefined && title !== existing.title) {
-        updateData.slug = await generateUniqueSlug(prisma, title, activeClientId, existing.slug);
+      const resolvedSlug = await resolveSlug(prisma, { slugInput, title, existing, clientId: activeClientId });
+      if (resolvedSlug !== existing.slug) {
+        updateData.slug = resolvedSlug;
+      }
+
+      // Auto-generate canonical URL from domain + slug if not explicitly provided
+      if (canonicalUrl === undefined || canonicalUrl === null || canonicalUrl === "") {
+        const domain = client?.domain;
+        if (domain) {
+          updateData.canonicalUrl = `https://${domain}/services/${resolvedSlug}`;
+        }
       }
 
       // Recompute SEO score whenever SEO-related fields change

@@ -4,7 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
-import { getSocialClient } from "../../../../../lib/social-clients/index.js";
+import { getSocialClient } from "@/lib/social-clients/index.js";
 
 export const POST = withAuth(async (request, { params }) => {
   try {

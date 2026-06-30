@@ -5,55 +5,16 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../utils/auth-middleware";
+import { shapePost, POST_INCLUDE } from "@/lib/social-clients/post-utils.js";
+import {
+  MAX_CONTENT_LENGTH,
+  EDITABLE_STATUSES,
+  DELETABLE_STATUSES,
+  POST_TYPES,
+  PLATFORMS_REQUIRING_MEDIA,
+} from "@/lib/social-clients/constants.js";
 
-const MAX_CONTENT_LENGTH = 63206;
-const EDITABLE_STATUSES = new Set(["Draft", "Scheduled"]);
-const DELETABLE_STATUSES = new Set(["Draft", "Scheduled", "Failed", "Cancelled"]);
-const ALLOWED_TYPES = new Set(["Text", "Image", "Video", "Carousel", "Story", "Reel"]);
-
-function shapePost(p) {
-  return {
-    id: p.id,
-    client_id: p.clientId,
-    title: p.title,
-    content: p.content,
-    media_urls: p.mediaUrls,
-    hashtags: p.hashtags,
-    scheduled_for: p.scheduledFor,
-    published_at: p.publishedAt,
-    status: p.status,
-    post_type: p.postType,
-    target_accounts: p.targetAccounts,
-    publish_results: p.publishResults,
-    error_details: p.errorDetails,
-    created_at: p.createdAt,
-    updated_at: p.updatedAt,
-    platforms: (p.accountPosts || [])
-      .map((ap) => ap.account?.platform?.platformCode)
-      .filter(Boolean),
-    account_posts: (p.accountPosts || []).map((ap) => ({
-      id: ap.id,
-      account_id: ap.accountId,
-      platform_post_id: ap.platformPostId,
-      platform_url: ap.platformUrl,
-      status: ap.status,
-      published_at: ap.publishedAt,
-      error_details: ap.errorDetails,
-      metrics: ap.metrics,
-      account: ap.account
-        ? { id: ap.account.id, account_name: ap.account.accountName, platform: ap.account.platform }
-        : null,
-    })),
-  };
-}
-
-const POST_INCLUDE = {
-  accountPosts: {
-    include: {
-      account: { include: { platform: { select: { id: true, name: true, platformCode: true, logoUrl: true } } } },
-    },
-  },
-};
+const ALLOWED_TYPES = new Set(POST_TYPES);
 
 function resolvePost(prisma, id, user) {
   const clientId = user.activeClientId || user.clientId;
@@ -127,15 +88,22 @@ export const PUT = withAuth(async (request, { params }) => {
     const validationError = validateBodyForUpdate(body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
-    const { target_accounts } = body ?? {};
+    const { target_accounts, media_urls } = body ?? {};
     const clientId = user.activeClientId || user.clientId;
     if (Array.isArray(target_accounts) && target_accounts.length > 0) {
       const valid = await prisma.wehowareSocialAccount.findMany({
         where: { id: { in: target_accounts }, clientId },
-        select: { id: true },
+        select: { id: true, platform: { select: { platformCode: true } } },
       });
       if (valid.length !== target_accounts.length) {
         return NextResponse.json({ error: "One or more invalid target accounts" }, { status: 400 });
+      }
+      // Server-side media validation: Instagram and TikTok require at least one media URL
+      const mediaUrlList = Array.isArray(media_urls) ? media_urls : [];
+      const selectedPlatformCodes = valid.map((a) => a.platform?.platformCode).filter(Boolean);
+      const needsMedia = selectedPlatformCodes.some((code) => PLATFORMS_REQUIRING_MEDIA.has(code));
+      if (needsMedia && mediaUrlList.length === 0) {
+        return NextResponse.json({ error: "Instagram and TikTok require at least one media URL" }, { status: 400 });
       }
     }
 

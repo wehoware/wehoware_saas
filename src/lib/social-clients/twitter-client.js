@@ -7,6 +7,22 @@ const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
 export class TwitterClient extends BaseSocialClient {
   get myUserId() { return this.profileData.userId || null; }
 
+  // ── Profile ─────────────────────────────────────────────────────────────
+
+  async getProfile() {
+    if (!this.myUserId) throw new Error("Twitter User ID required in profileData");
+    const data = await this._fetch(
+      `${TWITTER_API_BASE}/users/${this.myUserId}?user.fields=name,username,public_metrics,profile_image_url`
+    );
+    const u = data.data || {};
+    return {
+      accountName: u.name || "Twitter User",
+      accountHandle: u.username ? `@${u.username}` : null,
+      followerCount: u.public_metrics?.followers_count || 0,
+      profileData: { ...this.profileData, userId: this.myUserId, profileImageUrl: u.profile_image_url },
+    };
+  }
+
   // ── Token ────────────────────────────────────────────────────────────────
 
   async refreshAccessToken() {

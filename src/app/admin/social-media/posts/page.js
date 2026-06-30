@@ -20,18 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { STATUS_COLORS, POST_STATUSES } from "@/lib/social-clients/constants.js";
 
-const STATUS_COLORS = {
-  Draft: "bg-gray-100 text-gray-700 border-gray-200",
-  Scheduled: "bg-blue-100 text-blue-700 border-blue-200",
-  Publishing: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  Published: "bg-green-100 text-green-700 border-green-200",
-  PartiallyPublished: "bg-orange-100 text-orange-700 border-orange-200",
-  Failed: "bg-red-100 text-red-700 border-red-200",
-  Cancelled: "bg-gray-100 text-gray-500 border-gray-200",
-};
-
-const STATUSES = ["", "Draft", "Scheduled", "Published", "Failed", "Cancelled"];
+const STATUSES = ["", ...POST_STATUSES];
 
 export default function SocialPostsPage() {
   const { user } = useAuth();
@@ -41,8 +32,10 @@ export default function SocialPostsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [publishing, setPublishing] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
   const LIMIT = 20;
 
   const loadPosts = useCallback(async () => {
@@ -51,6 +44,7 @@ export default function SocialPostsPage() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (statusFilter) params.set("status", statusFilter);
+      if (search) params.set("search", search);
       const res = await fetch(`/api/v1/social/posts?${params}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
@@ -61,7 +55,7 @@ export default function SocialPostsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, page, statusFilter]);
+  }, [user, page, statusFilter, search]);
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
 
@@ -96,14 +90,16 @@ export default function SocialPostsPage() {
     }
   }
 
-  async function cancelPost(postId) {
+  async function cancelPost() {
+    if (!cancelTarget) return;
     try {
-      const res = await fetch(`/api/v1/social/posts/${postId}/cancel`, { method: "POST" });
+      const res = await fetch(`/api/v1/social/posts/${cancelTarget}/cancel`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Cancel failed");
       }
       toast.success("Post cancelled");
+      setCancelTarget(null);
       await loadPosts();
     } catch (err) {
       toast.error(err.message);
@@ -111,9 +107,15 @@ export default function SocialPostsPage() {
   }
 
   const totalPages = Math.ceil(total / LIMIT);
-  const filteredPosts = search
-    ? posts.filter((p) => (p.title || p.content || "").toLowerCase().includes(search.toLowerCase()))
-    : posts;
+
+  // Debounced search: update `search` (which triggers fetch) 500ms after typing stops
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   return (
     <>
@@ -135,7 +137,7 @@ export default function SocialPostsPage() {
         <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search posts..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Search posts..." className="pl-9" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </div>
           <Select value={statusFilter || "all"} onValueChange={(v) => { setStatusFilter(v === "all" ? "" : v); setPage(1); }}>
             <SelectTrigger className="w-40">
@@ -157,7 +159,7 @@ export default function SocialPostsPage() {
               <div key={i} className="h-20 bg-muted rounded-lg animate-pulse" />
             ))}
           </div>
-        ) : filteredPosts.length === 0 ? (
+        ) : posts.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
@@ -175,7 +177,7 @@ export default function SocialPostsPage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredPosts.map((post) => (
+            {posts.map((post) => (
               <Card key={post.id} className="hover:shadow-sm transition-shadow">
                 <CardContent className="flex items-start justify-between py-4">
                   <div className="flex-1 min-w-0 mr-4">
@@ -216,7 +218,7 @@ export default function SocialPostsPage() {
                       </Button>
                     )}
                     {post.status === "Scheduled" && (
-                      <Button variant="ghost" size="sm" onClick={() => cancelPost(post.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => setCancelTarget(post.id)}>
                         <X className="h-4 w-4" />
                       </Button>
                     )}
@@ -255,6 +257,21 @@ export default function SocialPostsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={deletePost} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Scheduled Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel the scheduled publish. The post will remain as a Cancelled draft and can be deleted afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
+            <AlertDialogAction onClick={cancelPost}>Yes, Cancel Post</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

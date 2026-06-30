@@ -6,6 +6,21 @@ const IG_REFRESH_BASE = "https://graph.instagram.com";
 export class InstagramClient extends BaseSocialClient {
   get igUserId() { return this.profileData.igUserId || null; }
 
+  // ── Profile ─────────────────────────────────────────────────────────────
+
+  async getProfile() {
+    if (!this.igUserId) throw new Error("Instagram User ID required");
+    const data = await this._fetch(
+      `${GRAPH_API_BASE}/${this.igUserId}?fields=username,name,followers_count,media_count,profile_picture_url&access_token=${this.accessToken}`
+    );
+    return {
+      accountName: data.name || data.username || "Instagram Account",
+      accountHandle: data.username ? `@${data.username}` : null,
+      followerCount: data.followers_count || 0,
+      profileData: { ...this.profileData, igUserId: this.igUserId, mediaCount: data.media_count, profilePictureUrl: data.profile_picture_url },
+    };
+  }
+
   // ── Token ────────────────────────────────────────────────────────────────
 
   async refreshAccessToken() {

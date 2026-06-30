@@ -5,15 +5,8 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
 import { getSocialClient } from "@/lib/social-clients/index.js";
-
-const PUBLISHABLE = new Set(["Draft", "Scheduled", "Failed"]);
-
-function buildContent(post) {
-  const hashtags = Array.isArray(post.hashtags) ? post.hashtags : [];
-  if (hashtags.length === 0) return post.content;
-  const tagString = hashtags.map((t) => "#" + t).join(" ");
-  return `${post.content}\n\n${tagString}`;
-}
+import { shapePost, POST_INCLUDE } from "@/lib/social-clients/post-utils.js";
+import { PUBLISHABLE_STATUSES, buildContent, buildPlatformUrl } from "@/lib/social-clients/constants.js";
 
 async function publishToAccount(prisma, postId, account, post) {
   const client = getSocialClient(account);
@@ -27,19 +20,21 @@ async function publishToAccount(prisma, postId, account, post) {
     if (mid) mediaIds.push(mid);
   }
 
-  const platformPostId = await client.createPost(buildContent(post), mediaIds, {
+  const platformPostId = await client.createPost(buildContent(post.content, Array.isArray(post.hashtags) ? post.hashtags : []), mediaIds, {
     pageId: account.profileData?.pageId,
     pageAccessToken: account.profileData?.pageAccessToken,
     igUserId: account.profileData?.igUserId,
   });
 
+  const platformUrl = buildPlatformUrl(account.platform?.platformCode, platformPostId, account.profileData);
+
   await prisma.wehowareSocialAccountPost.upsert({
     where: { postId_accountId: { postId, accountId: account.id } },
-    update: { status: "Published", platformPostId: platformPostId || null, publishedAt: new Date(), errorDetails: {} },
-    create: { postId, accountId: account.id, status: "Published", platformPostId: platformPostId || null, publishedAt: new Date(), errorDetails: {}, metrics: {} },
+    update: { status: "Published", platformPostId: platformPostId || null, platformUrl, publishedAt: new Date(), errorDetails: {} },
+    create: { postId, accountId: account.id, status: "Published", platformPostId: platformPostId || null, platformUrl, publishedAt: new Date(), errorDetails: {}, metrics: {} },
   });
 
-  return { accountId: account.id, success: true, platformPostId };
+  return { accountId: account.id, success: true, platformPostId, platformUrl };
 }
 
 async function handleAccountError(prisma, postId, accountId, err) {
@@ -56,16 +51,17 @@ export const POST = withAuth(
   async (request, { params }) => {
     // Await params before the try block so `id` is available in the catch for recovery
     const { id } = await params;
+    // Declare prisma before try so it is available in the catch block for recovery
+    const { prisma, user } = request;
 
     try {
-      const { prisma, user } = request;
       const clientId = user.activeClientId || user.clientId;
 
       const post = await prisma.wehowareSocialPost.findFirst({
         where: user.role === "admin" ? { id } : { id, clientId },
       });
       if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
-      if (!PUBLISHABLE.has(post.status)) {
+      if (!PUBLISHABLE_STATUSES.has(post.status)) {
         return NextResponse.json({ error: `Cannot publish a post with status: ${post.status}` }, { status: 409 });
       }
 
@@ -77,7 +73,7 @@ export const POST = withAuth(
       // Atomic lock: transition from a publishable status to Publishing in a single statement.
       // If another request already claimed the post, count === 0 and we bail.
       const lock = await prisma.wehowareSocialPost.updateMany({
-        where: { id, status: { in: [...PUBLISHABLE] } },
+        where: { id, status: { in: [...PUBLISHABLE_STATUSES] } },
         data: { status: "Publishing" },
       });
       if (lock.count === 0) {
@@ -125,18 +121,23 @@ export const POST = withAuth(
           publishedAt: finalStatus === "Failed" ? null : new Date(),
           publishResults: results,
         },
-        include: {
-          accountPosts: { include: { account: { include: { platform: true } } } },
-        },
+        include: POST_INCLUDE,
       });
 
-      return NextResponse.json({ post: updated, results });
+      return NextResponse.json({ post: shapePost(updated), results });
     } catch (err) {
       console.error("[POST /api/v1/social/posts/[id]/publish]", err);
-      // request.prisma is set by withAuth — safe to access even if the inner destructure never ran
-      await request.prisma?.wehowareSocialPost
-        .update({ where: { id }, data: { status: "Failed" } })
-        .catch(() => {});
+      // Only set to Failed if the post is still in "Publishing" status (i.e., we hold the lock).
+      // This prevents overwriting a status that another request or cron may have already updated.
+      // Use the prisma reference destructured before try, not request.prisma which may not exist.
+      try {
+        await prisma.wehowareSocialPost.updateMany({
+          where: { id, status: "Publishing" },
+          data: { status: "Failed" },
+        });
+      } catch (recoveryErr) {
+        console.error("[publish] Failed to recover stuck Publishing post:", recoveryErr.message);
+      }
       return NextResponse.json({ error: "Failed to publish post" }, { status: 500 });
     }
   },

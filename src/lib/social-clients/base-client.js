@@ -4,13 +4,6 @@
  * token refresh, metric fetching, and inbox management.
  */
 
-export const PLATFORM_CHAR_LIMITS = {
-  twitter: 280,
-  facebook: 63206,
-  instagram: 2200,
-  tiktok: 2200,
-};
-
 export class BaseSocialClient {
   constructor(account) {
     this.accountId = account.id;
@@ -19,6 +12,16 @@ export class BaseSocialClient {
     this.refreshToken = account.refreshToken;
     this.tokenExpiresAt = account.tokenExpiresAt;
     this.profileData = account.profileData || {};
+  }
+
+  // ── Profile ─────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch the current profile data from the platform.
+   * @returns {{ accountName, accountHandle, profileData, followerCount }}
+   */
+  async getProfile() {
+    throw new Error(`getProfile not implemented for ${this.platformCode}`);
   }
 
   // ── Publishing ──────────────────────────────────────────────────────────

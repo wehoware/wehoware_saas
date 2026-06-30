@@ -27,8 +27,11 @@ export const GET = withAuth(async (request) => {
     const posts = await prisma.wehowareSocialPost.findMany({
       where: {
         clientId,
-        scheduledFor: { gte: startDate, lte: endDate },
         status: { notIn: ["Draft"] },
+        OR: [
+          { scheduledFor: { gte: startDate, lte: endDate } },
+          { publishedAt: { gte: startDate, lte: endDate } },
+        ],
       },
       include: {
         accountPosts: {
@@ -38,10 +41,12 @@ export const GET = withAuth(async (request) => {
       orderBy: { scheduledFor: "asc" },
     });
 
-    // Group by date string YYYY-MM-DD
+    // Group by date string YYYY-MM-DD — use scheduledFor if available, otherwise publishedAt
     const byDate = {};
     for (const post of posts) {
-      const date = post.scheduledFor.toISOString().slice(0, 10);
+      const dateField = post.scheduledFor || post.publishedAt;
+      if (!dateField) continue;
+      const date = dateField.toISOString().slice(0, 10);
       if (!byDate[date]) byDate[date] = [];
       byDate[date].push({
         id: post.id,
@@ -50,7 +55,17 @@ export const GET = withAuth(async (request) => {
         status: post.status,
         post_type: post.postType,
         scheduled_for: post.scheduledFor,
+        published_at: post.publishedAt,
         platforms: post.accountPosts.map((ap) => ap.account?.platform?.platformCode).filter(Boolean),
+      });
+    }
+
+    // Sort posts within each date group by their effective date (scheduledFor || publishedAt)
+    for (const date of Object.keys(byDate)) {
+      byDate[date].sort((a, b) => {
+        const aDate = new Date(a.scheduled_for || a.published_at);
+        const bDate = new Date(b.scheduled_for || b.published_at);
+        return aDate - bDate;
       });
     }
 

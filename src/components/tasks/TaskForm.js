@@ -16,6 +16,7 @@ const TaskForm = ({
   isLoading = false,
   submitButtonText = "Submit Task",
   currentUser = null,
+  lockedClientId = null,
 }) => {
   const [formData, setFormData] = useState({
     title: "",
@@ -32,9 +33,9 @@ const TaskForm = ({
     if (!Array.isArray(clients)) return [];
     return clients.map((client) => ({
       value: String(client.id),
-      label: client.company_name || `Client ID: ${client.id}`, // Fallback label
+      label: client.company_name || client.name || `Client ID: ${client.id}`,
     }));
-  }, [clients]); 
+  }, [clients]);
 
   const userOptions = useMemo(() => {
     if (!Array.isArray(users)) return [];
@@ -64,11 +65,10 @@ const TaskForm = ({
 
   useEffect(() => {
     if (initialData) {
-      console.log('[TaskForm] initialData.priority:', initialData.priority, 'initialData:', initialData);
       setFormData({
         title: initialData.title || "",
         description: initialData.description || "",
-        client_id: initialData.clientId ? String(initialData.clientId) : "",
+        client_id: initialData.clientId ? String(initialData.clientId) : lockedClientId ? String(lockedClientId) : "",
         assignee_id: initialData.assigneeId ? String(initialData.assigneeId) : "",
         due_date: initialData.dueDate
           ? new Date(initialData.dueDate).toISOString().split("T")[0]
@@ -76,8 +76,10 @@ const TaskForm = ({
         priority: initialData.priority || "High",
         status: initialData.status || "To Do",
       });
+    } else if (lockedClientId) {
+      setFormData((prev) => ({ ...prev, client_id: String(lockedClientId) }));
     }
-  }, [initialData]);
+  }, [initialData, lockedClientId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -102,8 +104,8 @@ const TaskForm = ({
     e.preventDefault();
     setError("");
 
-    if (!formData.title || !formData.priority || !formData.status) {
-      setError("Title, Priority, and Status are required.");
+    if (!formData.title || !formData.client_id || !formData.priority || !formData.status) {
+      setError("Title, Client, Priority, and Status are required.");
       return;
     }
 
@@ -140,19 +142,21 @@ const TaskForm = ({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-        <Label htmlFor="client_id" className="sm:text-right sm:col-span-1">
-          Client
-        </Label>
-        <SelectInput
-          id="client_id"
-          name="client_id"
-          value={formData.client_id || ''}
-          onChange={handleChange}
-          options={clientOptions}
-          placeholder="Select a client"
-        />
-      </div>
+      {!lockedClientId && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
+          <Label htmlFor="client_id" className="sm:text-right sm:col-span-1">
+            Client *
+          </Label>
+          <SelectInput
+            id="client_id"
+            name="client_id"
+            value={formData.client_id || ''}
+            onChange={handleChange}
+            options={clientOptions}
+            placeholder="Select a client"
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-start sm:gap-x-4">
         <Label

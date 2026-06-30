@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
 import { randomBytes, createHmac } from "node:crypto";
+// OAUTH_STATE_MAX_AGE_MS is used by the callback route to verify state expiry.
 
 const PKCE_PLATFORMS = new Set(["twitter", "tiktok"]);
 
@@ -57,6 +58,7 @@ export const GET = withAuth(async (request, { params }) => {
       userId: user.id,
       platformId: platform.id,
       platformCode: platform.platformCode,
+      createdAt: Date.now(), // Timestamp for expiry check in callback
     };
 
     const oauthConfig = platform.oauthConfig;

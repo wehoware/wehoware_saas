@@ -59,6 +59,7 @@ export default function SocialInboxPage() {
   const [statusFilter, setStatusFilter] = useState("Open");
   const [platformFilter, setPlatformFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const LIMIT = 25;
 
@@ -73,6 +74,7 @@ export default function SocialInboxPage() {
       });
       if (platformFilter) params.set("platform", platformFilter);
       if (unreadOnly) params.set("unread", "true");
+      if (search) params.set("search", search);
 
       const res = await fetch(`/api/v1/social/inbox?${params}`);
       if (!res.ok) throw new Error("Failed to load");
@@ -85,7 +87,7 @@ export default function SocialInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, page, statusFilter, platformFilter, unreadOnly]);
+  }, [user, page, statusFilter, platformFilter, unreadOnly, search]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
@@ -122,14 +124,16 @@ export default function SocialInboxPage() {
     }
   }
 
-  const filtered = search
-    ? conversations.filter((c) =>
-        c.participant_name?.toLowerCase().includes(search.toLowerCase()) ||
-        c.last_message_preview?.toLowerCase().includes(search.toLowerCase())
-      )
-    : conversations;
-
   const totalPages = Math.ceil(total / LIMIT);
+
+  // Debounced search: update `search` (which triggers fetch) 500ms after typing stops
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   return (
     <div className="space-y-6">
@@ -160,8 +164,8 @@ export default function SocialInboxPage() {
           <Input
             placeholder="Search conversations..."
             className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
@@ -201,7 +205,7 @@ export default function SocialInboxPage() {
             <div key={i} className="h-20 bg-muted rounded-lg animate-pulse" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : conversations.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Inbox className="h-12 w-12 text-muted-foreground mb-4" />
@@ -219,7 +223,7 @@ export default function SocialInboxPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {filtered.map((conv) => (
+          {conversations.map((conv) => (
             <Link key={conv.id} href={`/admin/social-media/inbox/${conv.id}`}>
               <Card className={`hover:shadow-sm transition-shadow cursor-pointer ${conv.unread_count > 0 ? "border-primary/40 bg-primary/5" : ""}`}>
                 <CardContent className="flex items-center gap-3 py-3">

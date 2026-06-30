@@ -5,8 +5,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../../utils/auth-middleware";
 import { getSocialClient } from "@/lib/social-clients/index.js";
-
-const MAX_MESSAGE_LENGTH = 2000;
+import { MAX_REPLY_LENGTH } from "@/lib/social-clients/constants.js";
 
 export const POST = withAuth(
   async (request, { params }) => {
@@ -30,9 +29,9 @@ export const POST = withAuth(
       const body = await request.json();
       const text = (body?.text || "").trim();
       if (!text) return NextResponse.json({ error: "Reply text is required" }, { status: 400 });
-      if (text.length > MAX_MESSAGE_LENGTH) {
+      if (text.length > MAX_REPLY_LENGTH) {
         return NextResponse.json(
-          { error: `Reply exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters` },
+          { error: `Reply exceeds maximum length of ${MAX_REPLY_LENGTH} characters` },
           { status: 400 }
         );
       }
@@ -48,7 +47,7 @@ export const POST = withAuth(
         );
       } catch (apiErr) {
         console.error("[inbox/reply] Platform send failed:", apiErr.message);
-        return NextResponse.json({ error: `Failed to send reply: ${apiErr.message}` }, { status: 502 });
+        return NextResponse.json({ error: "Failed to send reply via platform" }, { status: 502 });
       }
 
       // Store the outbound message locally

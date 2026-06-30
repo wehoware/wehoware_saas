@@ -59,10 +59,17 @@ export const GET = withAuth(async (request) => {
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number.parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10)));
     const platformFilter = searchParams.get("platform");
     const unreadOnly = searchParams.get("unread") === "true";
+    const searchQuery = searchParams.get("search")?.trim();
 
     const where = { clientId, status: statusFilter };
     if (platformFilter) where.platformCode = platformFilter;
     if (unreadOnly) where.unreadCount = { gt: 0 };
+    if (searchQuery) {
+      where.OR = [
+        { participantName: { contains: searchQuery } },
+        { participantHandle: { contains: searchQuery } },
+      ];
+    }
 
     const [conversations, total] = await Promise.all([
       prisma.wehowareSocialInboxConversation.findMany({

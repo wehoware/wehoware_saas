@@ -4,9 +4,9 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../utils/auth-middleware";
+import { MESSAGE_LIMIT } from "@/lib/social-clients/constants.js";
 
 const VALID_STATUSES = new Set(["Open", "Archived", "Closed"]);
-const MESSAGE_LIMIT = 100;
 
 function resolveConversation(prisma, id, clientId) {
   return prisma.wehowareSocialInboxConversation.findFirst({
@@ -17,10 +17,6 @@ function resolveConversation(prisma, id, clientId) {
           id: true, accountName: true, accountHandle: true,
           platform: { select: { id: true, name: true, platformCode: true, logoUrl: true } },
         },
-      },
-      messages: {
-        orderBy: { sentAt: "asc" },
-        take: MESSAGE_LIMIT,
       },
     },
   });
@@ -36,6 +32,24 @@ export const GET = withAuth(async (request, { params }) => {
     const conv = await resolveConversation(prisma, id, clientId);
     if (!conv) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
 
+    // Cursor-based message pagination
+    const { searchParams } = new URL(request.url);
+    const cursor = searchParams.get("cursor");
+    const limit = Math.min(MESSAGE_LIMIT, Math.max(1, Number.parseInt(searchParams.get("limit") || String(MESSAGE_LIMIT), 10)));
+
+    const messages = await prisma.wehowareSocialInboxMessage.findMany({
+      where: { conversationId: conv.id },
+      orderBy: { sentAt: "desc" },
+      take: limit + 1, // Fetch one extra to determine if there's a next page
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    const hasMore = messages.length > limit;
+    const pageMessages = hasMore ? messages.slice(0, limit) : messages;
+    // Reverse to chronological order (oldest first) for display
+    pageMessages.reverse();
+    const nextCursor = hasMore ? messages[limit - 1].id : null;
+
     return NextResponse.json({
       conversation: {
         id: conv.id,
@@ -47,12 +61,13 @@ export const GET = withAuth(async (request, { params }) => {
         participant_avatar: conv.participantAvatar,
         participant_id: conv.participantId,
         last_message_at: conv.lastMessageAt,
+        last_message_preview: conv.lastMessagePreview,
         unread_count: conv.unreadCount,
         status: conv.status,
         last_synced_at: conv.lastSyncedAt,
         metadata: conv.metadata,
         account: conv.account,
-        messages: conv.messages.map((m) => ({
+        messages: pageMessages.map((m) => ({
           id: m.id,
           platform_message_id: m.platformMessageId,
           direction: m.direction,
@@ -65,6 +80,11 @@ export const GET = withAuth(async (request, { params }) => {
           sent_at: m.sentAt,
           metadata: m.metadata,
         })),
+        pagination: {
+          has_more: hasMore,
+          next_cursor: nextCursor,
+          limit,
+        },
       },
     });
   } catch (err) {

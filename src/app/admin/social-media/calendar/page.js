@@ -9,15 +9,7 @@ import { ChevronLeft, ChevronRight, Calendar, Plus } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-const STATUS_COLORS = {
-  Scheduled: "bg-blue-500",
-  Publishing: "bg-yellow-500",
-  Published: "bg-green-500",
-  PartiallyPublished: "bg-orange-500",
-  Failed: "bg-red-500",
-  Cancelled: "bg-gray-400",
-};
+import { STATUS_DOT_COLORS } from "@/lib/social-clients/constants.js";
 
 const STATUS_BADGE = {
   Scheduled: "bg-blue-100 text-blue-700",
@@ -116,7 +108,7 @@ export default function SocialCalendarPage() {
           <CardContent>
             {/* Legend */}
             <div className="flex items-center gap-4 mb-4 flex-wrap">
-              {Object.entries(STATUS_COLORS).map(([status, color]) => (
+              {Object.entries(STATUS_DOT_COLORS).map(([status, color]) => (
                 <div key={status} className="flex items-center gap-1 text-xs">
                   <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
                   <span className="text-muted-foreground">{status}</span>
@@ -160,7 +152,7 @@ export default function SocialCalendarPage() {
                         {posts.slice(0, 3).map((post, i) => (
                           <div
                             key={i}
-                            className={`w-2 h-2 rounded-full ${STATUS_COLORS[post.status] || "bg-gray-400"}`}
+                            className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[post.status] || "bg-gray-400"}`}
                             title={`${post.status}: ${post.content}`}
                           />
                         ))}

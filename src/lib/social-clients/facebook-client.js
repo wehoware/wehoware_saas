@@ -6,6 +6,21 @@ export class FacebookClient extends BaseSocialClient {
   get pageId() { return this.profileData.pageId || null; }
   get pageToken() { return this.profileData.pageAccessToken || this.accessToken; }
 
+  // ── Profile ─────────────────────────────────────────────────────────────
+
+  async getProfile() {
+    if (!this.pageId) throw new Error("Facebook Page ID required");
+    const data = await this._fetch(
+      `${GRAPH_API_BASE}/${this.pageId}?fields=name,followers_count,fan_count,about,picture&access_token=${this.pageToken}`
+    );
+    return {
+      accountName: data.name || "Facebook Page",
+      accountHandle: null,
+      followerCount: data.followers_count || data.fan_count || 0,
+      profileData: { ...this.profileData, pageId: this.pageId, about: data.about, picture: data.picture?.data?.url },
+    };
+  }
+
   // ── Token ────────────────────────────────────────────────────────────────
 
   async refreshAccessToken() {

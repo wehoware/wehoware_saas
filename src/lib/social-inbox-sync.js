@@ -128,12 +128,31 @@ export async function syncInboxForAccount(account) {
       }
 
       // Bump unread count and mark last sync time
+      // Also update lastMessagePreview from the latest message in the thread
+      let latestMessage = null;
+      if (platformMessages.length > 0) {
+        latestMessage = platformMessages.reduce((latest, msg) => {
+          if (!latest || new Date(msg.sentAt) > new Date(latest.sentAt)) return msg;
+          return latest;
+        }, null);
+      }
+
+      const convUpdateData = {
+        lastSyncedAt: new Date(),
+        ...(newInbound > 0 ? { unreadCount: { increment: newInbound } } : {}),
+      };
+      // Update lastMessagePreview from the latest message if available
+      if (latestMessage?.content) {
+        const previewContent = latestMessage.content.length > 200
+          ? latestMessage.content.slice(0, 200) + "..."
+          : latestMessage.content;
+        convUpdateData.lastMessagePreview = previewContent;
+        convUpdateData.lastMessageAt = new Date(latestMessage.sentAt);
+      }
+
       await prisma.wehowareSocialInboxConversation.update({
         where: { id: conversation.id },
-        data: {
-          lastSyncedAt: new Date(),
-          ...(newInbound > 0 ? { unreadCount: { increment: newInbound } } : {}),
-        },
+        data: convUpdateData,
       });
 
       conversationsSynced++;

@@ -8,16 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Share2, Users, FileText, Calendar, BarChart2, AlertCircle, CheckCircle, Inbox } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
-
-const STATUS_COLORS = {
-  Draft: "bg-gray-100 text-gray-700",
-  Scheduled: "bg-blue-100 text-blue-700",
-  Publishing: "bg-yellow-100 text-yellow-700",
-  Published: "bg-green-100 text-green-700",
-  PartiallyPublished: "bg-orange-100 text-orange-700",
-  Failed: "bg-red-100 text-red-700",
-  Cancelled: "bg-gray-100 text-gray-500",
-};
+import { STATUS_COLORS } from "@/lib/social-clients/constants.js";
 
 export default function SocialMediaDashboardPage() {
   const { user } = useAuth();

@@ -9,24 +9,17 @@ import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2,
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-
-const STATUS_COLORS = {
-  Draft: "bg-gray-100 text-gray-700",
-  Scheduled: "bg-blue-100 text-blue-700",
-  Publishing: "bg-yellow-100 text-yellow-700",
-  Published: "bg-green-100 text-green-700",
-  PartiallyPublished: "bg-orange-100 text-orange-700",
-  Failed: "bg-red-100 text-red-700",
-  Cancelled: "bg-gray-100 text-gray-500",
-};
-
-const AP_STATUS_COLORS = {
-  Pending: "bg-gray-100 text-gray-700",
-  Publishing: "bg-yellow-100 text-yellow-700",
-  Published: "bg-green-100 text-green-700",
-  Failed: "bg-red-100 text-red-700",
-  Retrying: "bg-orange-100 text-orange-700",
-};
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { STATUS_COLORS, AP_STATUS_COLORS } from "@/lib/social-clients/constants.js";
 
 export default function PostDetailPage() {
   const { user } = useAuth();
@@ -35,6 +28,7 @@ export default function PostDetailPage() {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState(false);
 
   const loadPost = useCallback(async () => {
     if (!params?.id) return;
@@ -73,11 +67,23 @@ export default function PostDetailPage() {
   async function handleCancel() {
     try {
       const res = await fetch(`/api/v1/social/posts/${params.id}/cancel`, { method: "POST" });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      if (!res.ok) {
+        let errorMsg = "Failed to cancel post";
+        try {
+          const d = await res.json();
+          errorMsg = d.error || errorMsg;
+        } catch {
+          // Response body is not JSON, use status text
+          errorMsg = res.statusText || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
       toast.success("Post cancelled");
+      setCancelTarget(false);
       loadPost();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to cancel post");
+      setCancelTarget(false);
     }
   }
 
@@ -122,7 +128,7 @@ export default function PostDetailPage() {
             </Button>
           )}
           {canCancel && (
-            <Button variant="outline" size="sm" onClick={handleCancel}>
+            <Button variant="outline" size="sm" onClick={() => setCancelTarget(true)}>
               <X className="h-4 w-4 mr-2" />Cancel
             </Button>
           )}
@@ -229,6 +235,21 @@ export default function PostDetailPage() {
       <div className="text-xs text-muted-foreground">
         Created {new Date(post.created_at).toLocaleString()} · Updated {new Date(post.updated_at).toLocaleString()}
       </div>
+
+      <AlertDialog open={cancelTarget} onOpenChange={() => setCancelTarget(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Scheduled Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will cancel the scheduled publish. The post will remain as a Cancelled draft and can be deleted afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancel}>Yes, Cancel Post</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { OAUTH_STATE_MAX_AGE_MS } from "@/lib/social-clients/constants.js";
 
 const PLATFORM_TOKEN_URLS = {
   facebook: "https://graph.facebook.com/v18.0/oauth/access_token",
@@ -36,6 +37,15 @@ function verifyAndDecodeState(stateB64) {
   if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
     throw new Error("State signature mismatch — possible CSRF attempt");
   }
+
+  // Verify state has not expired
+  if (payload.createdAt) {
+    const ageMs = Date.now() - payload.createdAt;
+    if (ageMs > OAUTH_STATE_MAX_AGE_MS) {
+      throw new Error("OAuth state expired — please try connecting again");
+    }
+  }
+
   return payload;
 }
 
@@ -250,6 +260,6 @@ export async function GET(request, { params }) {
     return NextResponse.redirect(`${accountsUrl}?success=connected&platform=${platformCode}`);
   } catch (err) {
     console.error(`[OAuth Callback ${platformCode}]`, err);
-    return NextResponse.redirect(`${accountsUrl}?error=${encodeURIComponent(err.message)}`);
+    return NextResponse.redirect(`${accountsUrl}?error=${encodeURIComponent("Authentication failed. Please try connecting again.")}`);
   }
 }

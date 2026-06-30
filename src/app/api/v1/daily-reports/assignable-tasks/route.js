@@ -33,11 +33,12 @@ async function getHandler(request) {
         return NextResponse.json({ tasks: [] }, { status: 200 });
       }
 
-      // All tasks assigned to this user across all their clients
+      // All tasks assigned to this user across all their clients (excluding Done)
       tasks = await prisma.wehowareTask.findMany({
         where: {
           clientId: { in: clientIds },
           assigneeId: user.id,
+          status: { not: "Done" },
         },
         select: {
           id: true,
@@ -54,7 +55,7 @@ async function getHandler(request) {
       }
 
       const role = user.activeClientRole;
-      let where = { clientId };
+      let where = { clientId, status: { not: "Done" } };
 
       if (role === "client") {
         // Owner sees all client tasks

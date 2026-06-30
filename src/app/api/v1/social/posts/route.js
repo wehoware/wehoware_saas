@@ -4,51 +4,18 @@
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
+import { shapePost, POST_INCLUDE } from "@/lib/social-clients/post-utils.js";
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  MAX_CONTENT_LENGTH,
+  POST_STATUSES,
+  POST_TYPES,
+  PLATFORMS_REQUIRING_MEDIA,
+} from "@/lib/social-clients/constants.js";
 
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
-const MAX_CONTENT_LENGTH = 63206;
-const ALLOWED_STATUSES = new Set(["Draft", "Scheduled", "Publishing", "Published", "PartiallyPublished", "Failed", "Cancelled"]);
-const ALLOWED_TYPES = new Set(["Text", "Image", "Video", "Carousel", "Story", "Reel"]);
-
-function shapePost(p) {
-  return {
-    id: p.id,
-    client_id: p.clientId,
-    title: p.title,
-    content: p.content,
-    media_urls: p.mediaUrls,
-    hashtags: p.hashtags,
-    scheduled_for: p.scheduledFor,
-    published_at: p.publishedAt,
-    status: p.status,
-    post_type: p.postType,
-    target_accounts: p.targetAccounts,
-    publish_results: p.publishResults,
-    error_details: p.errorDetails,
-    created_at: p.createdAt,
-    updated_at: p.updatedAt,
-    created_by: p.createdBy,
-    // Flat list of platform codes for UI badges
-    platforms: (p.accountPosts || [])
-      .map((ap) => ap.account?.platform?.platformCode)
-      .filter(Boolean),
-    account_posts: (p.accountPosts || []).map((ap) => ({
-      id: ap.id,
-      account_id: ap.accountId,
-      platform_post_id: ap.platformPostId,
-      platform_url: ap.platformUrl,
-      status: ap.status,
-      published_at: ap.publishedAt,
-      error_details: ap.errorDetails,
-      account: ap.account ? {
-        id: ap.account.id,
-        account_name: ap.account.accountName,
-        platform: ap.account.platform,
-      } : null,
-    })),
-  };
-}
+const ALLOWED_STATUSES = new Set(POST_STATUSES);
+const ALLOWED_TYPES = new Set(POST_TYPES);
 
 export const GET = withAuth(async (request) => {
   try {
@@ -60,6 +27,7 @@ export const GET = withAuth(async (request) => {
     const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10)));
     const statusFilter = searchParams.get("status");
+    const searchQuery = searchParams.get("search")?.trim();
     const startDate = searchParams.get("scheduled_from");
     const endDate = searchParams.get("scheduled_to");
 
@@ -69,6 +37,12 @@ export const GET = withAuth(async (request) => {
         return NextResponse.json({ error: `Invalid status filter. Must be one of: ${[...ALLOWED_STATUSES].join(", ")}` }, { status: 400 });
       }
       where.status = statusFilter;
+    }
+    if (searchQuery) {
+      where.OR = [
+        { title: { contains: searchQuery } },
+        { content: { contains: searchQuery } },
+      ];
     }
     if (startDate || endDate) {
       where.scheduledFor = {};
@@ -132,10 +106,17 @@ export const POST = withAuth(
       if (accountIds.length > 0) {
         const validAccounts = await prisma.wehowareSocialAccount.findMany({
           where: { id: { in: accountIds }, clientId },
-          select: { id: true },
+          select: { id: true, platform: { select: { platformCode: true } } },
         });
         if (validAccounts.length !== accountIds.length) {
           return NextResponse.json({ error: "One or more invalid target accounts" }, { status: 400 });
+        }
+        // Server-side media validation: Instagram and TikTok require at least one media URL
+        const mediaUrlList = Array.isArray(media_urls) ? media_urls : [];
+        const selectedPlatformCodes = validAccounts.map((a) => a.platform?.platformCode).filter(Boolean);
+        const needsMedia = selectedPlatformCodes.some((code) => PLATFORMS_REQUIRING_MEDIA.has(code));
+        if (needsMedia && mediaUrlList.length === 0) {
+          return NextResponse.json({ error: "Instagram and TikTok require at least one media URL" }, { status: 400 });
         }
       }
 
@@ -156,9 +137,7 @@ export const POST = withAuth(
           createdBy: user.id,
           updatedBy: user.id,
         },
-        include: {
-          accountPosts: { include: { account: { include: { platform: true } } } },
-        },
+        include: POST_INCLUDE,
       });
 
       return NextResponse.json(shapePost(post), { status: 201 });

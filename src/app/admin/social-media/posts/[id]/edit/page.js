@@ -14,9 +14,12 @@ import { ArrowLeft, Save, Calendar, Hash, Image, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-
-const PLATFORM_CHAR_LIMITS = { twitter: 280, facebook: 63206, instagram: 2200, tiktok: 2200 };
-const POST_TYPES = ["Text", "Image", "Video", "Carousel", "Story", "Reel"];
+import {
+  PLATFORM_CHAR_LIMITS,
+  POST_TYPES,
+  PLATFORMS_REQUIRING_MEDIA,
+  toLocalDatetimeInputValue,
+} from "@/lib/social-clients/constants.js";
 
 export default function EditPostPage() {
   const { user } = useAuth();
@@ -53,7 +56,7 @@ export default function EditPostPage() {
         mediaUrls: post.media_urls || [],
         hashtags: post.hashtags || [],
         scheduledFor: post.scheduled_for
-          ? new Date(post.scheduled_for).toISOString().slice(0, 16)
+          ? toLocalDatetimeInputValue(new Date(post.scheduled_for))
           : "",
         postType: post.post_type || "Text",
         targetAccounts: post.target_accounts || [],
@@ -104,6 +107,14 @@ export default function EditPostPage() {
   async function handleSave(schedule = false) {
     if (!formData.content.trim()) { toast.error("Content is required"); return; }
     if (schedule && !formData.scheduledFor) { toast.error("Schedule date/time is required"); return; }
+
+    // Validate media requirements for platforms like Instagram and TikTok
+    const selectedPlatformCodes = selectedAccounts.map((a) => a.platform?.platformCode).filter(Boolean);
+    const needsMedia = selectedPlatformCodes.some((code) => PLATFORMS_REQUIRING_MEDIA.has(code));
+    if (needsMedia && formData.mediaUrls.length === 0) {
+      toast.error("Instagram and TikTok require at least one media URL");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -274,7 +285,7 @@ export default function EditPostPage() {
             <CardContent>
               <Label htmlFor="scheduledFor">Publish Date &amp; Time</Label>
               <Input id="scheduledFor" type="datetime-local" value={formData.scheduledFor}
-                min={new Date().toISOString().slice(0, 16)}
+                min={toLocalDatetimeInputValue(new Date())}
                 onChange={(e) => setFormData((p) => ({ ...p, scheduledFor: e.target.value }))}
                 className="mt-1" />
               <p className="text-xs text-muted-foreground mt-1">Clear to save as draft</p>

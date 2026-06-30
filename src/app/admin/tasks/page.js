@@ -33,12 +33,11 @@ function StatsCard({ title, value, icon }) {
 }
 
 export default function TasksPage() {
-  const { isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer } = useAuth();
+  const { isAdmin, isEmployee, isClientOwner, isManager, isEditor, isViewer, user, activeClient, isClient } = useAuth();
   const canCreate = isAdmin || isEmployee || isClientOwner || isManager || isEditor;
   const isReadOnly = isViewer;
   const [tasks, setTasks] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
-  const [clients, setClients] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
     todo: 0,
@@ -61,7 +60,13 @@ export default function TasksPage() {
   });
   const [sort, setSort] = useState({ field: "created_at", order: "desc" });
   const [isAssignSheetOpen, setIsAssignSheetOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+
+  const clients = useMemo(() => {
+    if (!user?.accessibleClients) return [];
+    return user.accessibleClients.map((c) => ({ id: c.id, company_name: c.name }));
+  }, [user]);
+
+  const lockedClientId = isClient ? activeClient?.id ?? null : null;
 
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
@@ -102,24 +107,12 @@ export default function TasksPage() {
         const usersResponse = await fetch(usersUrl);
         const usersData = await usersResponse.json();
         if (usersData.users) setAssignableUsers(usersData.users);
-        const clientsResponse = await fetch("/api/v1/clients");
-        if (clientsResponse.ok) {
-          const clientsData = await clientsResponse.json();
-          if (clientsData.clients) setClients(clientsData.clients);
-        }
         const statsResponse = await fetch("/api/v1/tasks/stats");
         const statsData = await statsResponse.json();
         if (statsData && typeof statsData.total !== 'undefined') {
           setStats(statsData);
         }
 
-        const meResponse = await fetch('/api/v1/auth'); // Fetch current user (endpoint changed from /me)
-        if (meResponse.ok) {
-          const meData = await meResponse.json();
-          if (meData.user) {
-            setCurrentUser(meData.user);
-          }
-        }
       } catch (err) {
         console.error("Failed to fetch initial data for form dropdowns", err);
         toast.error("Could not load data for creating tasks.");
@@ -258,9 +251,9 @@ export default function TasksPage() {
             onTaskDelete={handleTaskDelete}
             sort={sort}
             handleSort={handleSort}
-            userRole={currentUser?.role}
+            userRole={user?.role}
             isReadOnly={isReadOnly}
-            currentUser={currentUser}
+            currentUser={user}
           />
         </CardContent>
       </Card>
@@ -271,7 +264,8 @@ export default function TasksPage() {
         onTaskCreated={handleTaskCreated}
         users={assignableUsers}
         clients={clients}
-        currentUser={currentUser}
+        currentUser={user}
+        lockedClientId={lockedClientId}
       />
     </div>
   );

@@ -8,6 +8,13 @@
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email/ses";
 import { syncPlaidItem } from "@/lib/plaid/sync";
+import {
+  publishScheduledPosts,
+  refreshExpiringTokens,
+  retryFailedPosts,
+  collectPostMetrics,
+  recoverStuckPublishing,
+} from "@/lib/cron-jobs/social-media.js";
 
 function startOfDayUTC(date = new Date()) {
   const d = new Date(date);
@@ -261,6 +268,7 @@ export async function runDailyReportReminderDispatcher() {
       output.reminded += 1;
     } catch (err) {
       // Email send failure is counted in output.failed; continue to next user
+      console.error(`[cron] Daily report reminder email failed for ${user.email}:`, err.message);
       output.failed += 1;
     }
 
@@ -278,6 +286,11 @@ export const JOBS = {
   "send-reminders": runReminderDispatcher,
   "sync-plaid": runPlaidSyncDispatcher,
   "send-daily-report-reminders": runDailyReportReminderDispatcher,
+  "publish-scheduled-posts": publishScheduledPosts,
+  "refresh-social-tokens": refreshExpiringTokens,
+  "retry-failed-posts": retryFailedPosts,
+  "collect-post-metrics": collectPostMetrics,
+  "recover-stuck-publishing": recoverStuckPublishing,
 };
 
 export function listJobs() {

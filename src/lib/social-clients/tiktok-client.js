@@ -3,6 +3,21 @@ import { BaseSocialClient } from "./base-client.js";
 const TIKTOK_API_BASE = "https://open.tiktokapis.com/v2";
 
 export class TikTokClient extends BaseSocialClient {
+  // ── Profile ─────────────────────────────────────────────────────────────
+
+  async getProfile() {
+    const data = await this._fetch(
+      `${TIKTOK_API_BASE}/user/info/?fields=open_id,union_id,avatar_url,display_name,follower_count,likes_count`
+    );
+    const u = data.data?.user || {};
+    return {
+      accountName: u.display_name || "TikTok Account",
+      accountHandle: u.open_id || null,
+      followerCount: u.follower_count || 0,
+      profileData: { ...this.profileData, openId: u.open_id, unionId: u.union_id, avatarUrl: u.avatar_url, likesCount: u.likes_count },
+    };
+  }
+
   // ── Token ────────────────────────────────────────────────────────────────
 
   async refreshAccessToken() {

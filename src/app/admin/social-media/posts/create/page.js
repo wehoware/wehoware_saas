@@ -14,15 +14,12 @@ import { ArrowLeft, Send, Save, Calendar, Hash, Image, Share2 } from "lucide-rea
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-
-const PLATFORM_CHAR_LIMITS = {
-  twitter: 280,
-  facebook: 63206,
-  instagram: 2200,
-  tiktok: 2200,
-};
-
-const POST_TYPES = ["Text", "Image", "Video", "Carousel", "Story", "Reel"];
+import {
+  PLATFORM_CHAR_LIMITS,
+  POST_TYPES,
+  PLATFORMS_REQUIRING_MEDIA,
+  toLocalDatetimeInputValue,
+} from "@/lib/social-clients/constants.js";
 
 export default function CreatePostPage() {
   const { user } = useAuth();
@@ -93,9 +90,21 @@ export default function CreatePostPage() {
     setFormData((prev) => ({ ...prev, mediaUrls: prev.mediaUrls.filter((u) => u !== url) }));
   }
 
+  function validatePost() {
+    if (!formData.content.trim()) { toast.error("Content is required"); return false; }
+    if (formData.targetAccounts.length === 0) { toast.error("Select at least one account"); return false; }
+    // Validate media requirements for platforms like Instagram and TikTok
+    const selectedPlatformCodes = selectedAccounts.map((a) => a.platform?.platformCode).filter(Boolean);
+    const needsMedia = selectedPlatformCodes.some((code) => PLATFORMS_REQUIRING_MEDIA.has(code));
+    if (needsMedia && formData.mediaUrls.length === 0) {
+      toast.error("Instagram and TikTok require at least one media URL");
+      return false;
+    }
+    return true;
+  }
+
   async function handleSubmit(schedule = false) {
-    if (!formData.content.trim()) { toast.error("Content is required"); return; }
-    if (formData.targetAccounts.length === 0) { toast.error("Select at least one account"); return; }
+    if (!validatePost()) return;
     if (schedule && !formData.scheduledFor) { toast.error("Schedule date/time is required"); return; }
 
     setLoading(true);
@@ -126,10 +135,10 @@ export default function CreatePostPage() {
   }
 
   async function handlePublishNow() {
-    if (!formData.content.trim()) { toast.error("Content is required"); return; }
-    if (formData.targetAccounts.length === 0) { toast.error("Select at least one account"); return; }
+    if (!validatePost()) return;
 
     setLoading(true);
+    let created = null;
     try {
       const createRes = await fetch("/api/v1/social/posts", {
         method: "POST",
@@ -143,7 +152,7 @@ export default function CreatePostPage() {
           target_accounts: formData.targetAccounts,
         }),
       });
-      const created = await createRes.json();
+      created = await createRes.json();
       if (!createRes.ok) throw new Error(created.error || "Failed to create post");
 
       const publishRes = await fetch(`/api/v1/social/posts/${created.id}/publish`, { method: "POST" });
@@ -153,7 +162,14 @@ export default function CreatePostPage() {
       toast.success("Post published successfully!");
       router.push(`/admin/social-media/posts/${created.id}`);
     } catch (err) {
-      toast.error(err.message);
+      // If the post was created but publishing failed, navigate to the post detail page
+      // so the user can retry publishing from there instead of being stuck on the create page.
+      if (created?.id) {
+        toast.error(err.message + " — redirecting to post details");
+        router.push(`/admin/social-media/posts/${created.id}`);
+      } else {
+        toast.error(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -355,7 +371,7 @@ export default function CreatePostPage() {
                   id="scheduledFor"
                   type="datetime-local"
                   value={formData.scheduledFor}
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={toLocalDatetimeInputValue(new Date())}
                   onChange={(e) => setFormData((p) => ({ ...p, scheduledFor: e.target.value }))}
                   className="mt-1"
                 />

@@ -8,12 +8,19 @@
  *   - publish_scheduled_posts  (every 1 minute)
  *   - refresh_tokens           (every hour)
  *   - retry_failed_posts       (every 15 minutes)
+ *   - collect_post_metrics     (every 6 hours)
+ *   - recover_stuck_publishing (every 5 minutes)
+ *
+ * Note: The HMAC-verified /api/cron/[job] endpoint is the preferred
+ * entrypoint. This legacy route is kept for backward compatibility.
  */
 import { NextResponse } from "next/server";
 import {
   publishScheduledPosts,
   refreshExpiringTokens,
   retryFailedPosts,
+  collectPostMetrics,
+  recoverStuckPublishing,
 } from "@/lib/cron-jobs/social-media";
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -22,6 +29,8 @@ const JOB_HANDLERS = {
   publish_scheduled_posts: publishScheduledPosts,
   refresh_tokens: refreshExpiringTokens,
   retry_failed_posts: retryFailedPosts,
+  collect_post_metrics: collectPostMetrics,
+  recover_stuck_publishing: recoverStuckPublishing,
 };
 
 export async function POST(request) {

@@ -64,4 +64,4 @@ export const POST = withAuth(async (request, _context) => {
     { ok: true, synced: results.length, results },
     { status: 200 }
   );
-});
+}, { allowedRoles: ["admin", "client"], allowedClientRoles: ["client"] });

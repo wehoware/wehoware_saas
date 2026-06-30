@@ -63,6 +63,7 @@ export default function AddUserPage() {
   });
 
   const fetchClients = async () => {
+    if (!isAdmin) return;
     try {
       const res = await fetch("/api/v1/clients");
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");

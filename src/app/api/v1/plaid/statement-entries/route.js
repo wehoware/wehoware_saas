@@ -89,4 +89,4 @@ export const GET = withAuth(async (request, _context) => {
     },
     { status: 200 }
   );
-});
+}, { allowedRoles: ["admin", "client"], allowedClientRoles: ["client"] });

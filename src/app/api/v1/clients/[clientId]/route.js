@@ -32,15 +32,8 @@ function serializeClient(c) {
 // -------------------------------------------------------------------
 async function getClientById(request, { params }) {
   try {
-    const { prisma, user } = request;
+    const { prisma } = request;
     const { clientId } = await params;
-
-    if (user.role === "client" && String(user.clientId) !== String(clientId)) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 403 }
-      );
-    }
 
     const client = await prisma.wehowareClient.findUnique({
       where: { id: clientId },
@@ -147,9 +140,9 @@ async function deleteClient(request, { params }) {
 }
 
 export const GET = withAuth(getClientById, {
-  allowedRoles: ["client", "employee", "admin"],
+  allowedRoles: ["admin"],
 });
 export const PUT = withAuth(updateClient, {
-  allowedRoles: ["employee", "admin"],
+  allowedRoles: ["admin"],
 });
 export const DELETE = withAuth(deleteClient, { allowedRoles: ["admin"] });

@@ -76,7 +76,6 @@ export default function ViewInvoicePage() {
     const shareData = {
       title: `Invoice ${invoice.invoice_number || ''}`,
       text: `Invoice ${invoice.invoice_number || ''} for ${invoice.client_name || ''}`,
-      url,
     };
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {

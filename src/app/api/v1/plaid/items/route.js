@@ -62,7 +62,7 @@ export const GET = withAuth(async (request, _context) => {
   );
 
   return NextResponse.json({ data }, { status: 200 });
-});
+}, { allowedRoles: ["admin", "client"], allowedClientRoles: ["client"] });
 
 export const DELETE = withAuth(async (request, _context) => {
   const { user } = request;
@@ -106,4 +106,4 @@ export const DELETE = withAuth(async (request, _context) => {
   });
 
   return NextResponse.json({ ok: true, id }, { status: 200 });
-}, { allowedRoles: ["admin", "employee"] });
+}, { allowedRoles: ["admin", "client"], allowedClientRoles: ["client"] });

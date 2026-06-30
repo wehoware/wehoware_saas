@@ -63,4 +63,4 @@ export const POST = withAuth(async (request, _context) => {
       { status: 502 }
     );
   }
-});
+}, { allowedRoles: ["admin", "client"], allowedClientRoles: ["client"] });

@@ -138,4 +138,4 @@ export const POST = withAuth(async (request, _context) => {
     },
     { status: 201 }
   );
-});
+}, { allowedRoles: ["admin", "client"], allowedClientRoles: ["client"] });

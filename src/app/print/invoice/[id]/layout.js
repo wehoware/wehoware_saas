@@ -8,12 +8,12 @@ export const metadata = {
 
 export default function PrintInvoiceLayout({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f5f7" }}>
+    <div className="print-invoice-layout" style={{ minHeight: "100vh", background: "#f5f5f7" }}>
       <style>{`
         @media print {
           @page {
             size: A4;
-            margin: 12mm;
+            margin: 0;
           }
           html, body {
             background: #ffffff !important;
@@ -29,6 +29,7 @@ export default function PrintInvoiceLayout({ children }) {
             box-shadow: none !important;
             margin: 0 auto !important;
             border-radius: 0 !important;
+            padding: 12mm !important;
           }
         }
       `}</style>

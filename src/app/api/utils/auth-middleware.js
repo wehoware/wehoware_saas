@@ -16,6 +16,13 @@ function forbidden(roles) {
   );
 }
 
+function forbiddenClientRoles(clientRoles) {
+  return NextResponse.json(
+    { error: `Forbidden - Requires one of these client roles: ${clientRoles.join(", ")}` },
+    { status: 403 }
+  );
+}
+
 function serverError(logPrefix, err) {
   console.error(`[${logPrefix}]`, err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -111,7 +118,9 @@ async function resolveActiveClientRole(profile, activeClientId) {
  *
  * @param {Function} handler  - the async (request, context) Route Handler
  * @param {Object}   options
- * @param {string[]} [options.allowedRoles] - if set, only these roles may proceed
+ * @param {string[]} [options.allowedRoles] - if set, only these profile roles may proceed
+ * @param {string[]} [options.allowedClientRoles] - if set, client-role users must also have
+ *   an activeClientRole (per-client role) in this list. Admins bypass this check.
  */
 export function withAuth(handler, options = {}) {
   return async (request, context) => {
@@ -167,6 +176,17 @@ export function withAuth(handler, options = {}) {
         profile,
         request.user.activeClientId
       );
+    }
+
+    // Per-client role-based access control
+    // When allowedClientRoles is set, client-role users must also have
+    // an activeClientRole that matches. Admins bypass this check.
+    if (
+      options.allowedClientRoles?.length > 0 &&
+      profile.role === "client" &&
+      !options.allowedClientRoles.includes(request.user.activeClientRole)
+    ) {
+      return forbiddenClientRoles(options.allowedClientRoles);
     }
 
     // Attach Prisma client for route handlers

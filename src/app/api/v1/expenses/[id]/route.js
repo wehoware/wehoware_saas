@@ -104,7 +104,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin"] }
 );
 
 export const PUT = withAuth(
@@ -222,7 +222,7 @@ export const PUT = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin"] }
 );
 
 export const DELETE = withAuth(
@@ -275,5 +275,5 @@ export const DELETE = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin"] }
 );

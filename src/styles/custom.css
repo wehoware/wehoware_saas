@@ -2098,3 +2098,48 @@ p {
     display: none;
   }
 }
+
+/* ============================================================
+   Print styles — invoice print route (/print/invoice/[id])
+   These rules ensure only the invoice content is printed,
+   hiding the toolbar, page padding, and gray background.
+   ============================================================ */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide the toolbar (Back, Share, Save as PDF, Print buttons) */
+  .print-toolbar {
+    display: none !important;
+  }
+
+  /* Reset the page wrapper padding so invoice fills the page */
+  .print-page-wrapper {
+    padding: 0 !important;
+  }
+
+  /* Reset the layout wrapper gray background */
+  .print-invoice-layout {
+    background: #ffffff !important;
+    min-height: auto !important;
+  }
+
+  /* Clean up the invoice template for print */
+  .invoice-template {
+    box-shadow: none !important;
+    margin: 0 auto !important;
+    border-radius: 0 !important;
+    padding: 12mm !important;
+  }
+}

@@ -122,7 +122,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["client", "employee", "admin"] }
+  { allowedRoles: ["client", "admin"], allowedClientRoles: ["client"] }
 );
 
 // -------------------------------------------------------------------
@@ -270,5 +270,5 @@ export const POST = withAuth(
       );
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["admin"] }
 );

@@ -146,7 +146,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin"] }
 );
 
 // -------------------------------------------------------------------
@@ -307,5 +307,5 @@ export const POST = withAuth(
       );
     }
   },
-  { allowedRoles: ["admin", "employee"] }
+  { allowedRoles: ["admin"] }
 );

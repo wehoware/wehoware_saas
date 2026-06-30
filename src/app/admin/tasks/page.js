@@ -103,8 +103,10 @@ export default function TasksPage() {
         const usersData = await usersResponse.json();
         if (usersData.users) setAssignableUsers(usersData.users);
         const clientsResponse = await fetch("/api/v1/clients");
-        const clientsData = await clientsResponse.json();
-        if (clientsData.clients) setClients(clientsData.clients);
+        if (clientsResponse.ok) {
+          const clientsData = await clientsResponse.json();
+          if (clientsData.clients) setClients(clientsData.clients);
+        }
         const statsResponse = await fetch("/api/v1/tasks/stats");
         const statsData = await statsResponse.json();
         if (statsData && typeof statsData.total !== 'undefined') {

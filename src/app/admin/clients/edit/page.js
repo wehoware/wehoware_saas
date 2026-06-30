@@ -16,11 +16,22 @@ export default function EditClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientId = searchParams.get("id");
-  const { activeClient } = useAuth();
+  const { activeClient, user, isAdmin, isLoading: authLoading } = useAuth();
 
   const [client, setClient] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (!isAdmin) {
+        toast.error("Access Denied: Only admins can edit clients.");
+        router.push("/admin");
+      }
+    }
+  }, [user, isAdmin, authLoading, router]);
 
   useEffect(() => {
     if (!clientId) {
@@ -73,7 +84,7 @@ export default function EditClientPage() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || !user || !isAdmin || isLoading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin" />

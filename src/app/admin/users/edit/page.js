@@ -84,6 +84,7 @@ export default function EditUserPage() {
   }, [userId, router]);
 
   const fetchClients = useCallback(async () => {
+    if (!isAdmin) return;
     try {
       const res = await fetch("/api/v1/clients");
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to fetch clients");
@@ -93,7 +94,7 @@ export default function EditUserPage() {
       console.error("Error fetching clients:", error);
       toast.error("Failed to fetch client list");
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!user) {

@@ -161,7 +161,7 @@ export default function PrintInvoicePage() {
   }
 
   return (
-    <div style={{ padding: "24px 16px" }}>
+    <div className="print-page-wrapper" style={{ padding: "24px 16px" }}>
       <div
         className="print-toolbar"
         style={{

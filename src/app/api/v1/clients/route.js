@@ -3,8 +3,8 @@
  *
  * Prisma/MySQL-backed replacement for the old Supabase handler.
  *
- * GET  — list clients (clients see only their own; employees/admins see all)
- * POST — create a new client (employee/admin)
+ * GET  — list clients (admin only)
+ * POST — create a new client (admin only)
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../utils/auth-middleware";
@@ -39,47 +39,25 @@ function serializeClient(c) {
 // -------------------------------------------------------------------
 async function getClients(request) {
   try {
-    const { prisma, user } = request;
+    const { prisma } = request;
     const url = new URL(request.url);
     const sortField = url.searchParams.get("sort_field") || "companyName";
     const sortOrder = url.searchParams.get("sort_order") || "asc";
 
-    if (user.role === "client") {
-      if (!user.clientId) {
-        return NextResponse.json(
-          { error: "Client association not found" },
-          { status: 403 }
-        );
-      }
-      const client = await prisma.wehowareClient.findUnique({
-        where: { id: user.clientId },
-      });
-      return NextResponse.json({
-        clients: client ? [serializeClient(client)] : [],
-      });
-    }
+    const orderByField = {
+      companyName: "companyName",
+      contactPerson: "contactPerson",
+      email: "email",
+      domain: "domain",
+      created_at: "createdAt",
+    }[sortField] || "companyName";
 
-    if (["employee", "admin"].includes(user.role)) {
-      const orderByField = {
-        companyName: "companyName",
-        contactPerson: "contactPerson",
-        email: "email",
-        domain: "domain",
-        created_at: "createdAt",
-      }[sortField] || "companyName";
-
-      const clients = await prisma.wehowareClient.findMany({
-        orderBy: { [orderByField]: sortOrder === "asc" ? "asc" : "desc" },
-      });
-      return NextResponse.json({
-        clients: clients.map(serializeClient),
-      });
-    }
-
-    return NextResponse.json(
-      { error: "Invalid user role for this operation" },
-      { status: 403 }
-    );
+    const clients = await prisma.wehowareClient.findMany({
+      orderBy: { [orderByField]: sortOrder === "asc" ? "asc" : "desc" },
+    });
+    return NextResponse.json({
+      clients: clients.map(serializeClient),
+    });
   } catch (err) {
     console.error("[GET /api/v1/clients] error:", err);
     return NextResponse.json(
@@ -138,8 +116,8 @@ async function createClient(request) {
 }
 
 export const GET = withAuth(getClients, {
-  allowedRoles: ["client", "employee", "admin"],
+  allowedRoles: ["admin"],
 });
 export const POST = withAuth(createClient, {
-  allowedRoles: ["employee", "admin"],
+  allowedRoles: ["admin"],
 });

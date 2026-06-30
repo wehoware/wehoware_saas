@@ -31,7 +31,7 @@ import {
 
 export default function ClientsPage() {
   const router = useRouter();
-  const { activeClient } = useAuth();
+  const { activeClient, user, isAdmin, isLoading: authLoading } = useAuth();
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -40,6 +40,17 @@ export default function ClientsPage() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState(null);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (!isAdmin) {
+        toast.error("Access Denied: Only admins can manage clients.");
+        router.push("/admin");
+      }
+    }
+  }, [user, isAdmin, authLoading, router]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -109,6 +120,14 @@ export default function ClientsPage() {
       setDeleteLoading(false);
     }
   };
+
+  if (authLoading || !user || !isAdmin) {
+    return (
+      <div className="flex justify-center items-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col">

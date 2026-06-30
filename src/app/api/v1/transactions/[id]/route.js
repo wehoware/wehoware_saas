@@ -77,7 +77,7 @@ export const GET = withAuth(
       );
     }
   },
-  { allowedRoles: ["client", "employee", "admin"] }
+  { allowedRoles: ["client", "admin"], allowedClientRoles: ["client"] }
 );
 
 // -------------------------------------------------------------------
@@ -228,7 +228,7 @@ export const PUT = withAuth(
       );
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["admin"] }
 );
 
 // -------------------------------------------------------------------
@@ -270,5 +270,5 @@ export const DELETE = withAuth(
       );
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["admin"] }
 );

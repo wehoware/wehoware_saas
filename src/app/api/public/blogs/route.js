@@ -12,6 +12,7 @@
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveClient, buildItemListSchema, buildCollectionPageSchema } from "@/lib/public-seo";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -76,35 +77,6 @@ function serialize(b) {
   };
 }
 
-async function resolveClient(domain, clientId) {
-  if (!domain && !clientId) {
-    return null;
-  }
-
-  const where = {};
-  if (domain) {
-    where.domain = domain;
-  }
-  if (clientId) {
-    where.id = clientId;
-  }
-
-  const client = await prisma.wehowareClient.findFirst({
-    where,
-    select: { id: true, active: true },
-  });
-
-  if (!client) {
-    return null;
-  }
-
-  if (!client.active) {
-    return { inactive: true, id: client.id };
-  }
-
-  return client;
-}
-
 export async function GET(request) {
   try {
     const url = new URL(request.url);
@@ -167,6 +139,7 @@ export async function GET(request) {
     ]);
 
     const blogs = items.map(serialize);
+    const baseUrl = client.domain ? `https://${client.domain}/blogs` : `/api/public/blogs`;
 
     return NextResponse.json({
       blogs,
@@ -175,6 +148,14 @@ export async function GET(request) {
         limit,
         totalItems,
         totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+      },
+      schema: {
+        item_list: buildItemListSchema(blogs, baseUrl),
+        collection_page: buildCollectionPageSchema(
+          "Blog Posts",
+          client.companyName ? `${client.companyName} blog posts and articles` : "Blog posts",
+          client.domain ? `https://${client.domain}/blogs` : undefined
+        ),
       },
     });
   } catch (err) {

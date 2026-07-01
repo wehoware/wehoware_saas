@@ -10,6 +10,11 @@
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  resolveClient,
+  buildProductSchema,
+  buildBreadcrumbSchema,
+} from "@/lib/public-seo";
 
 function serialize(item) {
   const price = item.price !== null && item.price !== undefined ? Number(item.price) : null;
@@ -65,55 +70,6 @@ function serialize(item) {
   };
 }
 
-function buildProductSchema(item, client) {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": item.schemaType || (item.type === "vehicle" ? "Vehicle" : "Product"),
-    name: item.title,
-    description: item.metaDescription || item.description || "",
-  };
-
-  if (item.thumbnail) {
-    schema.image = item.thumbnail;
-  }
-  if (client?.companyName) {
-    schema.brand = { "@type": "Brand", name: client.companyName };
-  }
-  if (item.priceVisible && item.price && Number(item.price) > 0) {
-    schema.offers = {
-      "@type": "Offer",
-      price: Number(item.price),
-      priceCurrency: item.currency || "CAD",
-    };
-  }
-  if (item.metaKeywords) {
-    schema.keywords = item.metaKeywords;
-  }
-  if (item.attributes && typeof item.attributes === "object") {
-    if (item.attributes.make) schema.vehicleConfiguration = item.attributes.make;
-    if (item.attributes.model) schema.model = item.attributes.model;
-    if (item.attributes.year) schema.vehicleModelDate = String(item.attributes.year);
-    if (item.attributes.vin) schema.vehicleIdentificationNumber = item.attributes.vin;
-    if (item.attributes.mileage) schema.mileageFromOdometer = item.attributes.mileage;
-  }
-
-  return schema;
-}
-
-async function resolveClient(domain, clientId) {
-  if (!domain && !clientId) return null;
-  const where = {};
-  if (domain) where.domain = domain;
-  if (clientId) where.id = clientId;
-  const client = await prisma.wehowareClient.findFirst({
-    where,
-    select: { id: true, active: true, companyName: true },
-  });
-  if (!client) return null;
-  if (!client.active) return { inactive: true, id: client.id };
-  return client;
-}
-
 export async function GET(request, { params }) {
   try {
     const { slug } = await params;
@@ -146,9 +102,25 @@ export async function GET(request, { params }) {
       data: { views: { increment: 1 } },
     }).catch(() => {});
 
+    const siteUrl = client.domain ? `https://${client.domain}` : "";
+    const breadcrumbTrail = [
+      { name: "Home", url: siteUrl || "/" },
+    ];
+    if (item.category && item.category.name) {
+      breadcrumbTrail.push({
+        name: item.category.name,
+        url: siteUrl ? `${siteUrl}/inventory?categoryId=${item.category.id}` : `/inventory?categoryId=${item.category.id}`,
+      });
+    }
+    breadcrumbTrail.push({
+      name: item.title,
+      url: item.canonicalUrl || (siteUrl ? `${siteUrl}/inventory/${item.slug}` : `/inventory/${item.slug}`),
+    });
+
     return NextResponse.json({
       item: serialize(item),
       product_schema: buildProductSchema(item, client),
+      breadcrumb_schema: buildBreadcrumbSchema(breadcrumbTrail),
     });
   } catch (err) {
     console.error("[GET /api/public/inventory/[slug]] error:", err);

@@ -6,20 +6,7 @@
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-async function resolveClient(domain, clientId) {
-  if (!domain && !clientId) return null;
-  const where = {};
-  if (domain) where.domain = domain;
-  if (clientId) where.id = clientId;
-  const client = await prisma.wehowareClient.findFirst({
-    where,
-    select: { id: true, active: true },
-  });
-  if (!client) return null;
-  if (!client.active) return { inactive: true, id: client.id };
-  return client;
-}
+import { resolveClient, buildFaqSchema } from "@/lib/public-seo";
 
 function serialize(faq) {
   return {
@@ -27,22 +14,6 @@ function serialize(faq) {
     question: faq.question,
     answer: faq.answer,
     display_order: faq.displayOrder,
-  };
-}
-
-function buildFaqSchema(faqs) {
-  if (!faqs || faqs.length === 0) return null;
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((f) => ({
-      "@type": "Question",
-      name: f.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: f.answer,
-      },
-    })),
   };
 }
 

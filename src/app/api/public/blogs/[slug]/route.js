@@ -10,6 +10,12 @@
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  resolveClient,
+  buildFaqSchema,
+  buildBlogSchema,
+  buildBreadcrumbSchema,
+} from "@/lib/public-seo";
 
 function serialize(b) {
   return {
@@ -77,69 +83,6 @@ function serialize(b) {
   };
 }
 
-function buildFaqSchema(faqs) {
-  if (!faqs || faqs.length === 0) return null;
-  const activeFaqs = faqs.filter((f) => f.active).sort((a, b) => a.displayOrder - b.displayOrder);
-  if (activeFaqs.length === 0) return null;
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: activeFaqs.map((f) => ({
-      "@type": "Question",
-      name: f.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: f.answer,
-      },
-    })),
-  };
-}
-
-function buildBlogSchema(blog, client) {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": blog.schemaType || "BlogPosting",
-    headline: blog.title,
-    description: blog.metaDescription || blog.excerpt || "",
-  };
-
-  if (blog.thumbnail || blog.openGraphImage) {
-    schema.image = blog.thumbnail || blog.openGraphImage;
-  }
-  if (blog.publishedAt) {
-    schema.datePublished = blog.publishedAt.toISOString();
-  }
-  if (blog.updatedAt) {
-    schema.dateModified = blog.updatedAt.toISOString();
-  }
-  if (client?.companyName) {
-    schema.author = { "@type": "Organization", name: client.companyName };
-    schema.publisher = { "@type": "Organization", name: client.companyName };
-  }
-  if (blog.canonicalUrl) {
-    schema.mainEntityOfPage = { "@type": "WebPage", "@id": blog.canonicalUrl };
-  }
-  if (blog.metaKeywords) {
-    schema.keywords = blog.metaKeywords;
-  }
-
-  return schema;
-}
-
-async function resolveClient(domain, clientId) {
-  if (!domain && !clientId) return null;
-  const where = {};
-  if (domain) where.domain = domain;
-  if (clientId) where.id = clientId;
-  const client = await prisma.wehowareClient.findFirst({
-    where,
-    select: { id: true, active: true, companyName: true },
-  });
-  if (!client) return null;
-  if (!client.active) return { inactive: true, id: client.id };
-  return client;
-}
-
 export async function GET(request, { params }) {
   try {
     const { slug } = await params;
@@ -183,9 +126,25 @@ export async function GET(request, { params }) {
       data: { views: { increment: 1 } },
     }).catch(() => {});
 
+    const siteUrl = client.domain ? `https://${client.domain}` : "";
+    const breadcrumbTrail = [
+      { name: "Home", url: siteUrl || "/" },
+    ];
+    if (blog.category && blog.category.name) {
+      breadcrumbTrail.push({
+        name: blog.category.name,
+        url: siteUrl ? `${siteUrl}/blogs?category=${blog.category.id}` : `/blogs?category=${blog.category.id}`,
+      });
+    }
+    breadcrumbTrail.push({
+      name: blog.title,
+      url: blog.canonicalUrl || (siteUrl ? `${siteUrl}/blogs/${blog.slug}` : `/blogs/${blog.slug}`),
+    });
+
     return NextResponse.json({
       blog: serialize(blog),
       blog_schema: buildBlogSchema(blog, client),
+      breadcrumb_schema: buildBreadcrumbSchema(breadcrumbTrail),
     });
   } catch (err) {
     console.error("[GET /api/public/blogs/[slug]] error:", err);

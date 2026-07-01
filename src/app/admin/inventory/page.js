@@ -989,6 +989,18 @@ export default function InventoryPage() {
                   setTimeout(() => setCopiedField(null), 1500);
                 }}
               />
+              <ApiEndpointRow
+                method="GET"
+                label="List Categories"
+                url={`/api/public/inventory/categories?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="categories"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
             </div>
 
             {/* Query Parameters */}
@@ -1060,7 +1072,26 @@ export default function InventoryPage() {
                 fields={[
                   { name: "content", type: "string | null", description: "Full HTML content/body" },
                   { name: "reorder_threshold", type: "integer", description: "Low-stock reorder threshold" },
-                  { name: "product_schema", type: "object | null", description: "JSON-LD schema.org Product/Vehicle object with offers, brand, and vehicle attributes" },
+                ]}
+              />
+            </div>
+
+            {/* Schema.org Structured Data */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Schema.org Structured Data
+              </h4>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                <p className="text-xs text-green-800">
+                  <strong>SEO Enhancement.</strong> All responses include <code className="font-mono bg-green-100 px-1 rounded">schema</code> fields containing <a href="https://schema.org" className="underline" target="_blank" rel="noopener noreferrer">Schema.org</a> JSON-LD structured data. Inject these into your page&apos;s <code className="font-mono bg-green-100 px-1 rounded">&lt;script type=&quot;application/ld+json&quot;&gt;</code> tags for rich search results.
+                </p>
+              </div>
+              <ApiFieldTable
+                fields={[
+                  { name: "schema.item_list", type: "object", description: "ItemList JSON-LD for list endpoints. Contains itemListElement[] with position, url, and name for each item." },
+                  { name: "schema.collection_page", type: "object", description: "CollectionPage JSON-LD for list endpoints. Contains name, description, and url of the inventory collection." },
+                  { name: "product_schema", type: "object", description: "Product/Vehicle JSON-LD for single item. Includes name, description, image, brand, offers (price, currency), keywords, and vehicle attributes (model, year, mileage, VIN) when applicable." },
+                  { name: "breadcrumb_schema", type: "object | null", description: "BreadcrumbList JSON-LD for single item. Contains itemListElement[] with position, name, and url for Home > Category > Item." },
                 ]}
               />
             </div>
@@ -1132,6 +1163,27 @@ export default function InventoryPage() {
     "page": 1,
     "limit": 10,
     "totalPages": 5
+  },
+  "schema": {
+    "item_list": {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "url": "https://example.com/inventory/2019-bmw-m850i-xdrive-coupe",
+          "name": "2019 BMW M850i xDrive Coupe"
+        }
+      ]
+    },
+    "collection_page": {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Inventory",
+      "description": "Example Co inventory items",
+      "url": "https://example.com/inventory"
+    }
   }
 }`}
               />
@@ -1218,6 +1270,15 @@ export default function InventoryPage() {
     "model": "8-Series",
     "vehicleModelDate": "2019",
     "mileageFromOdometer": "50000"
+  },
+  "breadcrumb_schema": {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://example.com" },
+      { "@type": "ListItem", "position": 2, "name": "Luxury Vehicles", "item": "https://example.com/inventory?categoryId=cat-uuid" },
+      { "@type": "ListItem", "position": 3, "name": "2019 BMW M850i xDrive Coupe", "item": "https://example.com/inventory/2019-bmw-m850i-xdrive-coupe" }
+    ]
   }
 }`}
               />
@@ -1235,6 +1296,34 @@ export default function InventoryPage() {
                   { name: "500", type: "Internal server error", description: "Unexpected server-side failure. Check server logs." },
                 ]}
               />
+            </div>
+
+            <div className="pt-2 border-t">
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  const lines = [
+                    `Client ID: ${activeClient?.id || "N/A"}`,
+                    `Domain: ${clientUrl || "N/A"}`,
+                    "",
+                    "Endpoints:",
+                    `GET /api/public/inventory?clientId=${activeClient?.id || "{clientId}"}`,
+                    `GET /api/public/inventory/{slug}?clientId=${activeClient?.id || "{clientId}"}`,
+                    `GET /api/public/inventory/categories?clientId=${activeClient?.id || "{clientId}"}`,
+                  ];
+                  navigator.clipboard.writeText(lines.join("\n"));
+                  setCopiedField("all");
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              >
+                {copiedField === "all" ? (
+                  <Check className="h-4 w-4 mr-2" />
+                ) : (
+                  <Copy className="h-4 w-4 mr-2" />
+                )}
+                Copy All Endpoints
+              </Button>
             </div>
           </div>
         </DialogContent>

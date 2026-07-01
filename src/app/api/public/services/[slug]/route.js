@@ -10,6 +10,12 @@
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  resolveClient,
+  buildFaqSchema,
+  buildServiceSchema,
+  buildBreadcrumbSchema,
+} from "@/lib/public-seo";
 
 function serialize(s) {
   return {
@@ -77,66 +83,6 @@ function serialize(s) {
   };
 }
 
-function buildFaqSchema(faqs) {
-  if (!faqs || faqs.length === 0) return null;
-  const activeFaqs = faqs.filter((f) => f.active).sort((a, b) => a.displayOrder - b.displayOrder);
-  if (activeFaqs.length === 0) return null;
-  return {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: activeFaqs.map((f) => ({
-      "@type": "Question",
-      name: f.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: f.answer,
-      },
-    })),
-  };
-}
-
-function buildServiceSchema(service, client) {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": service.schemaType || "Service",
-    name: service.title,
-    description: service.metaDescription || service.description || "",
-  };
-
-  if (service.thumbnail || service.openGraphImage) {
-    schema.image = service.thumbnail || service.openGraphImage;
-  }
-  if (client?.companyName) {
-    schema.provider = { "@type": "Organization", name: client.companyName };
-  }
-  if (service.fee && Number(service.fee) > 0) {
-    schema.offers = {
-      "@type": "Offer",
-      price: Number(service.fee),
-      priceCurrency: service.feeCurrency || "CAD",
-    };
-  }
-  if (service.metaKeywords) {
-    schema.keywords = service.metaKeywords;
-  }
-
-  return schema;
-}
-
-async function resolveClient(domain, clientId) {
-  if (!domain && !clientId) return null;
-  const where = {};
-  if (domain) where.domain = domain;
-  if (clientId) where.id = clientId;
-  const client = await prisma.wehowareClient.findFirst({
-    where,
-    select: { id: true, active: true, companyName: true },
-  });
-  if (!client) return null;
-  if (!client.active) return { inactive: true, id: client.id };
-  return client;
-}
-
 export async function GET(request, { params }) {
   try {
     const { slug } = await params;
@@ -175,9 +121,25 @@ export async function GET(request, { params }) {
       data: { views: { increment: 1 } },
     }).catch(() => {});
 
+    const siteUrl = client.domain ? `https://${client.domain}` : "";
+    const breadcrumbTrail = [
+      { name: "Home", url: siteUrl || "/" },
+    ];
+    if (service.category && service.category.name) {
+      breadcrumbTrail.push({
+        name: service.category.name,
+        url: siteUrl ? `${siteUrl}/services?categoryId=${service.category.id}` : `/services?categoryId=${service.category.id}`,
+      });
+    }
+    breadcrumbTrail.push({
+      name: service.title,
+      url: service.canonicalUrl || (siteUrl ? `${siteUrl}/services/${service.slug}` : `/services/${service.slug}`),
+    });
+
     return NextResponse.json({
       service: serialize(service),
       service_schema: buildServiceSchema(service, client),
+      breadcrumb_schema: buildBreadcrumbSchema(breadcrumbTrail),
     });
   } catch (err) {
     console.error("[GET /api/public/services/[slug]] error:", err);

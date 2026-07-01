@@ -10,20 +10,7 @@
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-async function resolveClient(domain, clientId) {
-  if (!domain && !clientId) return null;
-  const where = {};
-  if (domain) where.domain = domain;
-  if (clientId) where.id = clientId;
-  const client = await prisma.wehowareClient.findFirst({
-    where,
-    select: { id: true, active: true },
-  });
-  if (!client) return null;
-  if (!client.active) return { inactive: true, id: client.id };
-  return client;
-}
+import { resolveClient } from "@/lib/public-seo";
 
 export async function POST(request, { params }) {
   try {

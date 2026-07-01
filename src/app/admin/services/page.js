@@ -1023,7 +1023,28 @@ export default function ServicesPage() {
                 fields={[
                   { name: "related_blogs", type: "array", description: "Linked blog posts: { id, title, slug, thumbnail, excerpt }" },
                   { name: "faqs", type: "array", description: "Active FAQs: { id, question, answer, display_order }" },
-                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD schema.org object" },
+                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD schema.org object (inside service object)" },
+                ]}
+              />
+            </div>
+
+            {/* Schema.org Structured Data */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Schema.org Structured Data
+              </h4>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                <p className="text-xs text-green-800">
+                  <strong>SEO Enhancement.</strong> All responses include <code className="font-mono bg-green-100 px-1 rounded">schema</code> fields containing <a href="https://schema.org" className="underline" target="_blank" rel="noopener noreferrer">Schema.org</a> JSON-LD structured data. Inject these into your page&apos;s <code className="font-mono bg-green-100 px-1 rounded">&lt;script type=&quot;application/ld+json&quot;&gt;</code> tags for rich search results.
+                </p>
+              </div>
+              <ApiFieldTable
+                fields={[
+                  { name: "schema.item_list", type: "object", description: "ItemList JSON-LD for list endpoints. Contains itemListElement[] with position, url, and name for each service." },
+                  { name: "schema.collection_page", type: "object", description: "CollectionPage JSON-LD for list endpoints. Contains name, description, and url of the services collection." },
+                  { name: "service_schema", type: "object", description: "Service JSON-LD for single service. Includes name, description, image, provider (Organization), offers (price, currency), serviceType, areaServed, aggregateRating, keywords." },
+                  { name: "breadcrumb_schema", type: "object | null", description: "BreadcrumbList JSON-LD for single service. Contains itemListElement[] with position, name, and url for Home > Category > Service." },
+                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD for service FAQs. Contains mainEntity[] with Question and acceptedAnswer pairs." },
                 ]}
               />
             </div>
@@ -1091,6 +1112,27 @@ export default function ServicesPage() {
     "page": 1,
     "limit": 10,
     "totalPages": 3
+  },
+  "schema": {
+    "item_list": {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "url": "https://example.com/services/legal-consultation",
+          "name": "Legal Consultation"
+        }
+      ]
+    },
+    "collection_page": {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Services",
+      "description": "Example Co services",
+      "url": "https://example.com/services"
+    }
   }
 }`}
               />
@@ -1194,7 +1236,37 @@ export default function ServicesPage() {
       }
     ]
   }
-}`}
+}
+
+// Top-level response also includes:
+// "service_schema": { ... Service JSON-LD ... }
+// "breadcrumb_schema": { ... BreadcrumbList JSON-LD ... }
+//
+// Example service_schema:
+// {
+//   "@context": "https://schema.org",
+//   "@type": "Service",
+//   "name": "Legal Consultation",
+//   "description": "Get expert legal advice from certified professionals.",
+//   "image": "https://cdn.example.com/service-thumb.jpg",
+//   "provider": { "@type": "Organization", "name": "Example Co", "url": "https://example.com" },
+//   "offers": { "@type": "Offer", "price": 150, "priceCurrency": "USD" },
+//   "serviceType": "Legal",
+//   "areaServed": { "@type": "Place", "url": "https://example.com" },
+//   "aggregateRating": { "@type": "AggregateRating", "ratingValue": 4.8, "reviewCount": 12 },
+//   "keywords": "legal, consultation, lawyer, business law"
+// }
+//
+// Example breadcrumb_schema:
+// {
+//   "@context": "https://schema.org",
+//   "@type": "BreadcrumbList",
+//   "itemListElement": [
+//     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://example.com" },
+//     { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://example.com/services?categoryId=cat-uuid" },
+//     { "@type": "ListItem", "position": 3, "name": "Legal Consultation", "item": "https://example.com/services/legal-consultation" }
+//   ]
+// }`}
               />
             </div>
 

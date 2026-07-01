@@ -969,6 +969,18 @@ export default function BlogsPage() {
                   setTimeout(() => setCopiedField(null), 1500);
                 }}
               />
+              <ApiEndpointRow
+                method="POST"
+                label="Like a Blog Post"
+                url={`/api/public/blogs/{slug}/like?clientId=${activeClient?.id || "{clientId}"}`}
+                copiedField={copiedField}
+                field="like"
+                onCopy={(val, field) => {
+                  navigator.clipboard.writeText(val);
+                  setCopiedField(field);
+                  setTimeout(() => setCopiedField(null), 1500);
+                }}
+              />
             </div>
 
             {/* Query Parameters */}
@@ -1051,7 +1063,28 @@ export default function BlogsPage() {
                 fields={[
                   { name: "related_services", type: "array", description: "Linked services: { id, title, slug, thumbnail, description, fee, fee_currency }" },
                   { name: "faqs", type: "array", description: "Active FAQs: { id, question, answer, display_order }" },
-                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD schema.org object" },
+                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD schema.org object (inside blog object)" },
+                ]}
+              />
+            </div>
+
+            {/* Schema.org Structured Data */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Schema.org Structured Data
+              </h4>
+              <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                <p className="text-xs text-green-800">
+                  <strong>SEO Enhancement.</strong> All responses include <code className="font-mono bg-green-100 px-1 rounded">schema</code> fields containing <a href="https://schema.org" className="underline" target="_blank" rel="noopener noreferrer">Schema.org</a> JSON-LD structured data. Inject these into your page&apos;s <code className="font-mono bg-green-100 px-1 rounded">&lt;script type=&quot;application/ld+json&quot;&gt;</code> tags for rich search results.
+                </p>
+              </div>
+              <ApiFieldTable
+                fields={[
+                  { name: "schema.item_list", type: "object", description: "ItemList JSON-LD for list endpoints. Contains itemListElement[] with position, url, and name for each item." },
+                  { name: "schema.collection_page", type: "object", description: "CollectionPage JSON-LD for list endpoints. Contains name, description, and url of the collection." },
+                  { name: "blog_schema", type: "object", description: "BlogPosting JSON-LD for single blog. Includes headline, description, image, datePublished, dateModified, author, publisher, mainEntityOfPage, keywords, wordCount, articleSection." },
+                  { name: "breadcrumb_schema", type: "object | null", description: "BreadcrumbList JSON-LD for single blog. Contains itemListElement[] with position, name, and url for Home > Category > Blog." },
+                  { name: "faq_schema", type: "object | null", description: "FAQPage JSON-LD for blog FAQs. Contains mainEntity[] with Question and acceptedAnswer pairs." },
                 ]}
               />
             </div>
@@ -1116,6 +1149,27 @@ export default function BlogsPage() {
     "page": 1,
     "limit": 10,
     "totalPages": 5
+  },
+  "schema": {
+    "item_list": {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "url": "https://example.com/blogs/how-to-start-a-business",
+          "name": "How to Start a Business"
+        }
+      ]
+    },
+    "collection_page": {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Blog Posts",
+      "description": "Example Co blog posts and articles",
+      "url": "https://example.com/blogs"
+    }
   }
 }`}
               />
@@ -1218,7 +1272,39 @@ export default function BlogsPage() {
       }
     ]
   }
-}`}
+}
+
+// Top-level response also includes:
+// "blog_schema": { ... BlogPosting JSON-LD ... }
+// "breadcrumb_schema": { ... BreadcrumbList JSON-LD ... }
+//
+// Example blog_schema:
+// {
+//   "@context": "https://schema.org",
+//   "@type": "BlogPosting",
+//   "headline": "How to Start a Business",
+//   "description": "A comprehensive guide to starting and scaling your own business.",
+//   "image": "https://cdn.example.com/blog.jpg",
+//   "datePublished": "2025-02-10T09:00:00.000Z",
+//   "dateModified": "2025-05-20T16:45:00.000Z",
+//   "author": { "@type": "Organization", "name": "Example Co", "url": "https://example.com" },
+//   "publisher": { "@type": "Organization", "name": "Example Co", "url": "https://example.com" },
+//   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://example.com/blog/how-to-start-a-business" },
+//   "keywords": "business, startup, entrepreneur, guide",
+//   "wordCount": 1200,
+//   "articleSection": "Business"
+// }
+//
+// Example breadcrumb_schema:
+// {
+//   "@context": "https://schema.org",
+//   "@type": "BreadcrumbList",
+//   "itemListElement": [
+//     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://example.com" },
+//     { "@type": "ListItem", "position": 2, "name": "Business", "item": "https://example.com/blogs?category=cat-uuid" },
+//     { "@type": "ListItem", "position": 3, "name": "How to Start a Business", "item": "https://example.com/blog/how-to-start-a-business" }
+//   ]
+// }`}
               />
             </div>
 
@@ -1236,6 +1322,7 @@ export default function BlogsPage() {
                     `GET /api/public/blogs/{slug}?clientId=${activeClient?.id || "{clientId}"}`,
                     `GET /api/public/blogs/{slug}/faqs?clientId=${activeClient?.id || "{clientId}"}`,
                     `GET /api/public/blogs/categories?clientId=${activeClient?.id || "{clientId}"}`,
+                    `POST /api/public/blogs/{slug}/like?clientId=${activeClient?.id || "{clientId}"}`,
                   ];
                   navigator.clipboard.writeText(lines.join("\n"));
                   setCopiedField("all");

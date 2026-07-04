@@ -42,6 +42,13 @@ function makeEmptyStore() {
     wehowareInventoryItem: [],
     wehowareInventoryStockMovement: [],
     wehowareInventorySetting: [],
+    wehowareBlog: [],
+    wehowareService: [],
+    wehowareSeoAnalyserRun: [],
+    wehowareSeoAnalyserIssue: [],
+    wehowareSeoAnalyserSuggestion: [],
+    wehowareSeoAnalyserLog: [],
+    wehowareSeoAnalyserSetting: [],
   };
 }
 
@@ -269,6 +276,35 @@ const RELATIONS = {
       return store.wehowareInventoryItem.find((i) => i.id === row.itemId) || null;
     },
   },
+  wehowareSeoAnalyserRun: {
+    issues(row) {
+      return store.wehowareSeoAnalyserIssue.filter((i) => i.runId === row.id);
+    },
+    client(row) {
+      return store.wehowareClient.find((c) => c.id === row.clientId) || null;
+    },
+  },
+  wehowareSeoAnalyserIssue: {
+    run(row) {
+      return store.wehowareSeoAnalyserRun.find((r) => r.id === row.runId) || null;
+    },
+    suggestions(row) {
+      return store.wehowareSeoAnalyserSuggestion.filter((s) => s.issueId === row.id);
+    },
+    client(row) {
+      return store.wehowareClient.find((c) => c.id === row.clientId) || null;
+    },
+  },
+  wehowareSeoAnalyserSuggestion: {
+    issue(row) {
+      return store.wehowareSeoAnalyserIssue.find((i) => i.id === row.issueId) || null;
+    },
+  },
+  wehowareSeoAnalyserLog: {
+    client(row) {
+      return store.wehowareClient.find((c) => c.id === row.clientId) || null;
+    },
+  },
 };
 
 // -----------------------------------------------------------------
@@ -382,6 +418,36 @@ const DEFAULTS = {
     enableInquiries: true,
     enableTestDrive: false,
     defaultItemType: "product",
+  },
+  wehowareSeoAnalyserRun: {
+    status: "pending",
+    issuesCount: 0,
+    suggestionsCount: 0,
+    tokensUsed: 0,
+  },
+  wehowareSeoAnalyserIssue: {
+    status: "open",
+  },
+  wehowareSeoAnalyserSuggestion: {
+    status: "pending",
+    applied: false,
+  },
+  wehowareSeoAnalyserLog: {
+    status: "pending",
+    tokensUsed: 0,
+  },
+  wehowareSeoAnalyserSetting: {
+    enabled: false,
+    schedule: "manual",
+    contentType: "both",
+  },
+  wehowareBlog: {
+    status: "draft",
+    seoScore: 0,
+  },
+  wehowareService: {
+    status: "active",
+    seoScore: 0,
   },
 };
 
@@ -544,6 +610,13 @@ export const prisma = {
   wehowareInventoryItem: makeModel("wehowareInventoryItem"),
   wehowareInventoryStockMovement: makeModel("wehowareInventoryStockMovement"),
   wehowareInventorySetting: makeModel("wehowareInventorySetting"),
+  wehowareBlog: makeModel("wehowareBlog"),
+  wehowareService: makeModel("wehowareService"),
+  wehowareSeoAnalyserRun: makeModel("wehowareSeoAnalyserRun"),
+  wehowareSeoAnalyserIssue: makeModel("wehowareSeoAnalyserIssue"),
+  wehowareSeoAnalyserSuggestion: makeModel("wehowareSeoAnalyserSuggestion"),
+  wehowareSeoAnalyserLog: makeModel("wehowareSeoAnalyserLog"),
+  wehowareSeoAnalyserSetting: makeModel("wehowareSeoAnalyserSetting"),
 
   async $queryRaw(strings, ...values) {
     // Simplified mock for the lowStock query

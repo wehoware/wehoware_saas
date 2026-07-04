@@ -72,6 +72,13 @@ function resolveClientId(user) {
   return null;
 }
 
+function canManageItems(user) {
+  if (user.role === "client") {
+    return ["client", "manager", "editor"].includes(user.activeClientRole);
+  }
+  return true;
+}
+
 async function loadItem(prisma, user, id) {
   const clientId = resolveClientId(user);
   if (!clientId) return { status: 400, body: { error: "Active client context required" } };
@@ -99,6 +106,11 @@ export const GET = withAuth(async (request, { params }) => {
 export const PUT = withAuth(async (request, { params }) => {
   try {
     const { prisma, user } = request;
+
+    if (!canManageItems(user)) {
+      return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+    }
+
     const { id } = await params;
     const auth = await loadItem(prisma, user, id);
     if (auth.status !== 200) return NextResponse.json(auth.body, { status: auth.status });
@@ -208,11 +220,16 @@ export const PUT = withAuth(async (request, { params }) => {
     if (err instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     return NextResponse.json({ error: "Failed to update inventory item", detail: err?.message || String(err), code: err?.code || null }, { status: 500 });
   }
-}, { allowedRoles: ["employee", "admin"] });
+}, { allowedRoles: ["client", "employee", "admin"] });
 
 export const DELETE = withAuth(async (request, { params }) => {
   try {
     const { prisma, user } = request;
+
+    if (!canManageItems(user)) {
+      return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+    }
+
     const { id } = await params;
     const auth = await loadItem(prisma, user, id);
     if (auth.status !== 200) return NextResponse.json(auth.body, { status: auth.status });
@@ -222,4 +239,4 @@ export const DELETE = withAuth(async (request, { params }) => {
     console.error("[DELETE /api/v1/inventory/[id]]", err);
     return NextResponse.json({ error: "Failed to delete inventory item" }, { status: 500 });
   }
-}, { allowedRoles: ["admin"] });
+}, { allowedRoles: ["client", "employee", "admin"] });

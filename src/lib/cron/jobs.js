@@ -15,6 +15,8 @@ import {
   collectPostMetrics,
   recoverStuckPublishing,
 } from "@/lib/cron-jobs/social-media.js";
+import { runSeoAnalyserDispatcher } from "@/lib/seo-analyser/cron";
+import { runSeoCleanupDispatcher } from "@/lib/seo-analyser/cleanup";
 
 function startOfDayUTC(date = new Date()) {
   const d = new Date(date);
@@ -291,6 +293,8 @@ export const JOBS = {
   "retry-failed-posts": retryFailedPosts,
   "collect-post-metrics": collectPostMetrics,
   "recover-stuck-publishing": recoverStuckPublishing,
+  "seo-analyser": runSeoAnalyserDispatcher,
+  "seo-cleanup": runSeoCleanupDispatcher,
 };
 
 export function listJobs() {

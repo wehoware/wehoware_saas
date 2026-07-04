@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -29,6 +29,7 @@ import {
   Copy,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CheckSquare,
   Star,
   TrendingUp,
@@ -55,6 +56,8 @@ import {
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
+import SeoHealthBadge from "@/components/seo/SeoHealthBadge";
+import BlogSeoAccordion from "@/components/seo/BlogSeoAccordion";
 
 const PAGE_SIZE = 20;
 
@@ -98,6 +101,7 @@ export default function BlogsPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [apiDialogOpen, setApiDialogOpen] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
+  const [expandedBlogId, setExpandedBlogId] = useState(null);
 
   const buildQueryParams = useCallback((targetPage) => {
     const params = new URLSearchParams({
@@ -587,6 +591,8 @@ export default function BlogsPage() {
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
+                          <th className="p-3 w-[32px]">
+                          </th>
                           <th className="p-3 text-left w-[44px]">
                             <input
                               type="checkbox"
@@ -647,10 +653,22 @@ export default function BlogsPage() {
                       </thead>
                       <tbody>
                         {blogs.map((blog) => (
+                          <Fragment key={blog.id}>
                           <tr
-                            key={blog.id}
                             className={`border-b border-gray-200 last:border-0 ${selectedIds.includes(blog.id) ? "bg-blue-50" : ""}`}
                           >
+                            <td className="p-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedBlogId(expandedBlogId === blog.id ? null : blog.id)}
+                                className="p-1 rounded hover:bg-gray-100 transition-colors"
+                                title={expandedBlogId === blog.id ? "Collapse SEO details" : "Expand SEO details"}
+                              >
+                                {expandedBlogId === blog.id
+                                  ? <ChevronDown className="h-4 w-4 text-gray-500" />
+                                  : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                              </button>
+                            </td>
                             <td className="p-3">
                               <input
                                 type="checkbox"
@@ -708,11 +726,7 @@ export default function BlogsPage() {
                               </div>
                             </td>
                             <td className="p-3">
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSeoScoreClass(blog.seo_score)}`}
-                              >
-                                {blog.seo_score || 0}/100
-                              </span>
+                              <SeoHealthBadge score={blog.seo_score} size="sm" />
                             </td>
                             <td className="p-3">
                               <span
@@ -774,6 +788,14 @@ export default function BlogsPage() {
                               </div>
                             </td>
                           </tr>
+                          {expandedBlogId === blog.id && (
+                            <tr className="border-b border-gray-200">
+                              <td colSpan={11} className="p-0 bg-gray-50/50">
+                                <BlogSeoAccordion blogId={blog.id} />
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>

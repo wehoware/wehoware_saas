@@ -22,6 +22,13 @@ const MOVEMENT_TYPE_DIRECTIONS = {
   transfer: 0,
 };
 
+function canManageItems(user) {
+  if (user.role === "client") {
+    return ["client", "manager", "editor"].includes(user.activeClientRole);
+  }
+  return true;
+}
+
 function serializeMovement(m) {
   return {
     id: m.id,
@@ -70,6 +77,11 @@ export const GET = withAuth(async (request, { params }) => {
 export const POST = withAuth(async (request, { params }) => {
   try {
     const { prisma, user } = request;
+
+    if (!canManageItems(user)) {
+      return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+    }
+
     const { id } = await params;
     const clientId = resolveClientId(user);
     if (!clientId) return NextResponse.json({ error: "Active client context required" }, { status: 400 });
@@ -127,4 +139,4 @@ export const POST = withAuth(async (request, { params }) => {
     if (err instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     return NextResponse.json({ error: "Failed to record stock movement" }, { status: 500 });
   }
-}, { allowedRoles: ["employee", "admin"] });
+}, { allowedRoles: ["client", "employee", "admin"] });

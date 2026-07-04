@@ -51,6 +51,7 @@ import {
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
+import SeoHealthBadge from "@/components/seo/SeoHealthBadge";
 
 const PAGE_SIZE = 20;
 
@@ -672,11 +673,7 @@ export default function ServicesPage() {
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSeoScoreClass(service.seo_score)}`}
-                              >
-                                {service.seo_score || 0}/100
-                              </span>
+                              <SeoHealthBadge score={service.seo_score} size="sm" />
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span

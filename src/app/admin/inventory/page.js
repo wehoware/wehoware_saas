@@ -52,6 +52,7 @@ import {
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
+import SeoHealthBadge from "@/components/seo/SeoHealthBadge";
 
 const PAGE_SIZE = 20;
 
@@ -654,6 +655,9 @@ export default function InventoryPage() {
                             </div>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            SEO
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
                           {/* <th
@@ -751,6 +755,9 @@ export default function InventoryPage() {
                               {item.quantity === 0 && (
                                 <div className="text-xs text-red-600">Out</div>
                               )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <SeoHealthBadge score={item.seo_score} size="sm" />
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span

@@ -82,7 +82,14 @@ const VEHICLE_ATTRIBUTE_FIELDS = [
   { key: "engine_size", label: "Engine Size", type: "text", placeholder: "e.g. 2.5L" },
   { key: "doors", label: "Doors", type: "number", placeholder: "e.g. 4" },
   { key: "seats", label: "Seats", type: "number", placeholder: "e.g. 5" },
-  { key: "condition", label: "Condition", type: "text", placeholder: "e.g. New, Used, Certified" },
+  { key: "condition", label: "Condition", type: "select", options: [
+    { value: "new", label: "New" },
+    { value: "used", label: "Used" },
+    { value: "certified", label: "Certified Pre-Owned" },
+    { value: "excellent", label: "Excellent" },
+    { value: "good", label: "Good" },
+    { value: "fair", label: "Fair" },
+  ] },
 ];
 
 export default function AddInventoryPage() {
@@ -272,8 +279,78 @@ export default function AddInventoryPage() {
     setCustomAttributes((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const galleryFileInputRef = useRef(null);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
+
   const handleAddImage = () => {
     setImages((prev) => [...prev, { url: "", alt: "" }]);
+  };
+
+  const handleBatchImageUpload = async (files) => {
+    const valid = [];
+    let rejected = 0;
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) { rejected++; continue; }
+      if (file.size > 5 * 1024 * 1024) { rejected++; continue; }
+      valid.push(file);
+    }
+    if (rejected > 0) {
+      toast.error(`${rejected} file(s) rejected (invalid type or exceeds 5MB).`);
+    }
+    if (valid.length === 0) return;
+
+    const batchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const placeholders = valid.map((_, i) => ({ url: "", alt: "", uploading: true, _batchId: `${batchId}-${i}` }));
+
+    setIsBatchUploading(true);
+    setImages((prev) => [...prev, ...placeholders]);
+
+    const CONCURRENCY = 5;
+    let successCount = 0;
+    let failCount = 0;
+    const failedBatchIds = [];
+
+    for (let i = 0; i < valid.length; i += CONCURRENCY) {
+      const chunk = valid.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map((file) => uploadThumbnail(file, "inventory"))
+      );
+      for (let j = 0; j < results.length; j++) {
+        const entryBatchId = `${batchId}-${i + j}`;
+        if (results[j].status === "fulfilled") {
+          setImages((prev) =>
+            prev.map((img) =>
+              img._batchId === entryBatchId
+                ? { url: results[j].value, alt: img.alt, uploading: false }
+                : img
+            )
+          );
+          successCount++;
+        } else {
+          failedBatchIds.push(entryBatchId);
+          failCount++;
+        }
+      }
+    }
+
+    if (failedBatchIds.length > 0) {
+      setImages((prev) => prev.filter((img) => !failedBatchIds.includes(img._batchId)));
+    }
+
+    setImages((prev) => prev.map((img) => {
+      const { _batchId, ...rest } = img;
+      return rest;
+    }));
+
+    setIsBatchUploading(false);
+
+    if (successCount > 0 && failCount === 0) {
+      toast.success(`Uploaded ${successCount} image(s)!`);
+    } else if (successCount > 0 && failCount > 0) {
+      toast.error(`Uploaded ${successCount}, failed ${failCount}.`);
+    } else {
+      toast.error("All uploads failed. Please try again.");
+    }
   };
 
   const handleImageChange = (index, field, value) => {
@@ -768,14 +845,25 @@ export default function AddInventoryPage() {
                       {VEHICLE_ATTRIBUTE_FIELDS.map((field) => (
                         <div key={field.key} className="space-y-2">
                           <Label htmlFor={`vehicle_${field.key}`}>{field.label}</Label>
-                          <Input
-                            id={`vehicle_${field.key}`}
-                            name={`vehicle_${field.key}`}
-                            type={field.type}
-                            placeholder={field.placeholder}
-                            value={formData[`vehicle_${field.key}`]}
-                            onChange={handleInputChange}
-                          />
+                          {field.type === "select" ? (
+                            <SelectInput
+                              id={`vehicle_${field.key}`}
+                              name={`vehicle_${field.key}`}
+                              value={formData[`vehicle_${field.key}`] || ""}
+                              onChange={handleInputChange}
+                              options={field.options}
+                              placeholder={`Select ${field.label}`}
+                            />
+                          ) : (
+                            <Input
+                              id={`vehicle_${field.key}`}
+                              name={`vehicle_${field.key}`}
+                              type={field.type}
+                              placeholder={field.placeholder}
+                              value={formData[`vehicle_${field.key}`]}
+                              onChange={handleInputChange}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -843,19 +931,20 @@ export default function AddInventoryPage() {
                         value={img.url}
                         onChange={(e) => handleImageChange(index, "url", e.target.value)}
                         className="flex-1"
-                        disabled={img.uploading}
+                        disabled={img.uploading || isBatchUploading}
                       />
                       <Input
                         placeholder="Alt text (optional)"
                         value={img.alt}
                         onChange={(e) => handleImageChange(index, "alt", e.target.value)}
                         className="flex-1"
+                        disabled={isBatchUploading}
                       />
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
-                        disabled={img.uploading}
+                        disabled={img.uploading || isBatchUploading}
                         onClick={() => {
                           const input = document.createElement("input");
                           input.type = "file";
@@ -874,16 +963,42 @@ export default function AddInventoryPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleRemoveImage(index)}
+                        disabled={isBatchUploading}
                         title="Remove image"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddImage}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Image
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddImage} disabled={isBatchUploading}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Image
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => galleryFileInputRef.current?.click()}
+                      disabled={isBatchUploading}
+                    >
+                      {isBatchUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+                      Upload Multiple
+                    </Button>
+                    <input
+                      type="file"
+                      ref={galleryFileInputRef}
+                      accept="image/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        if (e.target.files?.length) {
+                          handleBatchImageUpload(Array.from(e.target.files));
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 

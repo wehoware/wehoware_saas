@@ -1,6 +1,6 @@
 // tests/harness.mjs — shared helpers for API route tests.
 import { __setSession, __resetSession } from "./mocks/auth.mjs";
-import { prisma, __reset, __seed } from "./mocks/prisma.mjs";
+import { prisma, __reset, __seed, __dump } from "./mocks/prisma.mjs";
 
 /**
  * Build a fake Request object that matches what Next.js passes to route
@@ -71,7 +71,7 @@ export function seedAdmin({
   return { userId, clientId, role };
 }
 
-export { prisma, __seed, __reset };
+export { prisma, __seed, __reset, __dump };
 
 /** Read the JSON body out of the mocked NextResponse. */
 export async function readJson(res) {

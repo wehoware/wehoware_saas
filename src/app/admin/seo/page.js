@@ -16,6 +16,10 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import StaticPagesTable from '@/components/seo/StaticPagesTable';
 import StaticPageDialog from '@/components/seo/StaticPageDialog';
 import { KeywordManager } from '@/components/seo/KeywordManager';
+import { LlmProviderManager } from '@/components/seo/LlmProviderManager';
+import { SeoAnalyser } from '@/components/seo/SeoAnalyser';
+import AnalyserSettings from '@/components/seo/AnalyserSettings';
+import AnalyserDashboard from '@/components/seo/AnalyserDashboard';
 
 const defaultGlobalSettings = {
   site_title: '',
@@ -213,6 +217,10 @@ export default function SEOPage() {
           <TabsTrigger value="pages">Static Pages</TabsTrigger>
           <TabsTrigger value="sitemap">Sitemap Config</TabsTrigger>
           <TabsTrigger value="keywords">Keywords</TabsTrigger>
+          <TabsTrigger value="analyser">Analyser</TabsTrigger>
+          <TabsTrigger value="analyser-dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="analyser-settings">Settings</TabsTrigger>
+          <TabsTrigger value="llm">LLM Providers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="global" className="space-y-4">
@@ -348,6 +356,22 @@ export default function SEOPage() {
         </TabsContent>
         <TabsContent value="keywords" className="space-y-4">
           <KeywordManager />
+        </TabsContent>
+
+        <TabsContent value="analyser" className="space-y-4">
+          <SeoAnalyser />
+        </TabsContent>
+
+        <TabsContent value="analyser-dashboard" className="space-y-4">
+          <AnalyserDashboard />
+        </TabsContent>
+
+        <TabsContent value="analyser-settings" className="space-y-4">
+          <AnalyserSettings />
+        </TabsContent>
+
+        <TabsContent value="llm" className="space-y-4">
+          <LlmProviderManager />
         </TabsContent>
 
       </Tabs>

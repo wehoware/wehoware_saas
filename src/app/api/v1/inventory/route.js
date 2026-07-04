@@ -23,6 +23,13 @@ const FIELD_MAP = {
   featured: "featured",
 };
 
+function canManageItems(user) {
+  if (user.role === "client") {
+    return ["client", "manager", "editor"].includes(user.activeClientRole);
+  }
+  return true;
+}
+
 function serialize(item) {
   const price = item.price !== null && item.price !== undefined ? Number(item.price) : null;
   return {
@@ -205,6 +212,10 @@ export const POST = withAuth(
     try {
       const { prisma, user } = request;
 
+      if (!canManageItems(user)) {
+        return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+      }
+
       if (!user.activeClientId) {
         return NextResponse.json(
           { error: "Active client context required to create an inventory item" },
@@ -330,5 +341,5 @@ export const POST = withAuth(
       return NextResponse.json({ error: "Failed to create inventory item" }, { status: 500 });
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["client", "employee", "admin"] }
 );

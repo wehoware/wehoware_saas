@@ -91,6 +91,28 @@ model WehowareSeoAnalyserSetting {
   checkRobotsMeta       Boolean  @default(true) @map("check_robots_meta")
   checkImageAlt         Boolean  @default(true) @map("check_image_alt")
   checkHeadingStructure Boolean  @default(true) @map("check_heading_structure")
+  // E-E-A-T Signals
+  checkEeat             Boolean  @default(true) @map("check_eeat") // Experience, Expertise, Authoritativeness, Trustworthiness
+  // Content Readability & Quality
+  checkReadability      Boolean  @default(true) @map("check_readability") // Flesch score, sentence length, passive voice, transition words
+  checkContentFreshness Boolean  @default(true) @map("check_content_freshness") // staleness, last updated, date relevance
+  // Technical SEO (On-Page)
+  checkUrlOptimization  Boolean  @default(true) @map("check_url_optimization") // URL length, keywords in slug, hyphens, lowercase
+  checkIndexability     Boolean  @default(true) @map("check_indexability") // noindex, canonical conflicts
+  checkDuplicateContent Boolean  @default(true) @map("check_duplicate_content") // internal/near-duplicate detection
+  checkPageDepth        Boolean  @default(true) @map("check_page_depth") // clicks from homepage
+  checkHttps            Boolean  @default(true) @map("check_https") // mixed content, SSL
+  // Core Web Vitals Signals
+  checkWebVitals        Boolean  @default(true) @map("check_web_vitals") // image optimization, lazy load, CLS indicators
+  // Rich Snippets / Rich Results
+  checkRichSnippets     Boolean  @default(true) @map("check_rich_snippets") // review, organization, local business, event schema
+  // Content Optimization Scoring
+  checkTfidf            Boolean  @default(true) @map("check_tfidf") // TF-IDF analysis, semantic relevance
+  checkContentCoverage  Boolean  @default(true) @map("check_content_coverage") // word count benchmarking, content coverage vs competitors
+  // SERP Feature Optimization
+  checkSerpFeatures     Boolean  @default(true) @map("check_serp_features") // People Also Ask, image pack, video carousel, featured snippet format
+  // Multi-media SEO
+  checkMultimediaSeo    Boolean  @default(true) @map("check_multimedia_seo") // image file names, title attributes, video transcripts, captions
   autoSuggestFixes      Boolean  @default(true) @map("auto_suggest_fixes") // generate suggested fixes for approval queue
   language              String   @default("en") @db.VarChar(10)
   lastRunAt             DateTime? @map("last_run_at")
@@ -149,7 +171,7 @@ model WehowareSeoAnalyserIssue {
   itemId          String   @map("item_id") @db.VarChar(36)
   itemTitle       String   @map("item_title") @db.VarChar(500)
   itemSlug        String?  @map("item_slug") @db.VarChar(500)
-  issueCategory   String   @map("issue_category") @db.VarChar(50) // meta_tags, schema, internal_links, content_structure, aeo, geo, sxo, keyword_usage, canonical, og, twitter, robots, image_alt, headings, seo_score
+  issueCategory   String   @map("issue_category") @db.VarChar(50) // meta_tags, schema, internal_links, content_structure, aeo, geo, sxo, keyword_usage, canonical, og, twitter, robots, image_alt, headings, seo_score, eeat, readability, freshness, url_optimization, indexability, duplicate_content, page_depth, https, web_vitals, rich_snippets, tfidf, content_coverage, serp_features, multimedia
   issueType       String   @map("issue_type") @db.VarChar(100) // missing_meta_title, meta_title_too_long, missing_schema, no_internal_links, thin_content, no_faq_schema, etc.
   severity        String   @default("medium") @db.VarChar(20) // low, medium, high, critical
   description     String   @db.Text
@@ -336,6 +358,132 @@ seoAnalyserSuggestions WehowareSeoAnalyserSuggestion[]
 | Keyword stuffing | `keyword_stuffing` | medium | Keyword density >3% |
 | Missing LSI keywords | `missing_lsi_keywords` | low | No related/LSI keywords in content |
 
+### 4.9 E-E-A-T Signals (Experience, Expertise, Authoritativeness, Trustworthiness)
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| No author bio | `missing_author_bio` | medium | Blog has no author information or bio |
+| No author credentials | `missing_author_credentials` | low | Author lacks expertise indicators |
+| No trust signals | `missing_trust_signals` | medium | No contact info, privacy policy, or about page links |
+| No source citations | `no_source_citations` | medium | Content makes claims without citing sources |
+| No outbound authority links | `no_authority_links` | low | No links to authoritative external sources |
+| No first-hand experience | `no_experience_signals` | low | Content lacks first-person experience indicators |
+| No author box enabled | `author_box_disabled` | low | showAuthorBox is false (blogs) |
+
+### 4.10 Content Readability & Quality
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Low Flesch Reading Ease (<30) | `low_readability_score` | medium | Content is difficult to read |
+| Long sentences (>25 words avg) | `long_sentences` | low | Average sentence length too high |
+| Passive voice overuse (>10%) | `passive_voice_overuse` | low | Too much passive voice |
+| No transition words | `no_transition_words` | low | Poor flow, missing transition words |
+| Complex word density (>15%) | `complex_words` | low | Too many complex words for target audience |
+
+### 4.11 Content Freshness & Decay
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Content not updated in 12+ months | `stale_content` | medium | updatedAt > 12 months ago |
+| Outdated date references | `outdated_dates` | medium | Content references specific years/dates that are past |
+| Outdated statistics | `outdated_statistics` | low | Content cites statistics >2 years old |
+| No "last updated" indicator | `no_updated_indicator` | low | No visible last-updated date for users |
+
+### 4.12 Technical SEO — URL Optimization
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| URL too long (>75 chars) | `url_too_long` | low | Slug/URL exceeds recommended length |
+| No keywords in URL | `no_keywords_in_url` | medium | Slug doesn't contain target keywords |
+| URL has underscores | `url_underscores` | low | Uses underscores instead of hyphens |
+| URL has uppercase | `url_uppercase` | low | URL should be lowercase only |
+| URL has special characters | `url_special_chars` | medium | Non-alphanumeric characters in slug |
+
+### 4.13 Technical SEO — Indexability
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| noindex detected | `noindex_set` | high | robotsMeta contains noindex |
+| Canonical conflicts | `canonical_conflict` | high | canonicalUrl points to different URL than self |
+| Missing canonical on paginated content | `missing_canonical_paginated` | medium | No canonical on paginated/list pages |
+| Conflicting robots directives | `robots_conflict` | medium | Contradictory robots meta directives |
+
+### 4.14 Technical SEO — Duplicate Content
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Internal duplicate content | `internal_duplicate` | high | Another item has >80% similar content |
+| Near-duplicate content | `near_duplicate` | medium | Another item has >60% similar content |
+| Duplicate meta titles | `duplicate_meta_title` | high | Multiple items share the same metaTitle |
+| Duplicate meta descriptions | `duplicate_meta_desc` | medium | Multiple items share the same metaDescription |
+| Duplicate target keywords | `duplicate_target_keywords` | medium | Multiple items target same primary keyword (cannibalization) |
+
+### 4.15 Technical SEO — Page Depth & HTTPS
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Deep page (>3 clicks from home) | `deep_page` | low | Item is buried too deep in site structure |
+| Mixed content (HTTP on HTTPS) | `mixed_content` | high | Content references HTTP resources |
+| No HTTPS in internal links | `non_https_links` | medium | Internal links use HTTP instead of HTTPS |
+| Broken external links | `broken_external_links` | medium | External links return 404 or are dead |
+
+### 4.16 Core Web Vitals Signals
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Images without dimensions | `images_no_dimensions` | medium | IMG tags without width/height (CLS risk) |
+| No lazy loading on images | `no_lazy_loading` | low | Images below the fold not lazy-loaded |
+| Large image references | `large_images` | medium | Images referenced are >500KB (LCP risk) |
+| No image format optimization | `no_image_optimization` | low | Using PNG/JPG instead of WebP/AVIF |
+| Render-blocking indicators | `render_blocking` | low | Inline CSS/JS blocks in content |
+| No async/defer on scripts | `no_async_scripts` | low | Script tags without async/defer attributes |
+
+### 4.17 Rich Snippets / Rich Results
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Missing review/rating schema | `missing_review_schema` | medium | Service/inventory has rating but no Review schema |
+| Missing Organization schema | `missing_organization_schema` | medium | No Organization schema for the business |
+| Missing LocalBusiness schema | `missing_localbusiness_schema` | medium | Client has physical address but no LocalBusiness schema |
+| Missing Event schema | `missing_event_schema` | low | Content mentions events but no Event schema |
+| Missing Sitelinks search box | `missing_sitelinks_schema` | low | No WebSite schema with SearchAction |
+| Missing FAQPage schema | `missing_faqpage_schema` | medium | Blog has FAQs but no FAQPage JSON-LD |
+| Missing HowTo schema | `missing_howto_schema` | low | Content is step-by-step guide but no HowTo schema |
+| Missing Article schema fields | `incomplete_article_schema` | medium | BlogPosting missing author, datePublished, image |
+
+### 4.18 Content Optimization Scoring (Surfer SEO / Clearscope level)
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Low TF-IDF score | `low_tfidf_score` | medium | Key terms have low TF-IDF vs corpus |
+| Low semantic relevance | `low_semantic_relevance` | medium | NLP entities don't match target topic |
+| Word count below benchmark | `below_word_count_benchmark` | medium | Content significantly shorter than industry avg for topic |
+| Low content coverage | `low_content_coverage` | medium | Missing key subtopics that competitors cover |
+| No NLP entity coverage | `low_entity_coverage` | low | Missing named entities expected for the topic |
+| Low topical authority | `low_topical_authority` | low | Content doesn't demonstrate deep topic coverage |
+
+### 4.19 SERP Feature Optimization
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| No People Also Ask targeting | `no_paa_targeting` | low | Content doesn't answer common PAA questions |
+| No image pack optimization | `no_image_optimization_serp` | low | Images not optimized for image search (file names, alt, captions) |
+| No video carousel optimization | `no_video_optimization` | low | No video schema or transcripts for video results |
+| No featured snippet format | `no_snippet_format` | medium | Content not structured for featured snippets (table, list, or 40-60 word paragraph) |
+| No table-eligible content | `no_table_content` | low | Comparison/data content not in HTML table for snippet |
+| No list-eligible content | `no_list_content` | low | Step-by-step content not in OL/UL for snippet |
+
+### 4.20 Multi-media SEO
+
+| Check | Issue Type | Severity | Description |
+|-------|-----------|----------|-------------|
+| Non-descriptive image file names | `poor_image_filenames` | low | Image file names are generic (e.g., "img001.jpg") |
+| Missing image title attributes | `missing_image_titles` | low | IMG tags without title attribute |
+| Missing image captions | `missing_image_captions` | low | Images without figcaption or caption text |
+| No video transcripts | `missing_video_transcripts` | medium | Video content without text transcripts |
+| No video schema | `missing_video_schema` | low | Videos without VideoObject schema |
+| Unoptimized image alt text | `poor_alt_text` | low | Alt text is too short, too long, or keyword-stuffed |
+
 ---
 
 ## 5. Agent Pipeline (10 Steps)
@@ -359,7 +507,7 @@ seoAnalyserSuggestions WehowareSeoAnalyserSuggestion[]
 - **Pagination**: for clients with 1000+ items, fetch in batches of 100
 
 ### Step 3 — Run Rule-Based Checks (No LLM)
-For each item, run all enabled checks from Section 4 that are deterministic:
+For each item, run all enabled checks from Section 4 that are deterministic (no LLM needed):
 - Meta tag presence/length checks (4.1)
 - Schema type validation (4.2)
 - Internal link counting + broken link detection (4.3)
@@ -367,6 +515,17 @@ For each item, run all enabled checks from Section 4 that are deterministic:
 - Image alt text presence (4.4)
 - Keyword presence in content/title/meta (4.8)
 - SEO score check via existing `computeSeoScore()`
+- E-E-A-T signals: author bio, trust signals, outbound authority links, author box enabled (4.9)
+- Readability: Flesch Reading Ease, sentence length, passive voice %, transition words, complex word density (4.10)
+- Content freshness: staleness check (updatedAt > 12 months), outdated date references, outdated statistics (4.11)
+- URL optimization: URL length, keywords in slug, underscores, uppercase, special chars (4.12)
+- Indexability: noindex detection, canonical conflicts, robots directive conflicts (4.13)
+- Duplicate content: duplicate meta titles/descriptions, duplicate target keywords (4.14)
+- Page depth & HTTPS: mixed content, non-HTTPS links (4.15)
+- Core Web Vitals: images without dimensions, no lazy loading, large images, no WebP/AVIF, render-blocking (4.16)
+- Rich snippets: missing review/organization/localbusiness/event/FAQ/HowTo/Article schema (4.17)
+- SERP features: no PAA targeting, no featured snippet format, no table/list-eligible content (4.19)
+- Multi-media: poor image filenames, missing image titles/captions, missing video transcripts/schema (4.20)
 - Create `WehowareSeoAnalyserIssue` records for each found issue
 
 ### Step 4 — Run LLM-Powered Analysis
@@ -377,6 +536,11 @@ For each item with issues (or all items if batch size allows), send to LLM for d
 - **Content quality**: Tone, clarity, uniqueness assessment
 - **Keyword gap**: What keywords should this content target that it doesn't?
 - **Internal linking opportunities**: What other content should this link to?
+- **E-E-A-T deep analysis** (4.9): Source citation opportunities, experience indicators, authority signals
+- **TF-IDF analysis** (4.18): Calculate term frequency vs inverse document frequency across client's content corpus
+- **Semantic relevance** (4.18): NLP entity extraction, compare entities vs target topic
+- **Content coverage scoring** (4.18): Compare content subtopics vs competitor benchmarks, word count benchmarking
+- **SERP feature opportunities** (4.19): PAA question identification, featured snippet format recommendations
 
 **LLM prompt structure**:
 ```
@@ -384,28 +548,46 @@ You are an expert SEO analyst. Analyze the following content for:
 1. AEO (Answer Engine Optimization) — can AI/voice assistants extract answers from this?
 2. GEO (Generative Engine Optimization) — would AI search engines cite this content?
 3. SXO (Search Experience Optimization) — is the user experience optimal?
-4. Content gaps — what's missing that competitors have?
+4. E-E-A-T — does content demonstrate Experience, Expertise, Authoritativeness, Trustworthiness?
+5. Content gaps — what's missing that competitors have?
+6. SERP features — what featured snippet/PAA opportunities exist?
+7. Semantic relevance — what NLP entities are missing for this topic?
 
 Content type: {itemType}
 Title: {title}
 Content: {content (truncated to 8000 chars)}
 Current keywords: {targetKeywords}
 Current meta: {metaTitle}, {metaDescription}
+Author: {authorName}
+Last updated: {updatedAt}
 
-Return JSON: { issues: [{ type, severity, description, suggestedFix }], keywords: [{ keyword, reason }] }
+Return JSON: { issues: [{ type, severity, description, suggestedFix }], keywords: [{ keyword, reason }], entities: [{ entity, relevance }] }
 ```
 
 **Batch strategy**: Send 5 items per LLM call to reduce token usage. Use `gpt-4o-mini` for analysis (cost-effective).
+
+**TF-IDF computation** (no LLM needed — computed in `scanner.js`):
+- Build term-document matrix from all client content
+- Calculate TF-IDF scores for each term in each document
+- Flag items with low TF-IDF scores for target keywords vs corpus average
 
 ### Step 5 — Generate Suggested Fixes
 For each issue found in Steps 3-4, if `autoSuggestFixes = true`:
 - Generate a `WehowareSeoAnalyserSuggestion` record
 - For meta tag issues: LLM generates suggested metaTitle/metaDescription
 - For schema issues: Suggest correct schemaType
-- for internal linking: Suggest specific URLs to link to (from fetched slugs)
+- For internal linking: Suggest specific URLs to link to (from fetched slugs)
 - For content structure: Suggest heading reorganization
 - For AEO: Suggest FAQ additions
 - For keyword gaps: Suggest targetKeywords to add
+- For E-E-A-T: Suggest author bio text, trust signal additions, source citation recommendations
+- For readability: Suggest simplified sentence rewrites, transition word additions
+- For freshness: Suggest updated statistics, date references, content refresh recommendations
+- For URL optimization: Suggest optimized slug with target keywords
+- For rich snippets: Suggest complete JSON-LD schema blocks (FAQPage, HowTo, Review, LocalBusiness)
+- For SERP features: Suggest PAA question additions, featured snippet format restructuring
+- For content coverage: Suggest missing subtopics to add, word count targets
+- For multimedia: Suggest optimized image file names, alt text rewrites, caption text
 
 **Suggestion generation prompt**:
 ```
@@ -423,6 +605,9 @@ Return JSON: { suggestedValue: "...", explanation: "..." }
 - **Keyword cannibalization**: Detect multiple items targeting the same keyword
 - **Content clusters**: Identify topic clusters that should be interlinked
 - **Content gaps**: Topics that competitors cover but this client doesn't (based on keyword research)
+- **Duplicate content detection** (4.14): Compare all items pairwise using cosine similarity on content text. Flag items with >80% similarity as `internal_duplicate`, >60% as `near_duplicate`. Use MinHash or SimHash for efficient comparison at scale.
+- **Duplicate meta tags**: Find items sharing identical metaTitle or metaDescription
+- **TF-IDF corpus analysis** (4.18): Build complete term-document matrix across all client content, identify terms with high discrimination value, flag items with low topical coverage
 
 ### Step 7 — Keyword Research Sync
 - Sync discovered keywords to `WehowareSeoKeywordResearch` (shared with blog agent)
@@ -459,15 +644,24 @@ Same as blog agent: **OpenAI API** with pluggable architecture.
 ### 6.2 New Files
 ```
 src/lib/seo-analyser/
-├── analyser.js          # Main orchestrator — runSeoAnalyser()
-├── scanner.js           # Content fetching + rule-based checks
-├── llm-analyzer.js      # LLM-powered analysis (AEO, GEO, SXO, content gaps)
-├── suggestion-generator.js # Generate suggested fixes
-├── internal-links.js    # Internal linking graph builder
-├── keyword-sync.js      # Sync keywords to WehowareSeoKeywordResearch
-├── report.js            # Audit report compiler
-├── cron.js              # Cron dispatcher — runSeoAnalyserCronDispatcher()
-└── utils.js             # Shared utilities (slug validation, HTML parsing)
+├── analyser.js              # Main orchestrator — runSeoAnalyser()
+├── scanner.js               # Content fetching + rule-based checks (meta, schema, links, headings, keywords)
+├── llm-analyzer.js          # LLM-powered analysis (AEO, GEO, SXO, E-E-A-T, content gaps, SERP features)
+├── suggestion-generator.js  # Generate suggested fixes
+├── internal-links.js        # Internal linking graph builder
+├── keyword-sync.js          # Sync keywords to WehowareSeoKeywordResearch
+├── report.js                # Audit report compiler
+├── cron.js                  # Cron dispatcher — runSeoAnalyserCronDispatcher()
+├── utils.js                 # Shared utilities (slug validation, HTML parsing)
+├── readability.js           # Flesch Reading Ease, sentence length, passive voice, transition words
+├── freshness.js             # Content staleness, outdated dates/statistics, decay detection
+├── technical-seo.js         # URL optimization, indexability, page depth, HTTPS, mixed content
+├── web-vitals.js            # Core Web Vitals signals (image dimensions, lazy load, format, CLS)
+├── rich-snippets.js         # Rich result schema validation (Review, Organization, LocalBusiness, Event, FAQ, HowTo)
+├── tfidf.js                 # TF-IDF computation, term-document matrix, semantic relevance scoring
+├── duplicate-detector.js    # Duplicate/near-duplicate content detection (MinHash/SimHash)
+├── serp-features.js         # SERP feature optimization (PAA, image pack, video, featured snippet format)
+└── multimedia-seo.js        # Image filenames, titles, captions, video transcripts, VideoObject schema
 ```
 
 ### 6.3 Reusable Utilities from Blog Agent
@@ -477,10 +671,11 @@ src/lib/seo-analyser/
 - `src/lib/seo-analyser/validator.js` — shared with blog agent
 
 ### 6.4 Token Budget
-- Per item: max 2000 tokens (input + output)
-- Per run: max 50,000 tokens (configurable via `SEO_ANALYSER_MAX_TOKENS_PER_RUN`)
+- Per item: max 3000 tokens (input + output) — increased from 2000 to accommodate E-E-A-T, SERP features, semantic relevance analysis
+- Per run: max 80,000 tokens (configurable via `SEO_ANALYSER_MAX_TOKENS_PER_RUN`)
 - Batch items (5 per call) to reduce total calls
 - Track tokens in `WehowareSeoAnalyserRun.tokensUsed`
+- **Rule-based checks (Steps 3, TF-IDF, duplicate detection) consume zero tokens** — only LLM-powered analysis (Step 4) and suggestion generation (Step 5) use tokens
 
 ---
 
@@ -612,7 +807,17 @@ Tabs: Global Settings | Static Pages | Sitemap Config | Keywords | Analyser
 - Day of month selector (if monthly)
 - Hour selector (UTC)
 - Content type checkboxes: Blogs, Services, Inventory, Static Pages
-- Analysis type checkboxes: Meta Tags, Schema, Internal Links, Content Structure, AEO, GEO, SXO, Keyword Usage, Canonical, OG, Twitter, Robots, Image Alt, Headings
+- Analysis type checkboxes (grouped):
+  - **On-Page**: Meta Tags, Schema, Internal Links, Content Structure, Keyword Usage, Canonical, OG, Twitter, Robots, Image Alt, Headings
+  - **E-E-A-T**: Author credibility, Trust signals, Source citations, Experience indicators
+  - **Readability**: Flesch score, Sentence length, Passive voice, Transition words
+  - **Freshness**: Content staleness, Date relevance, Historical optimization
+  - **Technical SEO**: URL optimization, Indexability, Duplicate content, Page depth, HTTPS
+  - **Core Web Vitals**: Image optimization, Lazy load, CLS indicators
+  - **Rich Snippets**: Review/rating, Organization, LocalBusiness, Event schema
+  - **Content Scoring**: TF-IDF, Semantic relevance, Word count benchmarking
+  - **SERP Features**: People Also Ask, Image pack, Video carousel, Featured snippet format
+  - **Multimedia**: Image file names, Title attributes, Video transcripts, Captions
 - Min SEO score slider (0-100)
 - Auto-suggest fixes toggle
 - Language selector
@@ -781,7 +986,7 @@ SEO_ANALYSER_OPENAI_MODEL=gpt-4o-mini-2024-07-18
 SEO_ANALYSER_SUGGESTION_MODEL=gpt-4o-2024-08-06
 
 # SEO Analyser — Operational
-SEO_ANALYSER_MAX_TOKENS_PER_RUN=50000
+SEO_ANALYSER_MAX_TOKENS_PER_RUN=80000
 SEO_ANALYSER_RUN_TIMEOUT_MS=300000        # 5 minutes
 SEO_ANALYSER_CRON_BATCH_SIZE=1            # 1 client per cron invocation
 SEO_ANALYSER_MAX_CONCURRENT_LLM_CALLS=3
@@ -793,6 +998,14 @@ SEO_ANALYSER_LLM_BATCH_SIZE=5             # Items per LLM call
 SEO_ANALYSER_LOG_RETENTION_DAYS=90
 SEO_ANALYSER_ISSUE_RETENTION_DAYS=180
 SEO_ANALYSER_SUGGESTION_EXPIRY_DAYS=30    # Suggestions expire if not approved in 30 days
+
+# SEO Analyser — Analysis Thresholds
+SEO_ANALYSER_DUPLICATE_SIMILARITY_THRESHOLD=0.80  # Flag as internal_duplicate above this
+SEO_ANALYSER_NEAR_DUPLICATE_THRESHOLD=0.60        # Flag as near_duplicate above this
+SEO_ANALYSER_FRESHNESS_STALE_MONTHS=12            # Flag content not updated in X months
+SEO_ANALYSER_READABILITY_MIN_FLESCH=30            # Flag content below this Flesch score
+SEO_ANALYSER_KEYWORD_STUFFING_PERCENT=3           # Flag keyword density above this %
+SEO_ANALYSER_TFIDF_LOW_THRESHOLD=0.01            # Flag items with TF-IDF below this for target keywords
 ```
 
 ---
@@ -871,10 +1084,21 @@ src/components/ui/
 
 ### Phase 3 — LLM Analysis (Week 3)
 - Install `openai` npm package
-- Implement `llm-analyzer.js` — AEO, GEO, SXO analysis
-- Implement `suggestion-generator.js` — generate suggested fixes
+- Implement `llm-analyzer.js` — AEO, GEO, SXO, E-E-A-T, SERP features, semantic relevance analysis
+- Implement `suggestion-generator.js` — generate suggested fixes for all issue categories
 - Implement `keyword-sync.js` — sync to WehowareSeoKeywordResearch
 - Add circuit breaker, rate limiter, PII scrubber (shared with blog agent)
+
+### Phase 3.5 — Advanced Analysis Modules (Week 3.5)
+- Implement `readability.js` — Flesch score, sentence length, passive voice, transition words
+- Implement `freshness.js` — staleness, outdated dates/statistics, decay detection
+- Implement `technical-seo.js` — URL optimization, indexability, page depth, HTTPS
+- Implement `web-vitals.js` — image dimensions, lazy load, format, CLS indicators
+- Implement `rich-snippets.js` — Review, Organization, LocalBusiness, Event, FAQ, HowTo schema validation
+- Implement `tfidf.js` — TF-IDF computation, term-document matrix, semantic relevance
+- Implement `duplicate-detector.js` — MinHash/SimHash duplicate/near-duplicate detection
+- Implement `serp-features.js` — PAA, image pack, video, featured snippet format
+- Implement `multimedia-seo.js` — image filenames, titles, captions, video transcripts
 
 ### Phase 4 — UI Integration (Week 4)
 - Create `accordion.js` shadcn/ui component
@@ -921,6 +1145,15 @@ tests/seo-analyser/
 ├── report.test.mjs               # Report compilation
 ├── cron.test.mjs                 # Cron dispatcher + schedule calculation
 ├── apply-suggestion.test.mjs     # Suggestion application + SEO score recompute
+├── readability.test.mjs          # Flesch score, sentence length, passive voice
+├── freshness.test.mjs            # Staleness, outdated dates detection
+├── technical-seo.test.mjs        # URL optimization, indexability, HTTPS checks
+├── web-vitals.test.mjs           # Image dimensions, lazy load, format detection
+├── rich-snippets.test.mjs        # Schema validation for all rich result types
+├── tfidf.test.mjs                # TF-IDF computation, term-document matrix
+├── duplicate-detector.test.mjs   # MinHash/SimHash similarity detection
+├── serp-features.test.mjs        # PAA, snippet format, table/list detection
+├── multimedia-seo.test.mjs       # Image filenames, titles, captions, video
 └── api-routes.test.mjs           # API route tests
 ```
 
@@ -934,6 +1167,13 @@ tests/seo-analyser/
 - Cron replay → idempotency check via nextRunAt
 - All content has perfect SEO → 0 issues, run succeeds
 - All content has zero SEO fields → maximum issues, run succeeds
+- Two blogs with 90% identical content → duplicate-detector flags correctly
+- TF-IDF on 500 items → completes without memory overflow
+- Content with 0 readability score → flagged as low_readability_score
+- Content not updated in 2 years → flagged as stale_content
+- URL with uppercase + underscores → flagged correctly
+- Images without width/height → flagged as CLS risk
+- Blog with FAQs but no FAQPage JSON-LD → flagged as missing_faqpage_schema
 
 ---
 
@@ -942,7 +1182,11 @@ tests/seo-analyser/
 | Risk | Mitigation |
 |------|------------|
 | LLM hallucination in suggestions | Validator + human approval queue before any change applied |
-| Token cost explosion | `gpt-4o-mini` for analysis, batch 5 items/call, max 50K tokens/run |
+| Token cost explosion | `gpt-4o-mini` for analysis, batch 5 items/call, max 80K tokens/run, rule-based checks use 0 tokens |
+| Duplicate detection memory (500+ items) | Use MinHash/SimHash (O(n) not O(n²)), cap pairwise comparisons at 500 items |
+| TF-IDF memory on large corpus | Use sparse term-document matrix, cap vocabulary at 10,000 terms |
+| Rich snippet schema validation | Use JSON-LD parser, validate against schema.org types |
+| Readability on non-English content | Skip Flesch score if language != en, use language-appropriate formula |
 | Vercel timeout (300s) | 1 client per cron invocation, max 500 items/run, stale run cleanup |
 | Concurrent runs | Lock token + active run check |
 | Content deleted during analysis | Graceful error handling, skip deleted items |
@@ -958,13 +1202,13 @@ tests/seo-analyser/
 
 | Operation | Token Usage | Cost (gpt-4o-mini) | Cost (gpt-4o) |
 |-----------|-------------|---------------------|----------------|
-| Analyze 1 item | ~2000 tokens | ~$0.0003 | ~$0.01 |
-| Analyze 100 items (batched 5/call) | ~40,000 tokens | ~$0.006 | ~$0.20 |
+| Analyze 1 item | ~3000 tokens | ~$0.00045 | ~$0.015 |
+| Analyze 100 items (batched 5/call) | ~60,000 tokens | ~$0.009 | ~$0.30 |
 | Generate 50 suggestions | ~25,000 tokens | N/A | ~$0.125 |
-| Full run (100 items + 50 suggestions) | ~65,000 tokens | ~$0.006 + $0.125 = ~$0.13 | |
-| Monthly (4 runs × 100 items) | ~260,000 tokens | ~$0.52/month | |
+| Full run (100 items + 50 suggestions) | ~85,000 tokens | ~$0.009 + $0.125 = ~$0.13 | |
+| Monthly (4 runs × 100 items) | ~340,000 tokens | ~$0.52/month | |
 
-**Note**: Costs scale linearly with item count. For clients with 500+ items, consider running analysis on a subset (e.g., only items modified since last run).
+**Note**: Costs scale linearly with item count. Rule-based checks (E-E-A-T, readability, freshness, URL, indexability, Core Web Vitals, rich snippets, SERP features, multimedia, duplicate detection, TF-IDF) consume **zero tokens** — only LLM-powered analysis (Step 4) and suggestion generation (Step 5) use tokens. For clients with 500+ items, consider running analysis on a subset (e.g., only items modified since last run).
 
 ---
 
@@ -995,3 +1239,12 @@ tests/seo-analyser/
 - [ ] Single-item run skips cross-content analysis (Step 6) and keyword sync (Step 7)
 - [ ] Accordion "Check Now" button shows loading state + auto-refreshes on completion
 - [ ] Single-item run supersedes previous open issues for that item (mark old as `superseded`)
+- [ ] Duplicate detection uses MinHash/SimHash (not O(n²) pairwise comparison)
+- [ ] TF-IDF uses sparse matrix, caps vocabulary at 10,000 terms
+- [ ] Readability checks skip non-English content or use language-appropriate formula
+- [ ] Rich snippet schema validated against schema.org types
+- [ ] Freshness check uses updatedAt, not createdAt
+- [ ] URL optimization checks slug format (lowercase, hyphens, keywords)
+- [ ] Core Web Vitals checks image dimensions in HTML content (not just media library)
+- [ ] Mixed content detection scans for HTTP:// in content body
+- [ ] SERP feature checks identify PAA opportunities via LLM + content structure

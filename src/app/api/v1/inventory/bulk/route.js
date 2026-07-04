@@ -10,10 +10,22 @@ import { withAuth } from "../../../utils/auth-middleware";
 
 const VALID_ACTIONS = new Set(["activate", "deactivate", "delete"]);
 
+function canManageItems(user) {
+  if (user.role === "client") {
+    return ["client", "manager", "editor"].includes(user.activeClientRole);
+  }
+  return true;
+}
+
 export const POST = withAuth(
   async (request) => {
     try {
       const { prisma, user } = request;
+
+      if (!canManageItems(user)) {
+        return NextResponse.json({ error: "Forbidden - Requires owner, manager, or editor role" }, { status: 403 });
+      }
+
       const clientId = user.activeClientId;
       if (!clientId) {
         return NextResponse.json({ error: "Active client context required" }, { status: 400 });
@@ -56,5 +68,5 @@ export const POST = withAuth(
       return NextResponse.json({ error: "Bulk operation failed" }, { status: 500 });
     }
   },
-  { allowedRoles: ["employee", "admin"] }
+  { allowedRoles: ["client", "employee", "admin"] }
 );

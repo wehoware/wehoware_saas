@@ -75,6 +75,13 @@ model WehowareClient {
   inventoryItems       WehowareInventoryItem[]
   inventorySettings    WehowareInventorySetting?
   inventoryStockMovements WehowareInventoryStockMovement[]
+  seoLlmProviders    WehowareSeoLlmProvider[]
+  seoLlmSetting      WehowareSeoLlmSetting?
+  seoAnalyserRuns    WehowareSeoAnalyserRun[]
+  seoAnalyserSetting WehowareSeoAnalyserSetting?
+  seoAnalyserIssues  WehowareSeoAnalyserIssue[]
+  seoAnalyserSuggestions WehowareSeoAnalyserSuggestion[]
+  seoAnalyserLogs    WehowareSeoAnalyserLog[]
 
   @@map("wehoware_clients")
 }
@@ -2209,4 +2216,212 @@ model WehowareDailyWorkReportItem {
   @@index([reportId])
   @@index([taskId])
   @@map("wehoware_daily_work_report_items")
+}
+
+model WehowareSeoLlmProvider {
+  id               String   @id @default(uuid()) @db.VarChar(36)
+  clientId         String   @map("client_id") @db.VarChar(36)
+  providerName     String   @map("provider_name") @db.VarChar(30)
+  isActive         Boolean  @default(false) @map("is_active")
+  priority         Int      @default(99)
+  isEnabled        Boolean  @default(true) @map("is_enabled")
+  apiKeyEncrypted  String?  @map("api_key_encrypted") @db.Text
+  healthStatus     String   @default("unknown") @map("health_status") @db.VarChar(20)
+  totalRequests    Int      @default(0) @map("total_requests")
+  totalTokensUsed  Int      @default(0) @map("total_tokens_used")
+  lastUsedAt       DateTime? @map("last_used_at")
+  lastErrorAt      DateTime? @map("last_error_at")
+  lastErrorMessage String?  @map("last_error_message") @db.Text
+  rateLimitResetAt DateTime? @map("rate_limit_reset_at")
+  circuitOpenUntil DateTime? @map("circuit_open_until")
+  analysisModel    String?  @map("analysis_model") @db.VarChar(100)
+  suggestionModel  String?  @map("suggestion_model") @db.VarChar(100)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  client           WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, providerName])
+  @@index([clientId, isActive])
+  @@index([clientId, isEnabled, priority])
+  @@map("wehoware_seo_llm_providers")
+}
+
+model WehowareSeoLlmSetting {
+  id               String   @id @default(uuid()) @db.VarChar(36)
+  clientId         String   @unique @map("client_id") @db.VarChar(36)
+  providerMode     String   @default("auto") @map("provider_mode") @db.VarChar(10)
+  manualProvider   String?  @map("manual_provider") @db.VarChar(30)
+  autoFailover     Boolean  @default(true) @map("auto_failover")
+  timeoutMs        Int      @default(30000) @map("timeout_ms")
+  circuitThreshold Int      @default(5) @map("circuit_threshold")
+  circuitCooldownMs Int     @default(30000) @map("circuit_cooldown_ms")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  client           WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("wehoware_seo_llm_settings")
+}
+
+model WehowareSeoAnalyserRun {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  clientId        String   @map("client_id") @db.VarChar(36)
+  contentType     String   @map("content_type") @db.VarChar(20)
+  contentId       String   @map("content_id") @db.VarChar(36)
+  contentSlug     String?  @map("content_slug") @db.VarChar(500)
+  contentTitle    String?  @map("content_title") @db.VarChar(500)
+  status          String   @default("pending") @db.VarChar(20)
+  scoreBefore     Int?     @map("score_before")
+  scoreAfter      Int?     @map("score_after")
+  issuesCount     Int      @default(0) @map("issues_count")
+  suggestionsCount Int     @default(0) @map("suggestions_count")
+  tokensUsed      Int      @default(0) @map("tokens_used")
+  llmProvider     String?  @map("llm_provider") @db.VarChar(30)
+  llmModel        String?  @map("llm_model") @db.VarChar(100)
+  errorMessage    String?  @map("error_message") @db.Text
+  lockToken       String?  @map("lock_token") @db.VarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+  client          WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  issues          WehowareSeoAnalyserIssue[]
+
+  @@index([clientId, contentType])
+  @@index([clientId, status])
+  @@index([contentId])
+  @@index([contentId, status])
+  @@map("wehoware_seo_analyser_runs")
+}
+
+model WehowareSeoAnalyserIssue {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  clientId        String   @map("client_id") @db.VarChar(36)
+  runId           String   @map("run_id") @db.VarChar(36)
+  itemType        String   @map("item_type") @db.VarChar(20)
+  itemId          String   @map("item_id") @db.VarChar(36)
+  itemTitle       String?  @map("item_title") @db.VarChar(500)
+  itemSlug        String?  @map("item_slug") @db.VarChar(500)
+  category        String   @db.VarChar(50)
+  issueType       String?  @map("issue_type") @db.VarChar(100)
+  severity        String   @db.VarChar(20)
+  title           String   @db.VarChar(500)
+  description     String?  @db.Text
+  currentValue    String?  @map("current_value") @db.Text
+  recommendedValue String? @map("recommended_value") @db.Text
+  status          String   @default("open") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  client          WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  run             WehowareSeoAnalyserRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  suggestions     WehowareSeoAnalyserSuggestion[]
+
+  @@index([runId])
+  @@index([clientId])
+  @@index([clientId, itemType, itemId])
+  @@index([clientId, status])
+  @@index([category, severity])
+  @@map("wehoware_seo_analyser_issues")
+}
+
+model WehowareSeoAnalyserSuggestion {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  clientId        String   @map("client_id") @db.VarChar(36)
+  issueId         String   @map("issue_id") @db.VarChar(36)
+  itemType        String   @map("item_type") @db.VarChar(20)
+  itemId          String   @map("item_id") @db.VarChar(36)
+  fixType         String   @map("fix_type") @db.VarChar(30)
+  fieldName       String?  @map("field_name") @db.VarChar(100)
+  action          String   @default("set") @db.VarChar(50)
+  currentValue    String?  @map("current_value") @db.Text
+  suggestedValue  String   @map("suggested_value") @db.LongText
+  explanation     String?  @db.Text
+  status          String   @default("pending") @db.VarChar(20)
+  approvedBy      String?  @map("approved_by") @db.VarChar(36)
+  approvedAt      DateTime? @map("approved_at")
+  rejectedBy      String?  @map("rejected_by") @db.VarChar(36)
+  rejectedAt      DateTime? @map("rejected_at")
+  appliedBy       String?  @map("applied_by") @db.VarChar(36)
+  appliedAt       DateTime? @map("applied_at")
+  appliedResult   String?  @map("applied_result") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  client          WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  issue           WehowareSeoAnalyserIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([clientId, status])
+  @@index([clientId, itemType, itemId])
+  @@index([issueId])
+  @@map("wehoware_seo_analyser_suggestions")
+}
+
+model WehowareSeoAnalyserSetting {
+  id                    String   @id @default(uuid()) @db.VarChar(36)
+  clientId              String   @unique @map("client_id") @db.VarChar(36)
+  enabled               Boolean  @default(false)
+  scheduleFrequency     String   @default("weekly") @map("schedule_frequency") @db.VarChar(20)
+  scheduleDayOfWeek     Int      @default(1) @map("schedule_day_of_week")
+  scheduleDayOfMonth    Int      @default(1) @map("schedule_day_of_month")
+  scheduleHour          Int      @default(2) @map("schedule_hour")
+  scanBlogs             Boolean  @default(true) @map("scan_blogs")
+  scanServices          Boolean  @default(true) @map("scan_services")
+  scanInventory         Boolean  @default(true) @map("scan_inventory")
+  scanStaticPages       Boolean  @default(true) @map("scan_static_pages")
+  minSeoScore           Int      @default(80) @map("min_seo_score")
+  checkMetaTags         Boolean  @default(true) @map("check_meta_tags")
+  checkSchema           Boolean  @default(true) @map("check_schema")
+  checkInternalLinks    Boolean  @default(true) @map("check_internal_links")
+  checkContentStructure Boolean  @default(true) @map("check_content_structure")
+  checkAeo              Boolean  @default(true) @map("check_aeo")
+  checkGeo              Boolean  @default(true) @map("check_geo")
+  checkSxo              Boolean  @default(true) @map("check_sxo")
+  checkKeywordUsage     Boolean  @default(true) @map("check_keyword_usage")
+  checkCanonical        Boolean  @default(true) @map("check_canonical")
+  checkOpenGraph        Boolean  @default(true) @map("check_open_graph")
+  checkTwitterCards     Boolean  @default(true) @map("check_twitter_cards")
+  checkRobotsMeta       Boolean  @default(true) @map("check_robots_meta")
+  checkImageAlt         Boolean  @default(true) @map("check_image_alt")
+  checkHeadingStructure Boolean  @default(true) @map("check_heading_structure")
+  checkEeat             Boolean  @default(true) @map("check_eeat")
+  checkReadability      Boolean  @default(true) @map("check_readability")
+  checkContentFreshness Boolean  @default(true) @map("check_content_freshness")
+  checkUrlOptimization  Boolean  @default(true) @map("check_url_optimization")
+  checkIndexability     Boolean  @default(true) @map("check_indexability")
+  checkDuplicateContent Boolean  @default(true) @map("check_duplicate_content")
+  checkPageDepth        Boolean  @default(true) @map("check_page_depth")
+  checkHttps            Boolean  @default(true) @map("check_https")
+  checkWebVitals        Boolean  @default(true) @map("check_web_vitals")
+  checkRichSnippets     Boolean  @default(true) @map("check_rich_snippets")
+  checkTfidf            Boolean  @default(true) @map("check_tfidf")
+  checkContentCoverage  Boolean  @default(true) @map("check_content_coverage")
+  checkSerpFeatures     Boolean  @default(true) @map("check_serp_features")
+  checkMultimediaSeo    Boolean  @default(true) @map("check_multimedia_seo")
+  autoSuggestFixes      Boolean  @default(true) @map("auto_suggest_fixes")
+  language              String   @default("en") @db.VarChar(10)
+  lastRunAt             DateTime? @map("last_run_at")
+  nextRunAt             DateTime? @map("next_run_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  client                WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("wehoware_seo_analyser_settings")
+}
+
+model WehowareSeoAnalyserLog {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  runId        String   @map("run_id") @db.VarChar(36)
+  clientId     String   @map("client_id") @db.VarChar(36)
+  step         String   @db.VarChar(100)
+  stepOrder    Int      @map("step_order")
+  status       String   @default("pending") @db.VarChar(20)
+  input        Json?
+  output       Json?
+  durationMs   Int?     @map("duration_ms")
+  errorMessage String?  @map("error_message") @db.Text
+  tokensUsed   Int      @default(0) @map("tokens_used")
+  createdAt    DateTime @default(now()) @map("created_at")
+  client       WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([clientId])
+  @@index([runId, step])
+  @@map("wehoware_seo_analyser_logs")
 }

@@ -21,6 +21,8 @@ const MOCKS = {
   "@/lib/invoiceTemplates": pathResolve(testsDir, "mocks", "invoice-templates.mjs"),
   "@/lib/storage": pathResolve(testsDir, "mocks", "storage.mjs"),
   "@/lib/sanitize": pathResolve(testsDir, "mocks", "sanitize.mjs"),
+  "@/lib/llm-providers/index": pathResolve(testsDir, "mocks", "llm-providers.mjs"),
+  "@/lib/llm-providers/json-sanitizer": pathResolve(testsDir, "mocks", "llm-json-sanitizer.mjs"),
 };
 
 function toFileHref(absolute) {

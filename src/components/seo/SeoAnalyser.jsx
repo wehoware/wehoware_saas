@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,15 @@ export function SeoAnalyser() {
   const [expandedRunId, setExpandedRunId] = useState(null);
   const [runDetails, setRunDetails] = useState({});
   const [suggestionFilter, setSuggestionFilter] = useState({ runId: null, issueId: null });
+  const [pollingRunId, setPollingRunId] = useState(null);
+  const pollIntervalRef = useRef(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   const fetchContentItems = useCallback(async (type) => {
     if (!activeClient?.id) return;
@@ -109,20 +118,74 @@ export function SeoAnalyser() {
         body: JSON.stringify({ contentType, contentId: selectedItemId }),
       });
 
+      if (res.status === 409) {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error || "An analysis is already running for this item.");
+        setIsRunning(false);
+        return;
+      }
+
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || json.detail || "Analysis failed");
+        throw new Error(json.error || json.detail || "Failed to start analysis");
       }
 
       const json = await res.json();
-      toast.success(
-        `Analysis complete: ${json.data?.issuesCount || 0} issues found, ${json.data?.suggestionsCount || 0} suggestions.`
-      );
-      fetchRuns();
+      const runId = json.data?.id;
+
+      if (!runId) {
+        throw new Error("No run ID returned");
+      }
+
+      toast.success("Analysis started. This may take 1-2 minutes...");
+      setPollingRunId(runId);
+
+      // Poll for completion (max 60 attempts × 5s = 5 minutes)
+      let pollAttempts = 0;
+      const MAX_POLL_ATTEMPTS = 60;
+
+      pollIntervalRef.current = setInterval(async () => {
+        pollAttempts++;
+        if (pollAttempts > MAX_POLL_ATTEMPTS) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setPollingRunId(null);
+          setIsRunning(false);
+          toast.error("Analysis timed out — check the runs list for status.");
+          fetchRuns();
+          return;
+        }
+        try {
+          const pollRes = await fetch(`/api/v1/seo-analyser/runs/${runId}`);
+          if (!pollRes.ok) return;
+          const pollJson = await pollRes.json();
+          const run = pollJson.data;
+
+          if (run?.status === "completed") {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setPollingRunId(null);
+            setIsRunning(false);
+            toast.success(
+              `Analysis complete: ${run.issuesCount || 0} issues found, ${run.suggestionsCount || 0} suggestions.`
+            );
+            fetchRuns();
+          } else if (run?.status === "failed") {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setPollingRunId(null);
+            setIsRunning(false);
+            toast.error("Analysis failed. " + (run.errorMessage || "Unknown error"));
+            fetchRuns();
+          }
+        } catch {
+          // Network error during poll — keep trying
+        }
+      }, 5000);
     } catch (error) {
       toast.error("Analysis failed. " + error.message);
-    } finally {
       setIsRunning(false);
+      setPollingRunId(null);
     }
   };
 
@@ -219,7 +282,7 @@ export function SeoAnalyser() {
               {isRunning ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Analyzing...
+                  {pollingRunId ? "Analyzing (polling...)..." : "Starting..."}
                 </>
               ) : (
                 <>

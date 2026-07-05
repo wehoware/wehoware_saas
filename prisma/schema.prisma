@@ -2252,7 +2252,7 @@ model WehowareSeoLlmSetting {
   providerMode     String   @default("auto") @map("provider_mode") @db.VarChar(10)
   manualProvider   String?  @map("manual_provider") @db.VarChar(30)
   autoFailover     Boolean  @default(true) @map("auto_failover")
-  timeoutMs        Int      @default(30000) @map("timeout_ms")
+  timeoutMs        Int      @default(120000) @map("timeout_ms")
   circuitThreshold Int      @default(5) @map("circuit_threshold")
   circuitCooldownMs Int     @default(30000) @map("circuit_cooldown_ms")
   createdAt        DateTime @default(now()) @map("created_at")

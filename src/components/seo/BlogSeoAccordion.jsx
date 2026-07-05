@@ -59,6 +59,20 @@ export default function BlogSeoAccordion({ blogId }) {
     fetchLatestRun();
   }, [fetchLatestRun]);
 
+  // Auto-poll when latest run is still running (max 60 attempts × 5s = 5 min)
+  useEffect(() => {
+    if (run?.status !== "running") return;
+    let attempts = 0;
+    const interval = setInterval(() => {
+      if (++attempts > 60) {
+        clearInterval(interval);
+        return;
+      }
+      fetchLatestRun();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [run?.status, fetchLatestRun]);
+
   const handleViewSuggestions = (issue) => {
     setSelectedIssue(issue);
     const suggestions = issue.suggestions || [];

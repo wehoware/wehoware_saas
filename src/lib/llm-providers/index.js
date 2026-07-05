@@ -160,11 +160,13 @@ export async function getLlmSettings(clientId) {
     });
   }
 
+  const envTimeout = Number.parseInt(process.env.SEO_LLM_TIMEOUT_MS, 10) || 120000;
+
   return {
     providerMode: settings.providerMode,
     manualProvider: settings.manualProvider,
     autoFailover: settings.autoFailover,
-    timeoutMs: settings.timeoutMs,
+    timeoutMs: settings.timeoutMs >= 30000 ? settings.timeoutMs : envTimeout,
   };
 }
 

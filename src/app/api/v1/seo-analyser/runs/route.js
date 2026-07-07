@@ -6,8 +6,8 @@ import { computeSeoScore } from "@/lib/seoScore";
 import { prisma } from "@/lib/prisma";
 import { resetProvider } from "@/lib/llm-providers/health.js";
 
-// Allow up to 300s for background LLM analysis (Vercel Pro plan max)
-export const maxDuration = 300;
+// Allow up to 60s for background LLM analysis (Vercel Hobby plan max)
+export const maxDuration = 60;
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;

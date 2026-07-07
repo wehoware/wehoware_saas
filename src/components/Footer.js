@@ -7,8 +7,8 @@ import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin } from 'luc
 const Footer = () => {
   const pathname = usePathname();
   
-  // Skip rendering footer on admin and print pages
-  if (pathname.startsWith('/admin') || pathname.startsWith('/print')) {
+  // Skip rendering footer on admin, print, and public view pages
+  if (pathname.startsWith('/admin') || pathname.startsWith('/print') || pathname.startsWith('/view')) {
     return null;
   }
 

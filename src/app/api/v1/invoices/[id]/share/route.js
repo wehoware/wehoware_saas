@@ -79,7 +79,7 @@ export const POST = withAuth(
       });
 
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const shareUrl = `${baseUrl}/view/invoice/${shareToken}`;
+      const shareUrl = `${baseUrl}/api/v1/invoices/public/${shareToken}/pdf`;
 
       let emailSent = false;
       let emailError = null;

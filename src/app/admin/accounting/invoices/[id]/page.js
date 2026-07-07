@@ -118,7 +118,7 @@ export default function ViewInvoicePage() {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        toast.success('Public invoice link copied to clipboard');
+        toast.success('Invoice PDF link copied to clipboard');
         return;
       } catch {
         /* fallthrough */

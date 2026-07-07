@@ -19,8 +19,8 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
-  // Handle admin and print paths specially
-  const isAdminPage = pathname.startsWith('/admin') || pathname.startsWith('/print');
+  // Handle admin, print, and public view paths specially
+  const isAdminPage = pathname.startsWith('/admin') || pathname.startsWith('/print') || pathname.startsWith('/view');
   // Landing page uses PremiumNav instead
   const isLandingPage = pathname === '/';
 

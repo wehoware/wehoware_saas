@@ -1,11 +1,12 @@
 /**
  * src/lib/pdf.js
  *
- * Server-side PDF generation using Playwright (headless Chromium).
+ * Server-side PDF generation using puppeteer-core + @sparticuz/chromium.
  * Renders the InvoiceTemplate React component to static HTML, wraps it in
  * print-specific CSS, then uses Chromium's PDF engine to produce a Buffer.
  *
- * A singleton browser instance is reused across requests for performance.
+ * @sparticuz/chromium provides a Chromium binary compatible with Vercel
+ * serverless functions (Playwright's browsers are too large for serverless).
  *
  * NOTE: react-dom/server, React, and InvoiceTemplate are dynamically imported
  * inside buildInvoiceHtml to prevent Turbopack from statically detecting
@@ -18,8 +19,16 @@ let _browser = null;
 
 async function getBrowser() {
   if (_browser) return _browser;
-  const { chromium } = await import("playwright");
-  _browser = await chromium.launch({ headless: true });
+  const puppeteer = await import("puppeteer-core");
+  const chromiumMod = await import("@sparticuz/chromium");
+  const chromium = chromiumMod.default;
+
+  _browser = await puppeteer.default.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
+  });
   return _browser;
 }
 
@@ -80,7 +89,7 @@ export async function generateInvoicePdf(invoice, settings) {
   const page = await browser.newPage();
 
   try {
-    await page.setContent(html, { waitUntil: "networkidle", timeout: 30000 });
+    await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,

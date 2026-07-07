@@ -214,3 +214,133 @@ export async function retryEmailLog(logId) {
 }
 
 export const __internal = { MAX_RETRY };
+
+/**
+ * Send a templated email with file attachments via SES SendRawEmail.
+ * Uses nodemailer to construct the raw MIME multipart message.
+ *
+ * @param {object} input
+ * @param {string} input.clientId    tenant id
+ * @param {string} input.to          recipient address
+ * @param {string} input.template    key registered in templates.js
+ * @param {object} [input.context]   template variables
+ * @param {string} [input.from]      override FROM
+ * @param {string} [input.replyTo]
+ * @param {Array<{filename: string, content: Buffer, contentType?: string}>} [input.attachments]
+ */
+export async function sendEmailWithAttachment({
+  clientId,
+  to,
+  template,
+  context = {},
+  from,
+  replyTo,
+  attachments = [],
+}) {
+  if (!clientId) throw new Error("sendEmailWithAttachment: clientId is required");
+  if (!to || typeof to !== "string" || !to.includes("@")) {
+    throw new Error("sendEmailWithAttachment: `to` must be a valid email address");
+  }
+  if (!template) throw new Error("sendEmailWithAttachment: template is required");
+
+  const cfg = injectedConfig || defaultProvider();
+  const { subject, html, text } = renderTemplate(template, context);
+  const fromAddress = from || cfg.fromAddress;
+
+  // Audit log row before any network IO
+  const log = await prisma.wehowareEmailLog.create({
+    data: {
+      clientId,
+      toAddress: to,
+      fromAddress,
+      subject,
+      template,
+      bodyText: text,
+      bodyHtml: html,
+      context: context ?? {},
+      status: "Queued",
+      attemptCount: 0,
+    },
+  });
+
+  if (cfg.mode === "log") {
+    const updated = await prisma.wehowareEmailLog.update({
+      where: { id: log.id },
+      data: {
+        status: "Sent",
+        sentAt: new Date(),
+        attemptCount: 1,
+        providerMessageId: `log:${log.id}`,
+      },
+    });
+    return {
+      id: updated.id,
+      status: updated.status,
+      providerMessageId: updated.providerMessageId,
+    };
+  }
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const { default: nodemailerDefault } = nodemailer;
+
+    // Build the raw MIME message using nodemailer
+    const mailOptions = {
+      from: fromAddress,
+      to,
+      subject,
+      text,
+      html,
+      attachments: attachments.map((att) => ({
+        filename: att.filename,
+        content: att.content,
+        contentType: att.contentType || "application/pdf",
+        encoding: "binary",
+      })),
+    };
+    if (replyTo) mailOptions.replyTo = replyTo;
+
+    const rawMessage = await nodemailerDefault.createTransport({
+      streamTransport: true,
+    }).sendMail(mailOptions);
+
+    // Convert the raw stream to a Buffer
+    const rawChunks = [];
+    for await (const chunk of rawMessage.message) {
+      rawChunks.push(Buffer.from(chunk));
+    }
+    const rawEmail = Buffer.concat(rawChunks);
+
+    const { SendRawEmailCommand } = await import("@aws-sdk/client-ses");
+    const client = await getSesClient();
+    const command = new SendRawEmailCommand({
+      RawMessage: { Data: rawEmail },
+    });
+    const resp = await client.send(command);
+    const providerMessageId = resp?.MessageId || null;
+    const updated = await prisma.wehowareEmailLog.update({
+      where: { id: log.id },
+      data: {
+        status: "Sent",
+        sentAt: new Date(),
+        attemptCount: 1,
+        providerMessageId,
+      },
+    });
+    return {
+      id: updated.id,
+      status: updated.status,
+      providerMessageId,
+    };
+  } catch (err) {
+    await prisma.wehowareEmailLog.update({
+      where: { id: log.id },
+      data: {
+        status: "Failed",
+        attemptCount: 1,
+        errorMessage: String(err?.message || err).slice(0, 2000),
+      },
+    });
+    throw err;
+  }
+}

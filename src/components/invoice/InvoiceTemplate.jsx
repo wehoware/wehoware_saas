@@ -1,8 +1,8 @@
-"use client";
-
 /**
  * InvoiceTemplate - universal config-driven invoice renderer.
- * Used by view page, print page, and settings preview.
+ * Used by view page, print page, settings preview, and server-side PDF generation.
+ * Intentionally a shared component (no "use client") so it can be rendered
+ * to static markup via react-dom/server in pdf.js.
  */
 import React from "react";
 import { formatInvoiceDate } from "@/lib/invoiceFormat";
@@ -329,6 +329,9 @@ function InvoiceMeta({ invoice, config }) {
           <div>Invoice #: {safe(invoice.invoice_number)}</div>
           <div>Issue Date: {formatInvoiceDate(invoice.invoice_date)}</div>
           <div>Due Date: {formatInvoiceDate(invoice.due_date)}</div>
+          {invoice.billing_start_date || invoice.billing_end_date ? (
+            <div>Billing Period: {formatInvoiceDate(invoice.billing_start_date)} – {formatInvoiceDate(invoice.billing_end_date)}</div>
+          ) : null}
           <div>Status: {safe(invoice.status)}</div>
         </div>
       </div>

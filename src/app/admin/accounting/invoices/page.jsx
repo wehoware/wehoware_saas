@@ -244,6 +244,7 @@ export default function InvoicesPage() {
                     <TableHead className="cursor-pointer" onClick={() => handleSort("dueDate")}>
                       Due Date <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                     </TableHead>
+                    <TableHead>Billing Period</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -273,6 +274,11 @@ export default function InvoicesPage() {
                       </TableCell>
                       <TableCell>
                         {formatInvoiceDate(invoice.due_date)}
+                      </TableCell>
+                      <TableCell>
+                        {invoice.billing_start_date || invoice.billing_end_date
+                          ? `${formatInvoiceDate(invoice.billing_start_date)} – ${formatInvoiceDate(invoice.billing_end_date)}`
+                          : "—"}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

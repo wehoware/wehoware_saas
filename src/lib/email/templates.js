@@ -167,6 +167,27 @@ const TEMPLATES = {
     return { subject, html, text: bodyText };
   },
 
+  "invoice.share": (ctx) => {
+    const { invoice_number, client_name, total, currency, due_date, billing_start_date, billing_end_date, company_name, share_url } = ctx;
+    const billingPeriod = billing_start_date || billing_end_date
+      ? `Billing period: ${billing_start_date || '\u2014'} to ${billing_end_date || '\u2014'}<br>`
+      : '';
+    const subject = `Invoice ${invoice_number} from ${company_name || 'Wehoware'}`;
+    const html = shell({
+      title: subject,
+      bodyHtml: `
+        <h2 style="margin-top:0;">Invoice ${escapeHtml(invoice_number)}</h2>
+        <p>Hi ${escapeHtml(client_name)},</p>
+        <p>You have a new invoice for <strong>${money(total, currency)}</strong>, due on <strong>${escapeHtml(due_date)}</strong>.</p>
+        ${billingPeriod ? `<p style="font-size:13px;color:#6b7280;">${billingPeriod}</p>` : ''}
+        <p><a href="${escapeHtml(share_url)}" style="background:#111;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">View Invoice</a></p>
+        <p style="font-size:12px;color:#6b7280;">A PDF copy of this invoice is attached. You can also view it online using the button above.<br>If you cannot click the button, copy this URL: ${escapeHtml(share_url)}</p>
+      `,
+    });
+    const text = `Invoice ${invoice_number} from ${company_name || 'Wehoware'}\n\nHi ${client_name},\n\nYou have a new invoice for ${money(total, currency)}, due on ${due_date}.${billing_start_date || billing_end_date ? `\nBilling period: ${billing_start_date || '\u2014'} to ${billing_end_date || '\u2014'}` : ''}\n\nA PDF copy is attached. View invoice online: ${share_url}`;
+    return { subject, html, text };
+  },
+
   "daily_report.reminder": (ctx) => {
     const { name, report_date, link } = ctx;
     const dateStr = report_date || "today";

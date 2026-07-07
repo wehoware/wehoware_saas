@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,8 @@ const InvoiceForm = ({
   const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
   const [items, setItems] = useState(() => [createEmptyItem()]);
   const [notes, setNotes] = useState("");
+  const [billingStartDate, setBillingStartDate] = useState("");
+  const [billingEndDate, setBillingEndDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Hydrate from initialData (edit / clone) — runs whenever the upstream
@@ -75,6 +78,8 @@ const InvoiceForm = ({
         : [createEmptyItem()]
     );
     setNotes(initialData.notes ?? "");
+    setBillingStartDate(toIsoDateOnly(initialData.billing_start_date) || "");
+    setBillingEndDate(toIsoDateOnly(initialData.billing_end_date) || "");
   }, [initialData]);
 
   // Apply settings defaults only on create (no initialData) and only when
@@ -131,6 +136,18 @@ const InvoiceForm = ({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!clientName?.trim()) {
+      toast.error("Client name is required");
+      return;
+    }
+    if (!invoiceDate) {
+      toast.error("Invoice date is required");
+      return;
+    }
+    if (!dueDate) {
+      toast.error("Due date is required");
+      return;
+    }
     const formData = {
       customer_id: customerId,
       client_name: clientName,
@@ -146,6 +163,8 @@ const InvoiceForm = ({
         unit_price: Number(it.unitPrice) || 0,
       })),
       notes,
+      billing_start_date: billingStartDate || null,
+      billing_end_date: billingEndDate || null,
       subtotal: Number.parseFloat(calculateSubtotal()),
       tax_amount: Number.parseFloat(calculateTaxAmount()),
       total_amount: Number.parseFloat(calculateTotal()),
@@ -259,6 +278,40 @@ const InvoiceForm = ({
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
             placeholder="Pick due date"
+          />
+        </div>
+      </div>
+
+      {/* Billing Period */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label
+            htmlFor="billingStartDate"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Billing Start Date <span className="text-gray-400 font-normal">(optional)</span>
+          </Label>
+          <DatePicker
+            id="billingStartDate"
+            name="billingStartDate"
+            value={billingStartDate}
+            onChange={(e) => setBillingStartDate(e.target.value)}
+            placeholder="Pick billing start date"
+          />
+        </div>
+        <div>
+          <Label
+            htmlFor="billingEndDate"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Billing End Date <span className="text-gray-400 font-normal">(optional)</span>
+          </Label>
+          <DatePicker
+            id="billingEndDate"
+            name="billingEndDate"
+            value={billingEndDate}
+            onChange={(e) => setBillingEndDate(e.target.value)}
+            placeholder="Pick billing end date"
           />
         </div>
       </div>

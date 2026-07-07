@@ -71,6 +71,8 @@ function serializeInvoice(inv) {
     currency: inv.currency,
     notes: inv.notes,
     paid_at: inv.paidAt,
+    billing_start_date: inv.billingStartDate,
+    billing_end_date: inv.billingEndDate,
     created_at: inv.createdAt,
     updated_at: inv.updatedAt,
     created_by: inv.createdBy,
@@ -171,7 +173,7 @@ export const PUT = withAuth(
 
       const existing = await prisma.wehowareInvoice.findFirst({
         where: { id, clientId },
-        select: { id: true, taxRate: true, subtotal: true, taxAmount: true, total: true },
+        select: { id: true, taxRate: true, subtotal: true, taxAmount: true, total: true, billingStartDate: true, billingEndDate: true },
       });
       if (!existing) {
         return NextResponse.json(
@@ -263,6 +265,44 @@ export const PUT = withAuth(
       if (body.notes !== undefined) data.notes = body.notes;
       if (body.paid_at !== undefined) {
         data.paidAt = body.paid_at ? new Date(body.paid_at) : null;
+      }
+      // Optional billing dates — null clears, string sets
+      if (body.billing_start_date !== undefined) {
+        if (body.billing_start_date === null || body.billing_start_date === "") {
+          data.billingStartDate = null;
+        } else {
+          const parsed = parseDateInput(body.billing_start_date);
+          if (!parsed) {
+            return NextResponse.json(
+              { error: "billing_start_date is invalid" },
+              { status: 400 }
+            );
+          }
+          data.billingStartDate = parsed;
+        }
+      }
+      if (body.billing_end_date !== undefined) {
+        if (body.billing_end_date === null || body.billing_end_date === "") {
+          data.billingEndDate = null;
+        } else {
+          const parsed = parseDateInput(body.billing_end_date);
+          if (!parsed) {
+            return NextResponse.json(
+              { error: "billing_end_date is invalid" },
+              { status: 400 }
+            );
+          }
+          data.billingEndDate = parsed;
+        }
+      }
+      // Validate billing end >= start (use new values if provided, else existing)
+      const effectiveStart = data.billingStartDate !== undefined ? data.billingStartDate : existing.billingStartDate;
+      const effectiveEnd = data.billingEndDate !== undefined ? data.billingEndDate : existing.billingEndDate;
+      if (effectiveStart && effectiveEnd && effectiveEnd < effectiveStart) {
+        return NextResponse.json(
+          { error: "billing_end_date must be on or after billing_start_date" },
+          { status: 400 }
+        );
       }
 
       const hasLineItems = Array.isArray(body.line_items);

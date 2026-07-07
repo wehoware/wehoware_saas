@@ -86,6 +86,8 @@ function serializeInvoice(inv) {
     currency: inv.currency,
     notes: inv.notes,
     paid_at: inv.paidAt,
+    billing_start_date: inv.billingStartDate,
+    billing_end_date: inv.billingEndDate,
     created_at: inv.createdAt,
     updated_at: inv.updatedAt,
     created_by: inv.createdBy,
@@ -285,6 +287,34 @@ export const POST = withAuth(
         );
       }
 
+      // Optional billing dates
+      let parsedBillingStart = null;
+      let parsedBillingEnd = null;
+      if (body.billing_start_date) {
+        parsedBillingStart = parseDateInput(body.billing_start_date);
+        if (!parsedBillingStart) {
+          return NextResponse.json(
+            { error: "billing_start_date is invalid" },
+            { status: 400 }
+          );
+        }
+      }
+      if (body.billing_end_date) {
+        parsedBillingEnd = parseDateInput(body.billing_end_date);
+        if (!parsedBillingEnd) {
+          return NextResponse.json(
+            { error: "billing_end_date is invalid" },
+            { status: 400 }
+          );
+        }
+      }
+      if (parsedBillingStart && parsedBillingEnd && parsedBillingEnd < parsedBillingStart) {
+        return NextResponse.json(
+          { error: "billing_end_date must be on or after billing_start_date" },
+          { status: 400 }
+        );
+      }
+
       const rawLineItems = Array.isArray(body.line_items) ? body.line_items : [];
       const taxRate = Number(body.tax_rate) || 0;
       const { subtotal, taxAmount, total } = computeTotals(rawLineItems, taxRate);
@@ -340,6 +370,8 @@ export const POST = withAuth(
             total,
             currency,
             notes: body.notes ?? null,
+            billingStartDate: parsedBillingStart,
+            billingEndDate: parsedBillingEnd,
             createdBy: user.id,
             updatedBy: user.id,
           },

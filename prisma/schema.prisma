@@ -967,9 +967,13 @@ model WehowareInvoice {
   updatedAt     DateTime                  @updatedAt @map("updated_at")
   createdBy     String?                   @map("created_by") @db.VarChar(36)
   updatedBy     String?                   @map("updated_by") @db.VarChar(36)
-  amountPaid    Decimal                   @default(0.00) @map("amount_paid") @db.Decimal(12, 2)
-  reconciledAt  DateTime?                 @map("reconciled_at")
-  lineItems     WehowareInvoiceLineItem[]
+  amountPaid        Decimal                   @default(0.00) @map("amount_paid") @db.Decimal(12, 2)
+  reconciledAt      DateTime?                 @map("reconciled_at")
+  billingStartDate  DateTime?                 @map("billing_start_date") @db.Date
+  billingEndDate    DateTime?                 @map("billing_end_date") @db.Date
+  shareToken        String?                   @map("share_token") @db.VarChar(128)
+  shareTokenGeneratedAt DateTime?             @map("share_token_generated_at")
+  lineItems         WehowareInvoiceLineItem[]
   client        WehowareClient            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   customer      WehowareCustomer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   creator       WehowareProfile?          @relation("InvoiceCreator", fields: [createdBy], references: [id])
@@ -982,6 +986,7 @@ model WehowareInvoice {
   @@index([invoiceDate])
   @@index([createdBy], map: "wehoware_invoices_created_by_fkey")
   @@index([updatedBy], map: "wehoware_invoices_updated_by_fkey")
+  @@index([shareToken], map: "wehoware_invoices_share_token_idx")
   @@map("wehoware_invoices")
 }
 

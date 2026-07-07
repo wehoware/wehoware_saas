@@ -1,85 +1,15 @@
 /**
  * src/lib/pdf.js
  *
- * Server-side PDF generation using puppeteer-core + @sparticuz/chromium.
- * Renders the InvoiceTemplate React component to static HTML, wraps it in
- * print-specific CSS, then uses Chromium's PDF engine to produce a Buffer.
+ * Server-side PDF generation using @react-pdf/renderer.
+ * Renders the InvoicePdf React component to a PDF buffer using React's
+ * native PDF primitives — no browser binary required.
  *
- * @sparticuz/chromium provides a Chromium binary compatible with Vercel
- * serverless functions (Playwright's browsers are too large for serverless).
- *
- * NOTE: react-dom/server, React, and InvoiceTemplate are dynamically imported
- * inside buildInvoiceHtml to prevent Turbopack from statically detecting
- * react-dom/server at the module level (which breaks the client bundle).
+ * Works in any serverless environment (Vercel, AWS Lambda, etc.) since
+ * it doesn't need Chromium/Playwright/Puppeteer.
  */
 
 import "server-only";
-
-let _browser = null;
-
-async function getBrowser() {
-  if (_browser) return _browser;
-  const puppeteer = await import("puppeteer-core");
-
-  if (process.env.NODE_ENV === "production") {
-    // Production (Vercel serverless): use @sparticuz/chromium
-    const chromiumMod = await import("@sparticuz/chromium");
-    const chromium = chromiumMod.default;
-    _browser = await puppeteer.default.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
-  } else {
-    // Local development: use Playwright's installed Chromium
-    const { chromium } = await import("playwright");
-    _browser = await chromium.launch({ headless: true });
-  }
-
-  return _browser;
-}
-
-const PRINT_CSS = `
-  @page { size: A4; margin: 0; }
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  .invoice-template {
-    box-shadow: none !important;
-    margin: 0 auto !important;
-    border-radius: 0 !important;
-    max-width: none !important;
-  }
-`;
-
-/**
- * Build a full HTML document string wrapping the rendered InvoiceTemplate.
- * Uses dynamic imports to keep react-dom/server out of the static module graph.
- */
-async function buildInvoiceHtml(invoice, settings) {
-  const React = await import("react");
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  const { default: InvoiceTemplate } = await import("@/components/invoice/InvoiceTemplate");
-
-  const markup = renderToStaticMarkup(
-    React.createElement(InvoiceTemplate, { invoice, settings })
-  );
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>${PRINT_CSS}</style>
-</head>
-<body>
-${markup}
-</body>
-</html>`;
-}
 
 /**
  * Generate a PDF Buffer for the given invoice + settings.
@@ -91,34 +21,20 @@ ${markup}
 export async function generateInvoicePdf(invoice, settings) {
   if (!invoice) throw new Error("generateInvoicePdf: invoice is required");
 
-  const html = await buildInvoiceHtml(invoice, settings);
+  const React = await import("react");
+  const { renderToBuffer } = await import("@react-pdf/renderer");
+  const { default: InvoicePdfDocument } = await import("@/components/invoice/InvoicePdf.jsx");
 
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+  const element = React.createElement(InvoicePdfDocument, {
+    invoice,
+    settings,
+  });
 
-  try {
-    const isProd = process.env.NODE_ENV === "production";
-    await page.setContent(html, {
-      waitUntil: isProd ? "networkidle0" : "networkidle",
-      timeout: 30000,
-    });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20px", bottom: "20px", left: "20px", right: "20px" },
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+  const buffer = await renderToBuffer(element);
+  return Buffer.from(buffer);
 }
 
 /**
- * Close the singleton browser instance (useful for graceful shutdown / tests).
+ * No-op for backward compatibility (no browser to close).
  */
-export async function closeBrowser() {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
-}
+export async function closeBrowser() {}

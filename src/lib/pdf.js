@@ -20,15 +20,23 @@ let _browser = null;
 async function getBrowser() {
   if (_browser) return _browser;
   const puppeteer = await import("puppeteer-core");
-  const chromiumMod = await import("@sparticuz/chromium");
-  const chromium = chromiumMod.default;
 
-  _browser = await puppeteer.default.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
-  });
+  if (process.env.NODE_ENV === "production") {
+    // Production (Vercel serverless): use @sparticuz/chromium
+    const chromiumMod = await import("@sparticuz/chromium");
+    const chromium = chromiumMod.default;
+    _browser = await puppeteer.default.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  } else {
+    // Local development: use Playwright's installed Chromium
+    const { chromium } = await import("playwright");
+    _browser = await chromium.launch({ headless: true });
+  }
+
   return _browser;
 }
 
@@ -89,7 +97,11 @@ export async function generateInvoicePdf(invoice, settings) {
   const page = await browser.newPage();
 
   try {
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 30000 });
+    const isProd = process.env.NODE_ENV === "production";
+    await page.setContent(html, {
+      waitUntil: isProd ? "networkidle0" : "networkidle",
+      timeout: 30000,
+    });
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,

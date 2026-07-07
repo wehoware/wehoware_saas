@@ -20,6 +20,9 @@ const nextConfig = {
   poweredByHeader: false,
   // Allow LAN IP access to dev resources
   allowedDevOrigins: ['172.7.10.104'],
+  // Keep @sparticuz/chromium as external package so its binary files
+  // are included in the Vercel serverless function deployment
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
 };
 
 export default nextConfig;

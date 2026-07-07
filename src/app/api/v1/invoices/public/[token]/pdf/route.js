@@ -2,11 +2,13 @@
  * /api/v1/invoices/public/[token]/pdf
  *
  * GET — generate and return a server-side PDF for the public invoice (no auth).
- * Uses Playwright headless Chromium to render the invoice template to PDF.
+ * Uses @react-pdf/renderer to generate the PDF natively (no browser required).
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateInvoicePdf } from "@/lib/pdf";
+
+export const maxDuration = 30;
 
 function serializePublicInvoice(inv) {
   return {

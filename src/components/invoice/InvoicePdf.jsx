@@ -11,6 +11,7 @@ import { formatInvoiceDate } from "@/lib/invoiceFormat";
 import { resolveTemplateConfig } from "@/lib/invoiceTemplates";
 
 const PLACEHOLDER = "—";
+const DARK_BG_HEX = ["#000000", "#0f3057", "#7c3aed"];
 const safe = (v, fb = PLACEHOLDER) => (v == null || v === "" ? fb : v);
 const fmtAmount = (n, currency = "") =>
   `${currency} ${Number(n || 0).toFixed(2)}`.trim();
@@ -178,7 +179,7 @@ function buildStyles(config) {
       paddingTop: 16,
     },
     totalsBox: {
-      width: 240,
+      width: 280,
     },
     totalsRow: {
       flexDirection: "row",
@@ -200,19 +201,19 @@ function buildStyles(config) {
     totalRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      paddingVertical: 10,
-      paddingHorizontal: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 12,
       marginTop: 8,
       backgroundColor: colors.totalBg,
       borderRadius: cornerRadius,
     },
     totalLabel: {
-      fontSize: 14,
+      fontSize: 16,
       fontFamily: "Helvetica-Bold",
       color: colors.text,
     },
     totalValue: {
-      fontSize: 16,
+      fontSize: 18,
       fontFamily: "Helvetica-Bold",
       color: colors.text,
     },
@@ -266,6 +267,10 @@ function InvoicePdfDocument({ invoice, settings, templateId, customConfig }) {
 
   const isBanner = config.layout.headerStyle === "banner";
   const items = Array.isArray(invoice.line_items) ? invoice.line_items : [];
+  const isDarkTotal =
+    DARK_BG_HEX.includes(String(config.colors.totalBg).toLowerCase()) ||
+    config.colors.totalBg === config.colors.headerBg;
+  const totalTextColor = isDarkTotal ? config.colors.headerText : config.colors.text;
 
   return (
     <Document>
@@ -467,8 +472,8 @@ function InvoicePdfDocument({ invoice, settings, templateId, customConfig }) {
               </View>
             ) : null}
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>
+              <Text style={[styles.totalLabel, { color: totalTextColor }]}>Total</Text>
+              <Text style={[styles.totalValue, { color: totalTextColor }]}>
                 {fmtAmount(invoice.total, invoice.currency)}
               </Text>
             </View>

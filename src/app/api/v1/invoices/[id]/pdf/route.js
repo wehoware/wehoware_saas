@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 import { withAuth } from "../../../../utils/auth-middleware";
 import { generateInvoicePdf } from "@/lib/pdf";
 
+export const maxDuration = 30;
+
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
   if (["employee", "admin"].includes(user.role)) {

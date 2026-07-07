@@ -38,7 +38,16 @@ export function __setEmailProviderForTests(client, config) {
 async function getSesClient() {
   if (injectedClient) return injectedClient;
   const { SESClient } = await import("@aws-sdk/client-ses");
-  return new SESClient({ region: defaultProvider().region });
+  const cfg = injectedConfig || defaultProvider();
+  const clientConfig = { region: cfg.region };
+  // Explicitly pass credentials if env vars are set (more reliable on Vercel)
+  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    clientConfig.credentials = {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    };
+  }
+  return new SESClient(clientConfig);
 }
 
 /**

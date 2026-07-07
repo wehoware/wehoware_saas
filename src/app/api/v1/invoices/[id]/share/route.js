@@ -173,12 +173,13 @@ export const POST = withAuth(
         } catch (err) {
           console.error("[POST /api/v1/invoices/[id]/share] email error:", err);
           const awsCode = err?.Code || err?.name;
-          if (awsCode === "AccessDenied" || err?.message?.includes("AccessDenied")) {
-            emailError = "Email sending is not configured. Please contact your administrator to enable AWS SES email permissions.";
-          } else if (awsCode === "MessageRejected" || err?.message?.includes("not verified")) {
-            emailError = "The sender email address is not verified in AWS SES. Please verify the domain identity in the AWS SES console.";
+          const awsMsg = err?.message || String(err);
+          if (awsCode === "AccessDenied" || awsMsg.includes("AccessDenied")) {
+            emailError = `AWS SES AccessDenied: The IAM user lacks ses:SendRawEmail permission. Check IAM policy for user ${process.env.AWS_ACCESS_KEY_ID?.slice(0, 8)}... in region ${process.env.AWS_REGION}.`;
+          } else if (awsCode === "MessageRejected" || awsMsg.includes("not verified")) {
+            emailError = `AWS SES MessageRejected: The sender or recipient email is not verified. In SES sandbox mode, both must be verified. From: ${process.env.EMAIL_FROM_ADDRESS}`;
           } else {
-            emailError = err?.message || String(err);
+            emailError = awsMsg;
           }
         }
       }

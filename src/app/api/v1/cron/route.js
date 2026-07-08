@@ -21,6 +21,7 @@ import {
   retryFailedPosts,
   collectPostMetrics,
   recoverStuckPublishing,
+  socialInboxSyncJob,
 } from "@/lib/cron-jobs/social-media";
 
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -31,6 +32,7 @@ const JOB_HANDLERS = {
   retry_failed_posts: retryFailedPosts,
   collect_post_metrics: collectPostMetrics,
   recover_stuck_publishing: recoverStuckPublishing,
+  social_inbox_sync: socialInboxSyncJob,
 };
 
 export async function POST(request) {

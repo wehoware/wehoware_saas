@@ -11,6 +11,7 @@ import { withAuth } from "../../utils/auth-middleware";
 import { triggerAppointmentNotification } from "@/lib/notification-service";
 import { syncAppointmentToCalendars } from "@/lib/calendar-sync";
 import { generateMeetingLink } from "@/lib/video-meeting-service";
+import { bridgeAppointmentToCrm } from "@/lib/crm-bridge.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -306,6 +307,19 @@ export const POST = withAuth(
       // Sync to connected calendars (non-blocking)
       syncAppointmentToCalendars(created, clientId).catch(err => {
         console.error('[POST /api/v1/appointments] calendar sync error:', err);
+      });
+
+      // Bridge to CRM contact (non-blocking)
+      bridgeAppointmentToCrm({
+        clientId,
+        appointmentId: created.id,
+        guestName: created.guestName,
+        guestEmail: created.guestEmail,
+        guestPhone: created.guestPhone,
+        scheduledAt: created.scheduledAt,
+        appointmentType: created.appointmentType?.name,
+      }).catch(err => {
+        console.error('[POST /api/v1/appointments] CRM bridge error:', err);
       });
 
       return NextResponse.json(serialize(created), { status: 201 });

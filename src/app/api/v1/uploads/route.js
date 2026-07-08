@@ -21,7 +21,7 @@ import {
 } from "@/lib/storage";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB — reject oversize uploads early
-const ALLOWED_MIME_PREFIXES = ["image/"];
+const ALLOWED_MIME_PREFIXES = ["image/", "application/pdf"];
 const ALLOWED_ENTITY_TYPES = new Set([
   "blogs",
   "services",
@@ -29,6 +29,8 @@ const ALLOWED_ENTITY_TYPES = new Set([
   "general",
   "invoices",
   "inventory",
+  "bills",
+  "expenses",
 ]);
 
 export const POST = withAuth(
@@ -66,7 +68,7 @@ export const POST = withAuth(
     const mimeOk = ALLOWED_MIME_PREFIXES.some((p) => mime.startsWith(p));
     if (!mimeOk) {
       return NextResponse.json(
-        { error: "Only image uploads are allowed" },
+        { error: "Only images and PDFs are allowed" },
         { status: 415 }
       );
     }

@@ -1,12 +1,15 @@
 /**
  * /api/v1/inquiries
  *
- * Prisma/MySQL-backed replacement for the old Supabase handler.
+ * Rewritten to integrate with CRM contacts.
+ * POST creates a WehowareCrmContact with source=Website instead of a
+ * WehowareInquiry. Responses are serialized in the old inquiry format
+ * for backward compatibility with existing admin UI and client forms.
  *
- * POST   — PUBLIC contact-form submission (no auth)
+ * POST   — PUBLIC contact-form submission (rate-limited, no auth)
  * GET    — list inquiries (paginated) scoped to active client
- * PUT    — update inquiry status (employee/admin)
- * DELETE — delete inquiry (admin only)
+ * PUT    — update inquiry/contact status (employee/admin)
+ * DELETE — soft-delete contact (admin only)
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -26,10 +29,26 @@ const FIELD_MAP = {
   created_at: "createdAt",
   updated_at: "updatedAt",
   status: "status",
-  name: "name",
+  name: "firstName",
   email: "email",
-  subject: "subject",
+  subject: "inquirySubject",
 };
+
+// Simple in-memory rate limiter for public POST
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10;
+const rateLimitMap = new Map();
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.timestamp > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { timestamp: now, count: 1 });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT_MAX;
+}
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
@@ -39,11 +58,41 @@ function resolveClientId(user) {
   return null;
 }
 
+function serializeContactAsInquiry(c) {
+  const fullName = [c.firstName, c.lastName].filter(Boolean).join(" ");
+  return {
+    id: c.id,
+    client_id: c.clientId,
+    name: fullName,
+    email: c.email,
+    phone: c.phone,
+    subject: c.inquirySubject ?? "",
+    message: c.inquiryMessage ?? "",
+    service_id: c.inquiryServiceId ?? null,
+    status: c.status,
+    ip_address: null,
+    user_agent: null,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+    updated_by: c.updatedBy ?? null,
+  };
+}
+
 // -------------------------------------------------------------------
-// POST — PUBLIC (no auth) — contact form submission
+// POST — PUBLIC (no auth) — contact form submission → CRM contact
 // -------------------------------------------------------------------
 export async function POST(request) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { name, email, phone, subject, message, client_id, company } =
       body ?? {};
@@ -58,29 +107,54 @@ export async function POST(request) {
       );
     }
 
-    // Some existing forms send `company` as part of the message; we fold it
-    // into the message body so it's preserved without schema changes.
     const composedMessage = company
       ? `${message}\n\n--\nCompany: ${company}`
       : message;
 
-    const inquiry = await prisma.wehowareInquiry.create({
+    // Split name into first/last
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0] || name;
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+    // Dedup by [clientId, email] — upsert if exists
+    const existing = await prisma.wehowareCrmContact.findFirst({
+      where: { clientId: client_id, email },
+    });
+
+    if (existing) {
+      const updated = await prisma.wehowareCrmContact.update({
+        where: { id: existing.id },
+        data: {
+          inquirySubject: subject,
+          inquiryMessage: composedMessage,
+          phone: phone ?? existing.phone,
+        },
+      });
+      return NextResponse.json(
+        serializeContactAsInquiry(updated),
+        { status: 201 }
+      );
+    }
+
+    const contact = await prisma.wehowareCrmContact.create({
       data: {
         clientId: client_id,
-        name,
+        type: "Lead",
+        status: "New",
+        source: "Website",
+        firstName,
+        lastName,
         email,
         phone: phone ?? null,
-        subject,
-        message: composedMessage,
-        status: "New",
-        ipAddress:
-          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-          "unknown",
-        userAgent: request.headers.get("user-agent") ?? "unknown",
+        inquirySubject: subject,
+        inquiryMessage: composedMessage,
       },
     });
 
-    return NextResponse.json(inquiry, { status: 201 });
+    return NextResponse.json(
+      serializeContactAsInquiry(contact),
+      { status: 201 }
+    );
   } catch (err) {
     console.error("[POST /api/v1/inquiries] error:", err);
     if (err?.code === "P2003") {
@@ -97,7 +171,7 @@ export async function POST(request) {
 }
 
 // -------------------------------------------------------------------
-// GET (client/employee/admin)
+// GET (client/employee/admin) — list contacts from Website source
 // -------------------------------------------------------------------
 export const GET = withAuth(
   async (request) => {
@@ -105,17 +179,16 @@ export const GET = withAuth(
       const { prisma, user } = request;
       const url = new URL(request.url);
 
-      const filterClientIdParam = url.searchParams.get("client_id");
       const status = url.searchParams.get("status");
       const page = Math.max(
         1,
-        parseInt(url.searchParams.get("page") || "1", 10)
+        Number.parseInt(url.searchParams.get("page") || "1", 10)
       );
       const limit = Math.min(
         MAX_PAGE_SIZE,
         Math.max(
           1,
-          parseInt(
+          Number.parseInt(
             url.searchParams.get("limit") || String(DEFAULT_PAGE_SIZE),
             10
           )
@@ -128,86 +201,28 @@ export const GET = withAuth(
         ? FIELD_MAP[sortByRaw]
         : "createdAt";
 
-      // Resolve client context
-      let queryClientId = null;
-      if (user.role === "client") {
-        queryClientId = user.clientId;
-        if (
-          filterClientIdParam &&
-          String(filterClientIdParam) !== String(queryClientId)
-        ) {
-          return NextResponse.json(
-            { error: "Clients can only filter by their own client ID." },
-            { status: 403 }
-          );
-        }
-      } else if (["employee", "admin"].includes(user.role)) {
-        if (user.activeClientId) {
-          queryClientId = user.activeClientId;
-          if (
-            filterClientIdParam &&
-            String(filterClientIdParam) !== String(queryClientId)
-          ) {
-            return NextResponse.json(
-              {
-                error:
-                  "Employees/Admins can only view inquiries for their active client context.",
-              },
-              { status: 403 }
-            );
-          }
-        } else {
-          return NextResponse.json(
-            {
-              error:
-                "Active client context required for employees/admins.",
-            },
-            { status: 400 }
-          );
-        }
-      }
-
+      const queryClientId = resolveClientId(user);
       if (!queryClientId) {
         return NextResponse.json(
-          {
-            error:
-              "Could not determine client context for filtering inquiries.",
-          },
+          { error: "Could not determine client context for filtering inquiries." },
           { status: 400 }
         );
       }
 
-      const where = { clientId: queryClientId };
+      const where = { clientId: queryClientId, source: "Website" };
       if (status) where.status = status;
 
       const [items, totalItems] = await Promise.all([
-        prisma.wehowareInquiry.findMany({
+        prisma.wehowareCrmContact.findMany({
           where,
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
           take: limit,
         }),
-        prisma.wehowareInquiry.count({ where }),
+        prisma.wehowareCrmContact.count({ where }),
       ]);
 
-      // Map camelCase → snake_case for backward-compatibility with the
-      // admin UI that expects the old column names.
-      const data = items.map((i) => ({
-        id: i.id,
-        client_id: i.clientId,
-        name: i.name,
-        email: i.email,
-        phone: i.phone,
-        subject: i.subject,
-        message: i.message,
-        service_id: i.serviceId,
-        status: i.status,
-        ip_address: i.ipAddress,
-        user_agent: i.userAgent,
-        created_at: i.createdAt,
-        updated_at: i.updatedAt,
-        updated_by: i.updatedBy,
-      }));
+      const data = items.map(serializeContactAsInquiry);
 
       return NextResponse.json({
         data,
@@ -230,7 +245,7 @@ export const GET = withAuth(
 );
 
 // -------------------------------------------------------------------
-// PUT (employee/admin) — update status
+// PUT (employee/admin) — update contact status
 // -------------------------------------------------------------------
 export const PUT = withAuth(
   async (request) => {
@@ -246,7 +261,7 @@ export const PUT = withAuth(
         );
       }
 
-      const existing = await prisma.wehowareInquiry.findUnique({
+      const existing = await prisma.wehowareCrmContact.findFirst({
         where: { id },
         select: { id: true, clientId: true },
       });
@@ -257,18 +272,15 @@ export const PUT = withAuth(
         );
       }
 
-      // Employee/admin must have active client context matching the inquiry
-      if (
-        !user.activeClientId ||
-        String(user.activeClientId) !== String(existing.clientId)
-      ) {
+      const clientId = resolveClientId(user);
+      if (!clientId || String(clientId) !== String(existing.clientId)) {
         return NextResponse.json(
           { error: "Unauthorized to update this inquiry." },
           { status: 403 }
         );
       }
 
-      const updated = await prisma.wehowareInquiry.update({
+      const updated = await prisma.wehowareCrmContact.update({
         where: { id },
         data: {
           status,
@@ -276,7 +288,7 @@ export const PUT = withAuth(
         },
       });
 
-      return NextResponse.json({ data: updated });
+      return NextResponse.json({ data: serializeContactAsInquiry(updated) });
     } catch (err) {
       console.error("[PUT /api/v1/inquiries] error:", err);
       return NextResponse.json(
@@ -289,7 +301,7 @@ export const PUT = withAuth(
 );
 
 // -------------------------------------------------------------------
-// DELETE (admin only)
+// DELETE (admin only) — soft-delete contact
 // -------------------------------------------------------------------
 export const DELETE = withAuth(
   async (request) => {
@@ -305,17 +317,15 @@ export const DELETE = withAuth(
         );
       }
 
-      if (!user.activeClientId) {
+      const clientId = resolveClientId(user);
+      if (!clientId) {
         return NextResponse.json(
-          {
-            error:
-              "Admin must have an active client context set to delete an inquiry.",
-          },
+          { error: "Admin must have an active client context set to delete an inquiry." },
           { status: 400 }
         );
       }
 
-      const existing = await prisma.wehowareInquiry.findUnique({
+      const existing = await prisma.wehowareCrmContact.findFirst({
         where: { id },
         select: { id: true, clientId: true },
       });
@@ -326,7 +336,7 @@ export const DELETE = withAuth(
         );
       }
 
-      if (String(existing.clientId) !== String(user.activeClientId)) {
+      if (String(existing.clientId) !== String(clientId)) {
         return NextResponse.json(
           {
             error:
@@ -336,7 +346,10 @@ export const DELETE = withAuth(
         );
       }
 
-      await prisma.wehowareInquiry.delete({ where: { id } });
+      await prisma.wehowareCrmContact.update({
+        where: { id },
+        data: { active: false, updatedBy: user.id },
+      });
       return NextResponse.json({ success: true });
     } catch (err) {
       console.error("[DELETE /api/v1/inquiries] error:", err);

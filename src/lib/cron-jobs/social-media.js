@@ -8,6 +8,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getSocialClient } from "@/lib/social-clients/index.js";
+import { syncAllInboxes } from "@/lib/social-inbox-sync.js";
 import {
   MAX_RETRY_ATTEMPTS,
   TOKEN_REFRESH_BUFFER_MS,
@@ -320,4 +321,31 @@ export async function recoverStuckPublishing() {
       data: { status: "Failed", errorDetails: { message: "Post stuck in Publishing status — recovered by cron" } },
     });
   }
+}
+
+// ── Social Inbox Sync ───────────────────────────────────────────────────────
+
+export async function socialInboxSyncJob() {
+  const clients = await prisma.wehowareClient.findMany({
+    where: { active: true },
+    select: { id: true },
+  });
+
+  let totalSynced = 0;
+  let totalErrors = 0;
+
+  for (const client of clients) {
+    try {
+      const results = await syncAllInboxes(client.id);
+      for (const r of results) {
+        if (r.errors?.length) totalErrors += r.errors.length;
+        totalSynced += r.conversationsSynced || 0;
+      }
+    } catch (err) {
+      console.error(`[social-cron] Inbox sync failed for client ${client.id}:`, err.message);
+      totalErrors++;
+    }
+  }
+
+  console.info(`[social-cron] Inbox sync complete: ${totalSynced} conversations synced, ${totalErrors} errors`);
 }

@@ -53,6 +53,7 @@ function serializeExpense(e) {
     currency: e.currency,
     expense_date: e.expenseDate,
     receipt_url: e.receiptUrl,
+    attachment_count: e._count?.attachments ?? 0,
     status: e.status,
     approved_by: e.approvedBy,
     approver: e.approver
@@ -121,6 +122,7 @@ export const GET = withAuth(
             approver: {
               select: { id: true, email: true, firstName: true, lastName: true },
             },
+            _count: { select: { attachments: true } },
           },
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,

@@ -41,6 +41,7 @@ Multi-tenant SaaS platform with Next.js 15, featuring authentication, client man
 - Core: clients, profiles, user-clients
 - Content: blogs, services, static pages
 - Business: inquiries, tasks, forms, integrations
+- CRM: contacts, pipelines, pipeline_stages, deals, activities, contact_lists, contact_list_memberships
 - Analytics: reports, keywords, settings
 - Social: platforms, accounts, posts, account_posts, post_analytics
 
@@ -57,6 +58,13 @@ src/
         clients/                # Client management (2 endpoints)
         forms/                  # Form builder (5 endpoints)
         inquiries/              # Lead management (1 endpoint)
+        crm/                    # CRM module (20+ endpoints)
+          contacts/             # Contacts CRUD + convert
+          pipelines/             # Pipelines + stages CRUD
+          deals/                 # Deals CRUD + stage moves
+          activities/            # Activities CRUD
+          lists/                 # Contact lists + memberships
+          dashboard/             # Aggregated CRM stats
         integrations/           # Third-party integrations (4 endpoints)
         reports/                # Reporting system (2 endpoints)
         seo/                    # SEO management (5 endpoints)
@@ -77,7 +85,14 @@ src/
       categories/              # Category management
       clients/                  # Client administration
       forms/                    # Form builder interface
-      inquiries/                # Inquiry management
+      crm/                      # CRM module UI (6 pages)
+        page.js                # Dashboard (stats, pipeline value, quick links)
+        contacts/page.js       # Contacts list + ContactForm dialog
+        pipeline/page.js       # Kanban board (drag-and-drop with @dnd-kit)
+        deals/page.js          # Deals list + DealForm dialog
+        activities/page.js     # Activities timeline + ActivityForm
+        lists/page.js          # Contact lists (card grid + inline form)
+      inquiries/                # Inquiry management (legacy)
       integrations/             # Integration management
       invoices/                # Invoice system
       keywords/                # SEO keyword management
@@ -131,7 +146,9 @@ src/
       twitter-client.js        # Twitter API v2 + OAuth 2.0 PKCE
       tiktok-client.js         # TikTok for Developers API
     cron-jobs/
-      social-media.js          # publishScheduledPosts, refreshExpiringTokens, retryFailedPosts
+      social-media.js          # publishScheduledPosts, refreshExpiringTokens, retryFailedPosts, socialInboxSyncJob
+    crm-bridge.js              # Bridge external sources (forms, appointments, social, inquiries) to CRM contacts + activities
+    social-inbox-sync.js       # Sync social conversations, bridge new ones to CRM via crm-bridge
   db/                          # Database schemas
     schema.sql                 # SQL schema reference
     wehoware_profiles_rows.sql  # Profile data reference
@@ -153,6 +170,7 @@ src/
 - **SEO Tools**: Keyword management and static page editing
 - **Admin Interface**: Comprehensive admin layout and navigation
 - **Social Media Manager**: Multi-platform post scheduling, OAuth account management, analytics
+- **CRM**: ContactForm, DealForm, ActivityForm dialog components; Kanban pipeline board with @dnd-kit drag-and-drop
 
 ## Key Files
 
@@ -162,7 +180,15 @@ src/
 
 **Config:** package.json (87 packages), tailwind.config.js, next.config.mjs
 
-**Environment:** DATABASE_URL (MySQL), NEXTAUTH_SECRET
+**Environment:** DATABASE_URL (MySQL), NEXTAUTH_SECRET, CRON_SECRET (for cron job auth)
+
+**CRM Module:**
+- API: `/api/v1/crm/*` — Contacts, Pipelines, Deals, Activities, Lists, Dashboard
+- Bridge: `src/lib/crm-bridge.js` — Deduplicates and creates CRM contacts from external sources (form submissions, appointments, social inbox conversations, legacy inquiries)
+- Integration points: Appointments POST calls `bridgeAppointmentToCrm`, social inbox sync calls `bridgeSocialConversationToCrm` after new conversation upsert
+- Cron: `social_inbox_sync` job registered in `/api/v1/cron/route.js`, syncs all active clients' social inboxes
+- Migration: `scripts/migrate-inquiries-to-crm.mjs` — one-time script to migrate legacy WehowareInquiry records to CRM contacts + activities
+- UI: `/admin/crm` — Dashboard, Contacts, Pipeline (Kanban), Deals, Activities, Lists pages
 
 **Social Media Env Vars:**
 - FACEBOOK_APP_ID, FACEBOOK_APP_SECRET, FACEBOOK_CALLBACK_URL

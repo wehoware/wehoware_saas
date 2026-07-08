@@ -31,6 +31,7 @@ import {
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { BILL_STATUSES, formatMoney, computeLineItemTotals } from "@/lib/accounting";
 import { useAuth } from "@/contexts/auth-context";
+import AttachmentUploader from "@/components/attachments/AttachmentUploader";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const NET30 = (() => {
@@ -47,6 +48,8 @@ export default function AddBillPage() {
   const [vendors, setVendors] = useState([]);
   const [isLoadingVendors, setIsLoadingVendors] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [createdBillId, setCreatedBillId] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const [form, setForm] = useState({
     vendor_id: "",
@@ -132,7 +135,11 @@ export default function AddBillPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create bill");
       toast.success("Bill created");
-      router.push(`/admin/accounting/bills/${json.id}`);
+      if (pendingCount > 0) {
+        setCreatedBillId(json.id);
+      } else {
+        router.push(`/admin/accounting/bills/${json.id}`);
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -285,6 +292,25 @@ export default function AddBillPage() {
                 placeholder="Internal notes for this bill"
                 value={form.notes}
                 onChange={(e) => setField("notes", e.target.value)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Attachments</CardTitle>
+              <CardDescription>Receipts, invoices, and supporting documents</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AttachmentUploader
+                entityId={createdBillId}
+                entityType="bills"
+                attachments={[]}
+                onAttachmentsChange={() => {}}
+                onPendingFilesChange={setPendingCount}
+                onPendingUploadComplete={() => {
+                  router.push(`/admin/accounting/bills/${createdBillId}`);
+                }}
               />
             </CardContent>
           </Card>

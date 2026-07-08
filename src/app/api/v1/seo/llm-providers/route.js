@@ -94,7 +94,7 @@ export const PUT = withAuth(
       }
 
       // Validate provider names
-      const validProviders = new Set(["openrouter"]);
+      const validProviders = new Set(["openrouter", "wehoware"]);
       const filteredKeys = {};
       for (const [name, value] of Object.entries(keys)) {
         if (validProviders.has(name)) {
@@ -147,7 +147,7 @@ export const PATCH = withAuth(
             { status: 400 }
           );
         }
-        const validProviders = new Set(["openrouter"]);
+        const validProviders = new Set(["openrouter", "wehoware"]);
         if (!validProviders.has(providerName)) {
           return NextResponse.json(
             { error: `Unknown provider: ${providerName}` },

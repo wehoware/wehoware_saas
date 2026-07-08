@@ -21,9 +21,9 @@ import {
   RotateCcw,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { ApiKeyDialog } from "./ApiKeyDialog";
 import {
@@ -67,6 +67,86 @@ function formatDate(dateStr) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function ModelSelector({ provider, modelType, availableModels, modelsLoading, savingModel, onChange }) {
+  const isPrivate = provider.providerName === "wehoware";
+  const resolvedValue = provider.modelOverrides?.[modelType] || provider.models?.[modelType] || "";
+  const isSaving = savingModel === `${provider.providerName}-${modelType}`;
+  const [inputValue, setInputValue] = useState(resolvedValue);
+
+  if (isPrivate) {
+    return (
+      <div className="space-y-1 min-w-[200px] mb-2">
+        <Label className="text-xs text-muted-foreground mb-1 block capitalize">
+          {modelType} Model
+        </Label>
+        <Input
+          type="text"
+          className="h-8 text-xs"
+          placeholder="e.g. qwen2.5:3b"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onBlur={() => {
+            if (inputValue !== resolvedValue) {
+              onChange(provider.providerName, modelType, inputValue);
+            }
+          }}
+          disabled={isSaving}
+        />
+        {provider.modelOverrides?.[modelType] && (
+          <span className="text-[10px] text-blue-600">override active</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1 min-w-[200px] mb-2">
+      <Label className="text-xs text-muted-foreground mb-1 block capitalize">
+        {modelType} Model
+      </Label>
+      <Select
+        value={resolvedValue}
+        onValueChange={(v) => onChange(provider.providerName, modelType, v)}
+        disabled={isSaving}
+      >
+        <SelectTrigger className="h-8 text-xs">
+          <SelectValue placeholder="Select model" />
+        </SelectTrigger>
+        <SelectContent className="max-h-[300px]">
+          {modelsLoading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          )}
+          {!modelsLoading && availableModels.length === 0 && (
+            <div className="text-xs text-muted-foreground px-3 py-2">
+              No models available
+            </div>
+          )}
+          {!modelsLoading && availableModels.length > 0 && (
+            <>
+              <SelectItem value="__reset__" className="text-xs italic text-muted-foreground">
+                Reset to default
+              </SelectItem>
+              {availableModels.map((m) => (
+                <SelectItem key={m.id} value={m.id} className="text-xs">
+                  <span className="truncate">{m.name}</span>
+                  {m.isFree && (
+                    <span className="ml-1 text-green-600 text-[10px]">free</span>
+                  )}
+                </SelectItem>
+              ))}
+            </>
+          )}
+        </SelectContent>
+      </Select>
+      {provider.modelOverrides?.[modelType] && (
+        <span className="text-[10px] text-blue-600">override active</span>
+      )}
+    </div>
+  );
 }
 
 export function LlmProviderManager() {
@@ -236,6 +316,24 @@ export function LlmProviderManager() {
     fetchModels(newFilter);
   };
 
+  const handleManualProviderChange = async (providerName) => {
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch("/api/v1/seo/llm-providers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manualProvider: providerName }),
+      });
+      if (!res.ok) throw new Error("Failed to update provider");
+      setSettings((prev) => ({ ...prev, manualProvider: providerName }));
+      toast.success(`Manual provider set to ${providerName}.`);
+    } catch (error) {
+      toast.error("Failed to update provider. " + error.message);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   const handleModeChange = async (newMode) => {
     setIsSavingSettings(true);
     try {
@@ -331,6 +429,29 @@ export function LlmProviderManager() {
                 </button>
               </div>
             </div>
+
+            {/* Manual Provider Selection */}
+            {settings.providerMode === "manual" && (
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium">Use Provider</Label>
+                <Select
+                  value={settings.manualProvider || ""}
+                  onValueChange={(value) => handleManualProviderChange(value)}
+                  disabled={isSavingSettings}
+                >
+                  <SelectTrigger className="h-9 text-xs w-[220px]">
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((p) => (
+                      <SelectItem key={p.providerName} value={p.providerName} className="text-xs">
+                        {p.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Auto Failover Toggle */}
             <div className="flex items-center gap-3">
@@ -460,92 +581,22 @@ export function LlmProviderManager() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="space-y-2 min-w-[200px]">
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1 block">Analysis Model</Label>
-                          <Select
-                            value={provider.modelOverrides?.analysis || provider.models?.analysis || ""}
-                            onValueChange={(v) => handleModelChange(provider.providerName, "analysis", v)}
-                            disabled={savingModel === `${provider.providerName}-analysis`}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Select model" />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
-                              {modelsLoading && (
-                                <div className="flex items-center justify-center py-4">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                </div>
-                              )}
-                              {!modelsLoading && availableModels.length === 0 && (
-                                <div className="text-xs text-muted-foreground px-3 py-2">
-                                  No models available
-                                </div>
-                              )}
-                              {!modelsLoading && availableModels.length > 0 && (
-                                <>
-                                  <SelectItem value="__reset__" className="text-xs italic text-muted-foreground">
-                                    Reset to default
-                                  </SelectItem>
-                                  {availableModels.map((m) => (
-                                    <SelectItem key={m.id} value={m.id} className="text-xs">
-                                      <span className="truncate">{m.name}</span>
-                                      {m.isFree && (
-                                        <span className="ml-1 text-green-600 text-[10px]">free</span>
-                                      )}
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          {provider.modelOverrides?.analysis && (
-                            <span className="text-[10px] text-blue-600">override active</span>
-                          )}
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground mb-1 block">Suggestion Model</Label>
-                          <Select
-                            value={provider.modelOverrides?.suggestion || provider.models?.suggestion || ""}
-                            onValueChange={(v) => handleModelChange(provider.providerName, "suggestion", v)}
-                            disabled={savingModel === `${provider.providerName}-suggestion`}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Select model" />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
-                              {modelsLoading && (
-                                <div className="flex items-center justify-center py-4">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                </div>
-                              )}
-                              {!modelsLoading && availableModels.length === 0 && (
-                                <div className="text-xs text-muted-foreground px-3 py-2">
-                                  No models available
-                                </div>
-                              )}
-                              {!modelsLoading && availableModels.length > 0 && (
-                                <>
-                                  <SelectItem value="__reset__" className="text-xs italic text-muted-foreground">
-                                    Reset to default
-                                  </SelectItem>
-                                  {availableModels.map((m) => (
-                                    <SelectItem key={m.id} value={m.id} className="text-xs">
-                                      <span className="truncate">{m.name}</span>
-                                      {m.isFree && (
-                                        <span className="ml-1 text-green-600 text-[10px]">free</span>
-                                      )}
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          {provider.modelOverrides?.suggestion && (
-                            <span className="text-[10px] text-blue-600">override active</span>
-                          )}
-                        </div>
-                      </div>
+                      <ModelSelector
+                        provider={provider}
+                        modelType="analysis"
+                        availableModels={availableModels}
+                        modelsLoading={modelsLoading}
+                        savingModel={savingModel}
+                        onChange={handleModelChange}
+                      />
+                      <ModelSelector
+                        provider={provider}
+                        modelType="suggestion"
+                        availableModels={availableModels}
+                        modelsLoading={modelsLoading}
+                        savingModel={savingModel}
+                        onChange={handleModelChange}
+                      />
                     </TableCell>
                     <TableCell>
                       <div className="text-xs">

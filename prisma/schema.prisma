@@ -82,6 +82,13 @@ model WehowareClient {
   seoAnalyserIssues  WehowareSeoAnalyserIssue[]
   seoAnalyserSuggestions WehowareSeoAnalyserSuggestion[]
   seoAnalyserLogs    WehowareSeoAnalyserLog[]
+  crmContacts        WehowareCrmContact[]
+  crmPipelines       WehowareCrmPipeline[]
+  crmActivities      WehowareCrmActivity[]
+  crmContactLists    WehowareCrmContactList[]
+  crmDeals           WehowareCrmDeal[]
+  crmContactListMemberships WehowareCrmContactListMembership[]
+  attachments        WehowareAttachment[]
 
   @@map("wehoware_clients")
 }
@@ -163,6 +170,20 @@ model WehowareProfile {
   createdInventoryItems      WehowareInventoryItem[]    @relation("InventoryItemCreator")
   updatedInventoryItems      WehowareInventoryItem[]    @relation("InventoryItemUpdater")
   inventoryStockMovements    WehowareInventoryStockMovement[]
+  createdCrmContacts         WehowareCrmContact[]         @relation("CrmContactCreator")
+  updatedCrmContacts         WehowareCrmContact[]         @relation("CrmContactUpdater")
+  ownedCrmContacts           WehowareCrmContact[]         @relation("CrmContactOwner")
+  createdCrmPipelines        WehowareCrmPipeline[]        @relation("CrmPipelineCreator")
+  updatedCrmPipelines        WehowareCrmPipeline[]        @relation("CrmPipelineUpdater")
+  createdCrmPipelineStages   WehowareCrmPipelineStage[]   @relation("CrmPipelineStageCreator")
+  updatedCrmPipelineStages   WehowareCrmPipelineStage[]   @relation("CrmPipelineStageUpdater")
+  createdCrmDeals            WehowareCrmDeal[]            @relation("CrmDealCreator")
+  updatedCrmDeals            WehowareCrmDeal[]            @relation("CrmDealUpdater")
+  ownedCrmDeals              WehowareCrmDeal[]            @relation("CrmDealOwner")
+  createdCrmActivities       WehowareCrmActivity[]        @relation("CrmActivityCreator")
+  updatedCrmActivities       WehowareCrmActivity[]        @relation("CrmActivityUpdater")
+  createdCrmContactLists     WehowareCrmContactList[]     @relation("CrmListCreator")
+  updatedCrmContactLists     WehowareCrmContactList[]     @relation("CrmListUpdater")
 
   @@index([role])
   @@index([clientId])
@@ -1158,6 +1179,7 @@ model WehowareBill {
   updater    WehowareProfile?       @relation("BillUpdater", fields: [updatedBy], references: [id])
   vendor     WehowareVendor         @relation(fields: [vendorId], references: [id])
   expenses   WehowareExpense[]
+  attachments WehowareAttachment[]
 
   @@index([clientId])
   @@index([vendorId])
@@ -1236,6 +1258,7 @@ model WehowareExpense {
   bill           WehowareBill?    @relation(fields: [billId], references: [id])
   client         WehowareClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   submitter      WehowareProfile  @relation("ExpenseSubmitter", fields: [submittedBy], references: [id])
+  attachments   WehowareAttachment[]
 
   @@index([clientId])
   @@index([submittedBy])
@@ -1244,6 +1267,26 @@ model WehowareExpense {
   @@index([approvedBy], map: "wehoware_expenses_approved_by_fkey")
   @@index([billId], map: "wehoware_expenses_bill_id_fkey")
   @@map("wehoware_expenses")
+}
+
+model WehowareAttachment {
+  id          String           @id @default(uuid()) @db.VarChar(36)
+  clientId    String           @map("client_id") @db.VarChar(36)
+  billId      String?          @map("bill_id") @db.VarChar(36)
+  expenseId   String?          @map("expense_id") @db.VarChar(36)
+  fileName    String           @map("file_name") @db.VarChar(255)
+  fileUrl     String           @map("file_url") @db.VarChar(500)
+  fileType    String           @map("file_type") @db.VarChar(100)
+  fileSize    Int              @map("file_size")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  bill        WehowareBill?    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  expense     WehowareExpense? @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  client      WehowareClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+  @@index([expenseId])
+  @@index([clientId])
+  @@map("wehoware_attachments")
 }
 
 model WehowareBankAccount {
@@ -1882,6 +1925,7 @@ model WehowareSocialInboxConversation {
   client   WehowareClient        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   account  WehowareSocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   messages WehowareSocialInboxMessage[]
+  crmContact WehowareCrmContact?
 
   @@unique([accountId, platformConversationId])
   @@index([clientId])
@@ -2429,4 +2473,296 @@ model WehowareSeoAnalyserLog {
   @@index([clientId])
   @@index([runId, step])
   @@map("wehoware_seo_analyser_logs")
+}
+
+// ── CRM Module ───────────────────────────────────────────────────────────────
+
+enum ContactType {
+  Lead
+  Customer
+}
+
+enum ContactStatus {
+  New
+  Contacted
+  Qualified
+  Unqualified
+  Converted
+}
+
+enum LeadSource {
+  Website
+  SocialMedia
+  FormBuilder
+  Appointment
+  PhoneCall
+  Email
+  Manual
+  Referral
+  Event
+  Other
+}
+
+enum DealStatus {
+  Open
+  Won
+  Lost
+}
+
+enum ActivityType {
+  Call
+  Email
+  Meeting
+  Note
+  Task
+  SocialMessage
+  FormBuilderSubmission
+  AppointmentBooked
+}
+
+enum ActivityDirection {
+  Inbound
+  Outbound
+  Internal
+}
+
+enum PipelineStageType {
+  Lead
+  Qualified
+  Proposal
+  Negotiation
+  Won
+  Lost
+  Custom
+}
+
+model WehowareCrmContact {
+  id                        String                      @id @default(uuid()) @db.VarChar(36)
+  clientId                  String                      @map("client_id") @db.VarChar(36)
+  type                      ContactType                 @default(Lead)
+  status                    ContactStatus               @default(New)
+  source                    LeadSource                  @default(Manual)
+  firstName                 String?                     @map("first_name") @db.VarChar(100)
+  lastName                  String?                     @map("last_name") @db.VarChar(100)
+  email                     String?                     @db.VarChar(255)
+  phone                     String?                     @db.VarChar(50)
+  company                   String?                     @db.VarChar(255)
+  jobTitle                  String?                     @map("job_title") @db.VarChar(255)
+  avatarUrl                 String?                     @map("avatar_url") @db.VarChar(500)
+  website                   String?                     @db.VarChar(500)
+  linkedinUrl               String?                     @map("linkedin_url") @db.VarChar(500)
+  socialProfiles            Json?                       @map("social_profiles")
+  socialPlatform            String?                     @map("social_platform") @db.VarChar(50)
+  socialInboxConversationId String?                     @map("social_inbox_conversation_id") @db.VarChar(36) @unique
+  formSubmissionId          String?                     @map("form_submission_id") @db.VarChar(36)
+  appointmentId             String?                     @map("appointment_id") @db.VarChar(36)
+  accountingCustomerId      String?                     @map("accounting_customer_id") @db.VarChar(36)
+  inquirySubject            String?                     @map("inquiry_subject") @db.VarChar(500)
+  inquiryMessage            String?                     @map("inquiry_message") @db.Text
+  inquiryServiceId          String?                     @map("inquiry_service_id") @db.VarChar(36)
+  notes                     String?                     @db.Text
+  tags                      Json?
+  customFields              Json?                       @map("custom_fields")
+  assignedTo                String?                     @map("assigned_to") @db.VarChar(36)
+  active                    Boolean                     @default(true)
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @updatedAt @map("updated_at")
+  createdBy                 String?                     @map("created_by") @db.VarChar(36)
+  updatedBy                 String?                     @map("updated_by") @db.VarChar(36)
+
+  client                    WehowareClient                     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator                   WehowareProfile?                   @relation("CrmContactCreator", fields: [createdBy], references: [id])
+  updater                   WehowareProfile?                   @relation("CrmContactUpdater", fields: [updatedBy], references: [id])
+  owner                     WehowareProfile?                   @relation("CrmContactOwner", fields: [assignedTo], references: [id])
+  socialInboxConversation   WehowareSocialInboxConversation?   @relation(fields: [socialInboxConversationId], references: [id])
+  activities                WehowareCrmActivity[]
+  deals                     WehowareCrmDeal[]
+  listMemberships           WehowareCrmContactListMembership[]
+
+  @@unique([clientId, email])
+  @@index([clientId])
+  @@index([type])
+  @@index([status])
+  @@index([source])
+  @@index([active])
+  @@index([assignedTo], map: "wehoware_crm_contacts_assigned_to_fkey")
+  @@index([createdBy], map: "wehoware_crm_contacts_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_crm_contacts_updated_by_fkey")
+  @@index([socialInboxConversationId], map: "wehoware_crm_contacts_social_inbox_conv_fkey")
+  @@map("wehoware_crm_contacts")
+}
+
+model WehowareCrmPipeline {
+  id          String                     @id @default(uuid()) @db.VarChar(36)
+  clientId    String                     @map("client_id") @db.VarChar(36)
+  name        String                     @db.VarChar(255)
+  description String?                    @db.Text
+  isDefault   Boolean                    @default(false) @map("is_default")
+  active      Boolean                    @default(true)
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+  createdBy   String?                    @map("created_by") @db.VarChar(36)
+  updatedBy   String?                    @map("updated_by") @db.VarChar(36)
+
+  client      WehowareClient             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator     WehowareProfile?           @relation("CrmPipelineCreator", fields: [createdBy], references: [id])
+  updater     WehowareProfile?           @relation("CrmPipelineUpdater", fields: [updatedBy], references: [id])
+  stages      WehowareCrmPipelineStage[]
+  deals       WehowareCrmDeal[]
+
+  @@index([clientId])
+  @@index([active])
+  @@index([createdBy], map: "wehoware_crm_pipelines_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_crm_pipelines_updated_by_fkey")
+  @@map("wehoware_crm_pipelines")
+}
+
+model WehowareCrmPipelineStage {
+  id          String                  @id @default(uuid()) @db.VarChar(36)
+  pipelineId  String                  @map("pipeline_id") @db.VarChar(36)
+  name        String                  @db.VarChar(255)
+  stageType   PipelineStageType       @default(Custom) @map("stage_type")
+  displayOrder Int                    @default(0) @map("display_order")
+  color       String?                 @db.VarChar(50)
+  active      Boolean                 @default(true)
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  createdBy   String?                 @map("created_by") @db.VarChar(36)
+  updatedBy   String?                 @map("updated_by") @db.VarChar(36)
+
+  pipeline    WehowareCrmPipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  creator     WehowareProfile?        @relation("CrmPipelineStageCreator", fields: [createdBy], references: [id])
+  updater     WehowareProfile?        @relation("CrmPipelineStageUpdater", fields: [updatedBy], references: [id])
+  deals       WehowareCrmDeal[]
+
+  @@index([pipelineId])
+  @@index([active])
+  @@index([displayOrder])
+  @@index([createdBy], map: "wehoware_crm_pipeline_stages_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_crm_pipeline_stages_updated_by_fkey")
+  @@map("wehoware_crm_pipeline_stages")
+}
+
+model WehowareCrmDeal {
+  id          String                  @id @default(uuid()) @db.VarChar(36)
+  clientId    String                  @map("client_id") @db.VarChar(36)
+  pipelineId  String                  @map("pipeline_id") @db.VarChar(36)
+  stageId     String                  @map("stage_id") @db.VarChar(36)
+  contactId   String?                 @map("contact_id") @db.VarChar(36)
+  title       String                  @db.VarChar(500)
+  value       Decimal                 @default(0.00) @db.Decimal(12, 2)
+  currency    String                  @default("CAD") @db.VarChar(10)
+  status      DealStatus              @default(Open)
+  expectedCloseDate DateTime?         @map("expected_close_date") @db.Date
+  closedAt    DateTime?               @map("closed_at")
+  closedReason String?                @map("closed_reason") @db.VarChar(255)
+  notes       String?                 @db.Text
+  tags        Json?
+  assignedTo  String?                 @map("assigned_to") @db.VarChar(36)
+  active      Boolean                 @default(true)
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  createdBy   String?                 @map("created_by") @db.VarChar(36)
+  updatedBy   String?                 @map("updated_by") @db.VarChar(36)
+
+  client      WehowareClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pipeline    WehowareCrmPipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage       WehowareCrmPipelineStage @relation(fields: [stageId], references: [id])
+  contact     WehowareCrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  creator     WehowareProfile?        @relation("CrmDealCreator", fields: [createdBy], references: [id])
+  updater     WehowareProfile?        @relation("CrmDealUpdater", fields: [updatedBy], references: [id])
+  owner       WehowareProfile?        @relation("CrmDealOwner", fields: [assignedTo], references: [id])
+  activities  WehowareCrmActivity[]
+
+  @@index([clientId])
+  @@index([pipelineId])
+  @@index([stageId])
+  @@index([contactId])
+  @@index([status])
+  @@index([active])
+  @@index([assignedTo], map: "wehoware_crm_deals_assigned_to_fkey")
+  @@index([createdBy], map: "wehoware_crm_deals_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_crm_deals_updated_by_fkey")
+  @@map("wehoware_crm_deals")
+}
+
+model WehowareCrmActivity {
+  id               String              @id @default(uuid()) @db.VarChar(36)
+  clientId         String              @map("client_id") @db.VarChar(36)
+  contactId        String?             @map("contact_id") @db.VarChar(36)
+  dealId           String?             @map("deal_id") @db.VarChar(36)
+  type             ActivityType
+  direction        ActivityDirection   @default(Internal)
+  title            String              @db.VarChar(500)
+  description      String?             @db.Text
+  scheduledAt      DateTime?           @map("scheduled_at")
+  completedAt      DateTime?           @map("completed_at")
+  durationMinutes  Int?                @map("duration_minutes")
+  metadata         Json?
+  active           Boolean             @default(true)
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  createdBy        String?             @map("created_by") @db.VarChar(36)
+  updatedBy        String?             @map("updated_by") @db.VarChar(36)
+
+  client           WehowareClient      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contact          WehowareCrmContact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal             WehowareCrmDeal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  creator          WehowareProfile?    @relation("CrmActivityCreator", fields: [createdBy], references: [id])
+  updater          WehowareProfile?    @relation("CrmActivityUpdater", fields: [updatedBy], references: [id])
+
+  @@index([clientId])
+  @@index([contactId])
+  @@index([dealId])
+  @@index([type])
+  @@index([direction])
+  @@index([scheduledAt])
+  @@index([completedAt])
+  @@index([active])
+  @@index([createdBy], map: "wehoware_crm_activities_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_crm_activities_updated_by_fkey")
+  @@map("wehoware_crm_activities")
+}
+
+model WehowareCrmContactList {
+  id          String                             @id @default(uuid()) @db.VarChar(36)
+  clientId    String                             @map("client_id") @db.VarChar(36)
+  name        String                             @db.VarChar(255)
+  description String?                            @db.Text
+  color       String?                            @db.VarChar(20)
+  filters     Json?
+  active      Boolean                            @default(true)
+  createdAt   DateTime                           @default(now()) @map("created_at")
+  updatedAt   DateTime                           @updatedAt @map("updated_at")
+  createdBy   String?                            @map("created_by") @db.VarChar(36)
+  updatedBy   String?                            @map("updated_by") @db.VarChar(36)
+
+  client      WehowareClient                     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creator     WehowareProfile?                   @relation("CrmListCreator", fields: [createdBy], references: [id])
+  updater     WehowareProfile?                   @relation("CrmListUpdater", fields: [updatedBy], references: [id])
+  memberships WehowareCrmContactListMembership[]
+
+  @@index([clientId])
+  @@index([active])
+  @@index([createdBy], map: "wehoware_crm_contact_lists_created_by_fkey")
+  @@index([updatedBy], map: "wehoware_crm_contact_lists_updated_by_fkey")
+  @@map("wehoware_crm_contact_lists")
+}
+
+model WehowareCrmContactListMembership {
+  id          String                 @id @default(uuid()) @db.VarChar(36)
+  listId      String                 @map("list_id") @db.VarChar(36)
+  contactId   String                 @map("contact_id") @db.VarChar(36)
+  clientId    String                 @map("client_id") @db.VarChar(36)
+  createdAt   DateTime               @default(now()) @map("created_at")
+
+  list        WehowareCrmContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  contact     WehowareCrmContact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  client      WehowareClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, contactId])
+  @@index([listId])
+  @@index([contactId])
+  @@index([clientId])
+  @@map("wehoware_crm_contact_list_memberships")
 }

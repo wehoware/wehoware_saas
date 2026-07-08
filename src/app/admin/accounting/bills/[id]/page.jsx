@@ -38,6 +38,7 @@ import {
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { formatMoney, PAYMENT_METHODS } from "@/lib/accounting";
 import { useAuth } from "@/contexts/auth-context";
+import AttachmentUploader from "@/components/attachments/AttachmentUploader";
 
 const STATUS_COLORS = {
   Draft: "bg-gray-100 text-gray-700 border border-gray-200",
@@ -281,6 +282,23 @@ export default function BillViewPage() {
                   </tbody>
                 </table>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Attachments</CardTitle>
+              <CardDescription>Receipts, invoices, and supporting documents</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AttachmentUploader
+                entityId={bill.id}
+                entityType="bills"
+                attachments={bill.attachments || []}
+                onAttachmentsChange={(updated) =>
+                  setBill((prev) => ({ ...prev, attachments: updated }))
+                }
+              />
             </CardContent>
           </Card>
         </div>

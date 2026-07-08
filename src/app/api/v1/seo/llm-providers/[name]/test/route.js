@@ -30,7 +30,7 @@ export const POST = withAuth(
       }
 
       const { name } = await context.params;
-      const validProviders = new Set(["openrouter"]);
+      const validProviders = new Set(["openrouter", "wehoware"]);
 
       if (!validProviders.has(name)) {
         return NextResponse.json(

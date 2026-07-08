@@ -23,6 +23,13 @@ const PROVIDER_FIELDS = [
     signupUrl: "https://openrouter.ai/keys",
     description: "Free models: Llama 3.3 70B, Kimi K2.6, and more",
   },
+  {
+    name: "wehoware",
+    label: "Wehoware Private AI API Key",
+    placeholder: "daivik-local-...",
+    signupUrl: null,
+    description: "Private Ollama/OpenAI-compatible server at https://ai.wehoware.ca/v1",
+  },
 ];
 
 export function ApiKeyDialog({ open, onOpenChange, keyStatus, onSave }) {
@@ -98,15 +105,17 @@ export function ApiKeyDialog({ open, onOpenChange, keyStatus, onSave }) {
                         Not set
                       </span>
                     )}
-                    <a
-                      href={field.signupUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-xs text-blue-500 hover:text-blue-600"
-                    >
-                      Get Key
-                      <ExternalLink className="h-3 w-3 ml-0.5" />
-                    </a>
+                    {field.signupUrl && (
+                      <a
+                        href={field.signupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-xs text-blue-500 hover:text-blue-600"
+                      >
+                        Get Key
+                        <ExternalLink className="h-3 w-3 ml-0.5" />
+                      </a>
+                    )}
                   </div>
                 </div>
                 <Input

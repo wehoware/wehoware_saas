@@ -12,6 +12,7 @@ import {
   EXPENSE_CATEGORY_DB_TO_LABEL,
   EXPENSE_CATEGORY_LABEL_TO_DB,
 } from "@/lib/accounting";
+import { deleteThumbnailByUrl } from "@/lib/storage";
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
@@ -19,6 +20,17 @@ function resolveClientId(user) {
     return user.activeClientId ?? null;
   }
   return null;
+}
+
+function serializeAttachment(a) {
+  return {
+    id: a.id,
+    file_name: a.fileName,
+    file_url: a.fileUrl,
+    file_type: a.fileType,
+    file_size: a.fileSize,
+    created_at: a.createdAt,
+  };
 }
 
 function serializeExpense(e) {
@@ -41,6 +53,7 @@ function serializeExpense(e) {
     currency: e.currency,
     expense_date: e.expenseDate,
     receipt_url: e.receiptUrl,
+    attachments: Array.isArray(e.attachments) ? e.attachments.map(serializeAttachment) : [],
     status: e.status,
     approved_by: e.approvedBy,
     approver: e.approver
@@ -64,6 +77,7 @@ function serializeExpense(e) {
 const INCLUDE_RELATIONS = {
   submitter: { select: { id: true, email: true, firstName: true, lastName: true } },
   approver: { select: { id: true, email: true, firstName: true, lastName: true } },
+  attachments: { orderBy: { createdAt: "desc" } },
 };
 
 export const GET = withAuth(
@@ -263,6 +277,14 @@ export const DELETE = withAuth(
           { error: "Only Pending expenses can be deleted by the submitter" },
           { status: 400 }
         );
+      }
+
+      const attachments = await prisma.wehowareAttachment.findMany({
+        where: { expenseId: id, clientId },
+        select: { fileUrl: true },
+      });
+      for (const att of attachments) {
+        await deleteThumbnailByUrl(att.fileUrl).catch(() => {});
       }
 
       await prisma.wehowareExpense.delete({ where: { id } });

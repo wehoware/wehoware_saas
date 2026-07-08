@@ -14,6 +14,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { isAvailable, resetProvider } from "./health.js";
 import { AllProvidersExhaustedError } from "./base.js";
 import openrouter from "./openrouter.js";
+import wehowarePrivate from "./wehoware-private.js";
 
 /**
  * Registry of all available provider modules.
@@ -21,13 +22,14 @@ import openrouter from "./openrouter.js";
  */
 const PROVIDER_REGISTRY = {
   openrouter,
+  wehoware: wehowarePrivate,
 };
 
 /**
  * Default provider order (by priority).
  * When a client has no DB-configured priorities, this order is used.
  */
-const DEFAULT_PRIORITY = ["openrouter"];
+const DEFAULT_PRIORITY = ["openrouter", "wehoware"];
 
 /**
  * Ensure all provider rows exist for a client in the database.
@@ -84,8 +86,15 @@ export async function getProvidersForClient(clientId) {
 
     const isConfigured = providerModule.isConfigured(db.apiKeyEncrypted ? decryptSecret(db.apiKeyEncrypted) : null);
 
-    const envAnalysisModel = process.env.OPENROUTER_DEFAULT_ANALYSIS_MODEL || null;
-    const envSuggestionModel = process.env.OPENROUTER_DEFAULT_SUGGESTION_MODEL || null;
+    const envPrefix = db.providerName.toUpperCase();
+    const envAnalysisModel =
+      process.env[`${envPrefix}_DEFAULT_ANALYSIS_MODEL`] ||
+      process.env.OPENROUTER_DEFAULT_ANALYSIS_MODEL ||
+      null;
+    const envSuggestionModel =
+      process.env[`${envPrefix}_DEFAULT_SUGGESTION_MODEL`] ||
+      process.env.OPENROUTER_DEFAULT_SUGGESTION_MODEL ||
+      null;
 
     const analysisModel =
       db.analysisModel ||
@@ -438,18 +447,21 @@ export async function callLLM(clientId, { prompt, systemPrompt, model, callType 
       continue;
     }
 
-    // Select model based on call type — 3-tier resolution: DB → env → config
+    // Select model based on call type — 4-tier resolution: DB → provider env → openrouter env → config
+    const envPrefix = dbProvider.providerName.toUpperCase();
     let useModel = model;
     if (!useModel) {
       if (callType === "suggestion") {
         useModel =
           dbProvider.suggestionModel ||
+          process.env[`${envPrefix}_DEFAULT_SUGGESTION_MODEL`] ||
           process.env.OPENROUTER_DEFAULT_SUGGESTION_MODEL ||
           providerModule.config.suggestionModel ||
           providerModule.config.analysisModel;
       } else {
         useModel =
           dbProvider.analysisModel ||
+          process.env[`${envPrefix}_DEFAULT_ANALYSIS_MODEL`] ||
           process.env.OPENROUTER_DEFAULT_ANALYSIS_MODEL ||
           providerModule.config.analysisModel;
       }

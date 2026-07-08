@@ -76,6 +76,7 @@ function serializeBill(b) {
     line_items: Array.isArray(b.lineItems)
       ? b.lineItems.map(serializeLineItem)
       : [],
+    attachment_count: b._count?.attachments ?? 0,
   };
 }
 
@@ -121,6 +122,7 @@ export const GET = withAuth(
           include: {
             vendor: { select: { id: true, name: true, email: true } },
             lineItems: { orderBy: { sortOrder: "asc" } },
+            _count: { select: { attachments: true } },
           },
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,

@@ -31,6 +31,7 @@ import {
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { BILL_STATUSES, formatMoney, computeLineItemTotals } from "@/lib/accounting";
 import { useAuth } from "@/contexts/auth-context";
+import AttachmentUploader from "@/components/attachments/AttachmentUploader";
 
 const EMPTY_LINE = { description: "", quantity: 1, unit_price: 0 };
 
@@ -50,6 +51,7 @@ export default function EditBillPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState(null);
+  const [attachments, setAttachments] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +70,7 @@ export default function EditBillPage() {
         const vendorJson = vendorRes.ok ? await vendorRes.json() : { data: [] };
         if (cancelled) return;
         setVendors(vendorJson.data || []);
+        setAttachments(bill.attachments || []);
         setForm({
           vendor_id: bill.vendor_id,
           bill_number: bill.bill_number,
@@ -329,6 +332,21 @@ export default function EditBillPage() {
                 rows={3}
                 value={form.notes}
                 onChange={(e) => setField("notes", e.target.value)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Attachments</CardTitle>
+              <CardDescription>Receipts, invoices, and supporting documents</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AttachmentUploader
+                entityId={billId}
+                entityType="bills"
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
               />
             </CardContent>
           </Card>

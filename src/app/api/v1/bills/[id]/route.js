@@ -15,6 +15,7 @@ import {
   BILL_STATUS_DB_TO_LABEL,
   BILL_STATUS_LABEL_TO_DB,
 } from "@/lib/accounting";
+import { deleteThumbnailByUrl } from "@/lib/storage";
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
@@ -32,6 +33,17 @@ function serializeLineItem(li) {
     unit_price: li.unitPrice,
     total: li.total,
     sort_order: li.sortOrder,
+  };
+}
+
+function serializeAttachment(a) {
+  return {
+    id: a.id,
+    file_name: a.fileName,
+    file_url: a.fileUrl,
+    file_type: a.fileType,
+    file_size: a.fileSize,
+    created_at: a.createdAt,
   };
 }
 
@@ -77,6 +89,7 @@ function serializeBill(b) {
     updated_by: b.updatedBy,
     line_items: Array.isArray(b.lineItems) ? b.lineItems.map(serializeLineItem) : [],
     payments: Array.isArray(b.payments) ? b.payments.map(serializePayment) : [],
+    attachments: Array.isArray(b.attachments) ? b.attachments.map(serializeAttachment) : [],
   };
 }
 
@@ -99,6 +112,7 @@ export const GET = withAuth(
           vendor: { select: { id: true, name: true, email: true } },
           lineItems: { orderBy: { sortOrder: "asc" } },
           payments: { orderBy: { paymentDate: "desc" } },
+          attachments: { orderBy: { createdAt: "desc" } },
         },
       });
       if (!bill) {
@@ -283,6 +297,7 @@ export const PUT = withAuth(
             vendor: { select: { id: true, name: true, email: true } },
             lineItems: { orderBy: { sortOrder: "asc" } },
             payments: { orderBy: { paymentDate: "desc" } },
+            attachments: { orderBy: { createdAt: "desc" } },
           },
         });
       });
@@ -338,6 +353,14 @@ export const DELETE = withAuth(
           },
           { status: 400 }
         );
+      }
+
+      const attachments = await prisma.wehowareAttachment.findMany({
+        where: { billId: id, clientId },
+        select: { fileUrl: true },
+      });
+      for (const att of attachments) {
+        await deleteThumbnailByUrl(att.fileUrl).catch(() => {});
       }
 
       await prisma.wehowareBill.delete({ where: { id } });

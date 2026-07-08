@@ -53,6 +53,8 @@ import {
   MoreHorizontal,
   Trash2,
   FilterIcon,
+  Paperclip,
+  Eye,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
@@ -62,6 +64,7 @@ import {
   EXPENSE_STATUSES,
   formatMoney,
 } from "@/lib/accounting";
+import AttachmentUploader from "@/components/attachments/AttachmentUploader";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const STATUS_FILTERS = ["All", ...EXPENSE_STATUSES];
@@ -119,6 +122,8 @@ export default function ExpensesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
+  const [createdExpenseId, setCreatedExpenseId] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const [approveOpen, setApproveOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
@@ -128,6 +133,10 @@ export default function ExpensesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewingExpense, setViewingExpense] = useState(null);
+  const [viewAttachments, setViewAttachments] = useState([]);
 
   async function fetchExpenses(showRefresh = false) {
     try {
@@ -172,6 +181,7 @@ export default function ExpensesPage() {
 
   function openCreate() {
     setForm(EMPTY_FORM);
+    setCreatedExpenseId(null);
     setCreateOpen(true);
   }
 
@@ -200,13 +210,23 @@ export default function ExpensesPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to submit expense");
       toast.success("Expense submitted");
-      setCreateOpen(false);
-      await fetchExpenses();
+      if (pendingCount > 0) {
+        setCreatedExpenseId(json.id);
+      } else {
+        setCreateOpen(false);
+        await fetchExpenses();
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function openViewExpense(expense) {
+    setViewingExpense(expense);
+    setViewAttachments(expense.attachments || []);
+    setViewOpen(true);
   }
 
   function askApprove(expense, action) {
@@ -352,7 +372,12 @@ export default function ExpensesPage() {
                     <TableRow key={e.id}>
                       <TableCell>{fmtDate(e.expense_date)}</TableCell>
                       <TableCell className="font-medium">
-                        {e.description}
+                        <div className="flex items-center gap-1.5">
+                          {e.description}
+                          {(e.attachment_count > 0 || (e.attachments && e.attachments.length > 0)) && (
+                            <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{e.category}</TableCell>
                       <TableCell>
@@ -383,6 +408,12 @@ export default function ExpensesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => openViewExpense(e)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
                             {isAdmin && e.status === "Pending" && (
                               <>
                                 <DropdownMenuItem
@@ -507,15 +538,21 @@ export default function ExpensesPage() {
               />
             </div>
             <div>
-              <Label htmlFor="exp-receipt">Receipt URL</Label>
-              <Input
-                id="exp-receipt"
-                placeholder="https://…"
-                value={form.receipt_url}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, receipt_url: e.target.value }))
-                }
-              />
+              <Label>Attachments</Label>
+              <div className="mt-1">
+                <AttachmentUploader
+                  entityId={createdExpenseId}
+                  entityType="expenses"
+                  attachments={[]}
+                  onAttachmentsChange={() => {}}
+                  onPendingFilesChange={setPendingCount}
+                  onPendingUploadComplete={() => {
+                    setCreateOpen(false);
+                    setCreatedExpenseId(null);
+                    fetchExpenses();
+                  }}
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="exp-notes">Notes</Label>
@@ -626,6 +663,63 @@ export default function ExpensesPage() {
         onConfirm={confirmDelete}
         isLoading={isDeleting}
       />
+
+      {/* View expense detail sheet */}
+      <Sheet open={viewOpen} onOpenChange={setViewOpen}>
+        <SheetContent className="sm:max-w-md w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Expense Details</SheetTitle>
+            <SheetDescription>
+              {viewingExpense?.description}
+            </SheetDescription>
+          </SheetHeader>
+          {viewingExpense && (
+            <div className="py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Date:</span>{" "}
+                  {fmtDate(viewingExpense.expense_date)}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Category:</span>{" "}
+                  {viewingExpense.category}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Amount:</span>{" "}
+                  {formatMoney(viewingExpense.amount, viewingExpense.currency)}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Status:</span>{" "}
+                  {viewingExpense.status}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Submitter:</span>{" "}
+                  {viewingExpense.submitter
+                    ? `${viewingExpense.submitter.first_name || ""} ${
+                        viewingExpense.submitter.last_name || ""
+                      }`.trim() || viewingExpense.submitter.email
+                    : "—"}
+                </div>
+                {viewingExpense.notes && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Notes:</span>{" "}
+                    {viewingExpense.notes}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t pt-4">
+                <AttachmentUploader
+                  entityId={viewingExpense.id}
+                  entityType="expenses"
+                  attachments={viewAttachments}
+                  onAttachmentsChange={setViewAttachments}
+                />
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

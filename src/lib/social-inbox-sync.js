@@ -11,6 +11,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getSocialClient } from "@/lib/social-clients/index.js";
+import { bridgeSocialConversationToCrm } from "@/lib/crm-bridge.js";
 
 const INBOX_SUPPORTED_PLATFORMS = new Set(["facebook", "instagram", "twitter", "tiktok"]);
 
@@ -156,6 +157,23 @@ export async function syncInboxForAccount(account) {
       });
 
       conversationsSynced++;
+
+      // Bridge new conversations to CRM contacts
+      if (!conversation.lastSyncedAt) {
+        try {
+          await bridgeSocialConversationToCrm({
+            clientId: account.clientId,
+            conversationId: conversation.id,
+            platform: account.platform.platformCode,
+            senderName: conv.participantName,
+            senderUsername: conv.participantHandle,
+            senderProfileUrl: conv.participantAvatar,
+            messageContent: conv.lastMessagePreview,
+          });
+        } catch (bridgeErr) {
+          console.warn(`[inbox-sync] CRM bridge failed for conv ${conversation.id}:`, bridgeErr.message);
+        }
+      }
     } catch (convErr) {
       console.error(`[inbox-sync] Conversation upsert failed:`, convErr.message);
       errors.push(convErr.message);

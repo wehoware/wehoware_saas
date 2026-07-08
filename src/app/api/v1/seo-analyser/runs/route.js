@@ -6,8 +6,8 @@ import { computeSeoScore } from "@/lib/seoScore";
 import { prisma } from "@/lib/prisma";
 import { resetProvider } from "@/lib/llm-providers/health.js";
 
-// Allow up to 60s for background LLM analysis (Vercel Hobby plan max)
-export const maxDuration = 60;
+// Allow up to 300s for background LLM analysis (Vercel Pro plan max)
+export const maxDuration = 300;
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId ?? null;
@@ -22,6 +22,10 @@ function resolveClientId(user) {
  * Executed via after() so the HTTP response returns immediately.
  */
 async function runAnalysisInBackground(runId, clientId, contentType, contentId, content) {
+  // Reset health state for all configured providers before each run
+  resetProvider("openrouter");
+  resetProvider("wehoware");
+
   // Safety timeout — mark run as failed if analysis exceeds 280s
   const safetyTimeout = setTimeout(async () => {
     await prisma.wehowareSeoAnalyserRun.update({

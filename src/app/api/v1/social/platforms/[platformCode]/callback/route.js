@@ -10,7 +10,7 @@ import { OAUTH_STATE_MAX_AGE_MS } from "@/lib/social-clients/constants.js";
 
 const PLATFORM_TOKEN_URLS = {
   facebook: "https://graph.facebook.com/v18.0/oauth/access_token",
-  instagram: "https://graph.facebook.com/v18.0/oauth/access_token",
+  instagram: "https://api.instagram.com/oauth/access_token",
   twitter: "https://api.twitter.com/2/oauth2/token",
   tiktok: "https://open.tiktokapis.com/v2/oauth/token",
 };
@@ -64,6 +64,33 @@ async function exchangeFacebookToken(code, redirectUri) {
   return res.json();
 }
 
+/**
+ * Exchange an Instagram authorization code for an access token.
+ * Uses the Instagram API with Instagram Login flow (api.instagram.com),
+ * NOT the Facebook Graph API.
+ */
+async function exchangeInstagramToken(code, redirectUri) {
+  const appId = process.env.INSTAGRAM_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET;
+  if (!appId || !appSecret) throw new Error("Instagram credentials not configured (INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET)");
+  const res = await fetch(PLATFORM_TOKEN_URLS.instagram, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: appId,
+      client_secret: appSecret,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    }).toString(),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Instagram token exchange failed: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
 async function exchangeTwitterToken(code, redirectUri, codeVerifier) {
   const apiKey = process.env.TWITTER_API_KEY;
   const apiSecret = process.env.TWITTER_API_SECRET;
@@ -107,35 +134,50 @@ async function exchangeTikTokToken(code, redirectUri, codeVerifier) {
 
 // ── Profile fetch ───────────────────────────────────────────────────────────
 
-async function fetchFacebookProfile(accessToken) {
+/**
+ * Fetch ALL Facebook Pages the user manages.
+ * Returns an array of profiles — one per Page — so we can connect
+ * multiple Pages in a single OAuth flow.
+ */
+async function fetchFacebookProfiles(accessToken) {
   const pagesRes = await fetch(
     `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,picture&access_token=${accessToken}`
   );
-  if (!pagesRes.ok) return {};
+  if (!pagesRes.ok) return [];
   const pages = await pagesRes.json();
-  const firstPage = pages.data?.[0];
-  return {
-    name: firstPage?.name || "Facebook Page",
-    handle: firstPage?.id,
+  return (pages.data || []).map((page) => ({
+    name: page.name || "Facebook Page",
+    handle: page.id,
     profileData: {
-      pageId: firstPage?.id,
-      pageAccessToken: firstPage?.access_token,
-      pages: pages.data || [],
+      pageId: page.id,
+      pageAccessToken: page.access_token,
+      picture: page.picture?.data?.url || null,
     },
-  };
+  }));
 }
 
+/**
+ * Fetch the Instagram user's profile using the Instagram API with Instagram Login.
+ * Returns a single profile (the logged-in user's IG account).
+ */
 async function fetchInstagramProfile(accessToken) {
-  const igRes = await fetch(
-    `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,instagram_business_account{id,name,username,profile_picture_url}&access_token=${accessToken}`
+  // The /me endpoint returns the user's Instagram ID and username
+  const res = await fetch(
+    `https://graph.instagram.com/v25.0/me?fields=id,username&access_token=${accessToken}`
   );
-  if (!igRes.ok) return {};
-  const pages = await igRes.json();
-  const igAccount = pages.data?.[0]?.instagram_business_account;
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("[Instagram callback] Profile fetch error:", res.status, body);
+    return {};
+  }
+  const data = await res.json();
   return {
-    name: igAccount?.name || igAccount?.username || "Instagram Account",
-    handle: igAccount?.username,
-    profileData: { igUserId: igAccount?.id, username: igAccount?.username },
+    name: data.username || "Instagram Account",
+    handle: data.username,
+    profileData: {
+      igUserId: data.id,
+      username: data.username,
+    },
   };
 }
 
@@ -175,7 +217,11 @@ export async function GET(request, { params }) {
   const code = searchParams.get("code");
   const stateParam = searchParams.get("state");
   const error = searchParams.get("error");
-  const appOrigin = new URL(request.url).origin;
+  // Use the request's origin but fix the 0.0.0.0 host that results from
+  // running `next dev -H 0.0.0.0` for LAN access. Browsers can't reach 0.0.0.0.
+  const reqUrl = new URL(request.url);
+  if (reqUrl.hostname === "0.0.0.0") reqUrl.hostname = "localhost";
+  const appOrigin = reqUrl.origin;
   const accountsUrl = `${appOrigin}/admin/social-media/accounts`;
 
   if (error) {
@@ -198,23 +244,23 @@ export async function GET(request, { params }) {
       process.env[`${platformCode.toUpperCase()}_CALLBACK_URL`] ||
       `${appOrigin}/api/v1/social/platforms/${platformCode}/callback`;
 
-    let tokenData, profile;
+    let tokenData, profiles;
     switch (platformCode) {
       case "facebook":
         tokenData = await exchangeFacebookToken(code, redirectUri);
-        profile = await fetchFacebookProfile(tokenData.access_token);
+        profiles = await fetchFacebookProfiles(tokenData.access_token);
         break;
       case "instagram":
-        tokenData = await exchangeFacebookToken(code, redirectUri);
-        profile = await fetchInstagramProfile(tokenData.access_token);
+        tokenData = await exchangeInstagramToken(code, redirectUri);
+        profiles = [await fetchInstagramProfile(tokenData.access_token)];
         break;
       case "twitter":
         tokenData = await exchangeTwitterToken(code, redirectUri, codeVerifier);
-        profile = await fetchTwitterProfile(tokenData.access_token);
+        profiles = [await fetchTwitterProfile(tokenData.access_token)];
         break;
       case "tiktok":
         tokenData = await exchangeTikTokToken(code, redirectUri, codeVerifier);
-        profile = await fetchTikTokProfile(tokenData.data?.access_token || tokenData.access_token);
+        profiles = [await fetchTikTokProfile(tokenData.data?.access_token || tokenData.access_token)];
         break;
       default:
         throw new Error(`Unknown platform: ${platformCode}`);
@@ -224,40 +270,48 @@ export async function GET(request, { params }) {
     const refreshToken = tokenData.data?.refresh_token || tokenData.refresh_token || null;
     const expiresIn = tokenData.data?.access_token_expire_in || tokenData.expires_in;
     const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
-    const accountId = profile.handle || profile.profileData?.userId || profile.profileData?.openId || userId;
 
-    await prisma.wehowareSocialAccount.upsert({
-      where: { clientId_platformId_accountId: { clientId, platformId, accountId } },
-      update: {
-        accountName: profile.name || platformCode,
-        accountHandle: profile.handle || null,
-        accessToken,
-        refreshToken,
-        tokenExpiresAt,
-        profileData: profile.profileData || {},
-        status: "Active",
-        lastSyncedAt: new Date(),
-        syncError: null,
-        updatedBy: userId,
-      },
-      create: {
-        clientId,
-        platformId,
-        accountName: profile.name || platformCode,
-        accountHandle: profile.handle || null,
-        accountId,
-        accessToken,
-        refreshToken,
-        tokenExpiresAt,
-        profileData: profile.profileData || {},
-        status: "Active",
-        lastSyncedAt: new Date(),
-        createdBy: userId,
-        updatedBy: userId,
-      },
-    });
+    if (profiles.length === 0) {
+      throw new Error(`No ${platformCode} accounts found. Make sure you manage at least one ${platformCode === "facebook" ? "Facebook Page" : "Instagram business account"}.`);
+    }
 
-    return NextResponse.redirect(`${accountsUrl}?success=connected&platform=${platformCode}`);
+    // Create or update a WehowareSocialAccount for EACH profile (Page/IG account).
+    // This lets users connect multiple Facebook Pages or Instagram accounts in one OAuth flow.
+    for (const profile of profiles) {
+      const accountId = profile.handle || profile.profileData?.userId || profile.profileData?.openId || userId;
+      await prisma.wehowareSocialAccount.upsert({
+        where: { clientId_platformId_accountId: { clientId, platformId, accountId } },
+        update: {
+          accountName: profile.name || platformCode,
+          accountHandle: profile.handle || null,
+          accessToken,
+          refreshToken,
+          tokenExpiresAt,
+          profileData: profile.profileData || {},
+          status: "Active",
+          lastSyncedAt: new Date(),
+          syncError: null,
+          updatedBy: userId,
+        },
+        create: {
+          clientId,
+          platformId,
+          accountName: profile.name || platformCode,
+          accountHandle: profile.handle || null,
+          accountId,
+          accessToken,
+          refreshToken,
+          tokenExpiresAt,
+          profileData: profile.profileData || {},
+          status: "Active",
+          lastSyncedAt: new Date(),
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      });
+    }
+
+    return NextResponse.redirect(`${accountsUrl}?success=connected&platform=${platformCode}&count=${profiles.length}`);
   } catch (err) {
     console.error(`[OAuth Callback ${platformCode}]`, err);
     return NextResponse.redirect(`${accountsUrl}?error=${encodeURIComponent("Authentication failed. Please try connecting again.")}`);

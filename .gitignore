@@ -13,6 +13,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Local environment variables (ensure these remain secure)
+.env
 .env.local
 .env.development.local
 .env.test.local

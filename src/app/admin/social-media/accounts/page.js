@@ -41,7 +41,13 @@ export default function SocialAccountsPage() {
     const success = params.get("success");
     const error = params.get("error");
     const platform = params.get("platform");
-    if (success === "connected") toast.success(`${platform || "Account"} connected successfully!`);
+    const count = params.get("count");
+    if (success === "connected") {
+      const msg = count && count !== "1"
+        ? `${count} ${platform || ""} accounts connected successfully!`
+        : `${platform || "Account"} connected successfully!`;
+      toast.success(msg);
+    }
     if (error) toast.error(`Connection failed: ${decodeURIComponent(error)}`);
     if (success || error) window.history.replaceState({}, "", window.location.pathname);
   }, []);
@@ -65,15 +71,31 @@ export default function SocialAccountsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // When the user returns to this tab after completing OAuth in a new tab,
+  // refresh the accounts list so the newly connected account appears.
+  useEffect(() => {
+    const onFocus = () => loadData();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadData]);
+
   async function connectPlatform(platform) {
     setConnecting(platform.id);
     try {
       const res = await fetch(`/api/v1/social/platforms/${platform.platformCode}/oauth-url`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to generate OAuth URL");
-      window.location.href = data.authUrl;
+
+      // Open OAuth in a new tab so the user doesn't lose their place in the admin dashboard.
+      const popup = window.open(data.authUrl, "_blank");
+      if (!popup) {
+        // Popup was blocked — fall back to redirecting the current page
+        toast.error("Popup blocked. Please allow popups for this site, or you'll be redirected.");
+        window.location.href = data.authUrl;
+      }
     } catch (err) {
       toast.error(err.message || "Failed to connect platform");
+    } finally {
       setConnecting(null);
     }
   }
@@ -105,8 +127,6 @@ export default function SocialAccountsPage() {
     }
   }
 
-  const connectedPlatformCodes = new Set(accounts.filter((a) => a.status === "Active").map((a) => a.platform?.platformCode));
-
   return (
     <>
       <div className="space-y-6">
@@ -126,9 +146,9 @@ export default function SocialAccountsPage() {
           <h2 className="text-sm font-medium text-muted-foreground mb-3">Available Platforms</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {platforms.map((platform) => {
-              const isConnected = connectedPlatformCodes.has(platform.platformCode);
+              const connectedCount = accounts.filter((a) => a.platform?.platformCode === platform.platformCode && a.status === "Active").length;
               return (
-                <Card key={platform.id} className={`cursor-pointer hover:shadow-md transition-shadow ${isConnected ? "border-green-200 bg-green-50/30" : ""}`}>
+                <Card key={platform.id} className={`hover:shadow-md transition-shadow ${connectedCount > 0 ? "border-green-200 bg-green-50/30" : ""}`}>
                   <CardContent className="pt-4 pb-4">
                     <div className="flex flex-col items-center gap-2 text-center">
                       {platform.logoUrl ? (
@@ -137,20 +157,21 @@ export default function SocialAccountsPage() {
                         <Share2 className="w-8 h-8 text-muted-foreground" />
                       )}
                       <span className="text-sm font-medium">{platform.name}</span>
-                      {isConnected ? (
-                        <Badge className="bg-green-100 text-green-700 text-xs">Connected</Badge>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full text-xs"
-                          disabled={connecting === platform.id}
-                          onClick={() => connectPlatform(platform)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {connecting === platform.id ? "Connecting..." : "Connect"}
-                        </Button>
+                      {connectedCount > 0 && (
+                        <Badge className="bg-green-100 text-green-700 text-xs">
+                          {connectedCount} connected
+                        </Badge>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs"
+                        disabled={connecting === platform.id}
+                        onClick={() => connectPlatform(platform)}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        {connecting === platform.id ? "Connecting..." : "Connect"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

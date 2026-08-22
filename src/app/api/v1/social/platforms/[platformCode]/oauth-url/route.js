@@ -40,10 +40,13 @@ export const GET = withAuth(async (request, { params }) => {
       process.env[`${platform.platformCode.toUpperCase()}_CALLBACK_URL`] ||
       `${appOrigin}/api/v1/social/platforms/${platform.platformCode}/callback`;
 
+    const envPrefix = platform.platformCode.toUpperCase();
     const appClientId =
-      process.env[`${platform.platformCode.toUpperCase()}_APP_ID`] ||
-      process.env[`${platform.platformCode.toUpperCase()}_CLIENT_KEY`] ||
-      process.env[`${platform.platformCode.toUpperCase()}_API_KEY`];
+      process.env[`${envPrefix}_APP_ID`] ||
+      process.env[`${envPrefix}_CLIENT_KEY`] ||
+      process.env[`${envPrefix}_API_KEY`] ||
+      // Instagram shares the Meta app with Facebook — fall back to FB credentials
+      (platform.platformCode === "instagram" ? process.env.FACEBOOK_APP_ID : undefined);
 
     if (!appClientId) {
       return NextResponse.json(

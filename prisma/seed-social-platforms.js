@@ -24,9 +24,9 @@ const SOCIAL_PLATFORMS = [
     platformCode: "instagram",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/512px-Instagram_logo_2016.svg.png",
     oauthConfig: {
-      authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
-      tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
-      scopes: ["instagram_basic", "instagram_content_publish", "pages_show_list"],
+      authUrl: "https://www.instagram.com/oauth/authorize",
+      tokenUrl: "https://api.instagram.com/oauth/access_token",
+      scopes: ["instagram_business_basic", "instagram_business_content_publish", "instagram_business_manage_comments", "instagram_business_manage_messages"],
       pkce: false,
     },
     rateLimits: {

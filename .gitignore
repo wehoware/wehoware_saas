@@ -33,3 +33,6 @@ storybook-static/
 
 # Claude Code / agent workspace state (not code)
 .claude/
+
+# Local HTTPS certificates (mkcert)
+certs/

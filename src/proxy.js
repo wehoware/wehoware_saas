@@ -77,10 +77,14 @@ export function proxy(request) {
   }
 
   // Redirect authenticated users away from /login
-  if (isLoginPath && sessionToken) {
-    const response = NextResponse.redirect(new URL("/admin", request.url));
-    return addSecurityHeaders(response);
-  }
+  // NOTE: Disabled the cookie-based redirect because the session cookie from
+  // http://localhost is sent to https://localhost too, but the HTTPS server
+  // can't validate it — trapping the user on a blank /admin. The client-side
+  // auth-context already redirects authenticated users away from /login.
+  // if (isLoginPath && sessionToken) {
+  //   const response = NextResponse.redirect(new URL("/admin", request.url));
+  //   return addSecurityHeaders(response);
+  // }
 
   // Public booking pages must be embeddable on client websites
   if (pathname.startsWith("/book/")) {

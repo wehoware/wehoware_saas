@@ -78,6 +78,46 @@ export class FacebookClient extends BaseSocialClient {
     } catch { return {}; }
   }
 
+  // ── Post Management ──────────────────────────────────────────────────────
+
+  async deletePost(platformPostId) {
+    await this._fetch(`${GRAPH_API_BASE}/${platformPostId}?access_token=${this.pageToken}`, {
+      method: "DELETE",
+    });
+    return true;
+  }
+
+  // ── Comments ─────────────────────────────────────────────────────────────
+
+  async fetchComments(platformPostId) {
+    const data = await this._fetch(
+      `${GRAPH_API_BASE}/${platformPostId}/comments?fields=id,message,from,created_time,like_count,comment_count&access_token=${this.pageToken}`
+    );
+    return (data.data || []).map((c) => ({
+      commentId: c.id,
+      authorName: c.from?.name || "Facebook User",
+      authorHandle: null,
+      authorAvatar: null,
+      text: c.message || "",
+      createdAt: c.created_time ? new Date(c.created_time) : new Date(),
+      likeCount: c.like_count || 0,
+      metadata: { replyCount: c.comment_count || 0, fromId: c.from?.id || null },
+    }));
+  }
+
+  async replyToComment(platformPostId, commentId, text) {
+    // Facebook replies are posted to the comment's /comments endpoint.
+    // If commentId is null, post a top-level comment on the post.
+    const endpoint = commentId
+      ? `${GRAPH_API_BASE}/${commentId}/comments`
+      : `${GRAPH_API_BASE}/${platformPostId}/comments`;
+    const data = await this._fetch(endpoint, {
+      method: "POST",
+      body: JSON.stringify({ message: text, access_token: this.pageToken }),
+    });
+    return data.id;
+  }
+
   // ── Inbox — Facebook Messenger ───────────────────────────────────────────
 
   async fetchConversations(since = null) {

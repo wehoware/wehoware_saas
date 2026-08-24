@@ -120,9 +120,9 @@ export const PUT = withAuth(async (request, { params }) => {
 });
 
 export const DELETE = withAuth(async (request, { params }) => {
+  const { id } = await params;
   try {
     const { prisma, user } = request;
-    const { id } = await params;
     if (user.role === "client" && user.activeClientRole === "viewer") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -131,10 +131,42 @@ export const DELETE = withAuth(async (request, { params }) => {
     if (!DELETABLE_STATUSES.has(post.status)) {
       return NextResponse.json({ error: `Cannot delete a post with status: ${post.status}` }, { status: 409 });
     }
+
+    console.log(`[DELETE post ${id}] Post status: ${post.status}, accountPosts: ${post.accountPosts?.length || 0}`);
+
+    // If the post was published, attempt to delete from each platform.
+    // Platform deletion failures are non-blocking — the post is always deleted
+    // from the database regardless of platform API results.
+    const publishedAccountPosts = post.accountPosts?.filter(
+      (ap) => ap.status === "Published" && ap.platformPostId
+    ) || [];
+
+    console.log(`[DELETE post ${id}] Published account posts to delete from platform: ${publishedAccountPosts.length}`);
+
+    const deletionResults = [];
+    for (const ap of publishedAccountPosts) {
+      try {
+        const { getSocialClient } = await import("@/lib/social-clients/index.js");
+        const client = getSocialClient({
+          ...ap.account,
+          platform: ap.account?.platform,
+        });
+        if (client && typeof client.deletePost === "function") {
+          await client.deletePost(ap.platformPostId);
+          deletionResults.push({ accountId: ap.accountId, success: true });
+        }
+      } catch (err) {
+        console.warn(`[DELETE post ${id}] Platform deletion skipped for account ${ap.accountId}: ${err.message}`);
+        deletionResults.push({ accountId: ap.accountId, success: false, error: err.message });
+      }
+    }
+
+    console.log(`[DELETE post ${id}] Deleting from database...`);
     await prisma.wehowareSocialPost.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    console.log(`[DELETE post ${id}] Database deletion succeeded.`);
+    return NextResponse.json({ success: true, platformDeletions: deletionResults });
   } catch (err) {
-    console.error("[DELETE /api/v1/social/posts/[id]]", err);
-    return NextResponse.json({ error: "Failed to delete post" }, { status: 500 });
+    console.error(`[DELETE /api/v1/social/posts/[id] ${id}]`, err);
+    return NextResponse.json({ error: "Failed to delete post: " + err.message }, { status: 500 });
   }
 });

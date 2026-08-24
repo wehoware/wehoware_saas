@@ -117,6 +117,13 @@ export class TwitterClient extends BaseSocialClient {
     } catch { return {}; }
   }
 
+  // ── Post Management ──────────────────────────────────────────────────────
+
+  async deletePost(platformPostId) {
+    await this._fetch(`${TWITTER_API_BASE}/tweets/${platformPostId}`, { method: "DELETE" });
+    return true;
+  }
+
   // ── Inbox — Twitter Direct Messages ──────────────────────────────────────
 
   async fetchConversations(since = null) {

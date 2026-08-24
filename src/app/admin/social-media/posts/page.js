@@ -222,7 +222,7 @@ export default function SocialPostsPage() {
                         <X className="h-4 w-4" />
                       </Button>
                     )}
-                    {["Draft", "Failed", "Cancelled"].includes(post.status) && (
+                    {["Draft", "Scheduled", "Failed", "Cancelled", "Published", "PartiallyPublished"].includes(post.status) && (
                       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(post.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -252,7 +252,11 @@ export default function SocialPostsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          <AlertDialogDescription>
+            {posts.find((p) => p.id === deleteTarget)?.status === "Published" || posts.find((p) => p.id === deleteTarget)?.status === "PartiallyPublished"
+              ? "This will also attempt to delete the post from all connected platforms. This action cannot be undone."
+              : "This action cannot be undone. The post will be permanently removed."}
+          </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

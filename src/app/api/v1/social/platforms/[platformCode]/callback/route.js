@@ -143,8 +143,13 @@ async function fetchFacebookProfiles(accessToken) {
   const pagesRes = await fetch(
     `https://graph.facebook.com/v18.0/me/accounts?fields=id,name,access_token,picture&access_token=${accessToken}`
   );
-  if (!pagesRes.ok) return [];
+  if (!pagesRes.ok) {
+    const errBody = await pagesRes.text().catch(() => "");
+    console.error("[Facebook callback] /me/accounts error:", pagesRes.status, errBody);
+    return [];
+  }
   const pages = await pagesRes.json();
+  console.log("[Facebook callback] /me/accounts response:", JSON.stringify(pages));
   return (pages.data || []).map((page) => ({
     name: page.name || "Facebook Page",
     handle: page.id,

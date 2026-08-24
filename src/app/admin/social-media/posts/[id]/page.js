@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -29,6 +29,8 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadPost = useCallback(async () => {
     if (!params?.id) return;
@@ -87,6 +89,30 @@ export default function PostDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/social/posts/${params.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        let errorMsg = "Failed to delete post";
+        try {
+          const d = await res.json();
+          errorMsg = d.error || errorMsg;
+        } catch {
+          errorMsg = res.statusText || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+      toast.success("Post deleted");
+      router.push("/admin/social-media/posts");
+    } catch (err) {
+      toast.error(err.message || "Failed to delete post");
+      setDeleteTarget(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -132,6 +158,9 @@ export default function PostDetailPage() {
               <X className="h-4 w-4 mr-2" />Cancel
             </Button>
           )}
+          <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(true)}>
+            <Trash2 className="h-4 w-4 mr-2" />Delete
+          </Button>
         </div>
       </div>
 
@@ -247,6 +276,25 @@ export default function PostDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancel}>Yes, Cancel Post</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteTarget} onOpenChange={() => setDeleteTarget(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {post.status === "Published" || post.status === "PartiallyPublished"
+                ? "This will also attempt to delete the post from all connected platforms. This action cannot be undone."
+                : "This action cannot be undone. The post will be permanently removed."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Yes, Delete Post"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

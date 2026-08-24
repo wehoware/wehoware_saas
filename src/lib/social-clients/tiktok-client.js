@@ -85,6 +85,16 @@ export class TikTokClient extends BaseSocialClient {
     } catch { return {}; }
   }
 
+  // ── Post Management ──────────────────────────────────────────────────────
+
+  async deletePost(platformPostId) {
+    await this._fetch(`${TIKTOK_API_BASE}/video/delete/`, {
+      method: "POST",
+      body: JSON.stringify({ video_id: platformPostId }),
+    });
+    return true;
+  }
+
   // ── Inbox — TikTok Video Comments ────────────────────────────────────────
   // TikTok does not provide a third-party DM API. The inbox uses video
   // comment threads as conversations instead.

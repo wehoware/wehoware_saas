@@ -28,7 +28,7 @@ export const PUBLISHABLE_STATUSES = new Set(["Draft", "Scheduled", "Failed"]);
 
 export const EDITABLE_STATUSES = new Set(["Draft", "Scheduled"]);
 
-export const DELETABLE_STATUSES = new Set(["Draft", "Scheduled", "Failed", "Cancelled"]);
+export const DELETABLE_STATUSES = new Set(["Draft", "Scheduled", "Failed", "Cancelled", "Published", "PartiallyPublished"]);
 
 export const MAX_CONTENT_LENGTH = 63206;
 export const MAX_RETRY_ATTEMPTS = 3;

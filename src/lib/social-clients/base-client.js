@@ -42,6 +42,35 @@ export class BaseSocialClient {
     throw new Error(`getPostMetrics not implemented for ${this.platformCode}`);
   }
 
+  /**
+   * Delete a post from the platform.
+   * @param {string} platformPostId - the platform's ID for the post
+   * @returns {boolean} true if deletion succeeded
+   */
+  async deletePost(_platformPostId) {
+    throw new Error(`deletePost not implemented for ${this.platformCode}`);
+  }
+
+  /**
+   * Fetch comments on a post.
+   * @param {string} platformPostId - the platform's ID for the post
+   * @returns {Array<{commentId, authorName, authorHandle, authorAvatar, text, createdAt, likeCount}>}
+   */
+  async fetchComments(_platformPostId) {
+    throw new Error(`fetchComments not implemented for ${this.platformCode}`);
+  }
+
+  /**
+   * Reply to a comment on a post.
+   * @param {string} platformPostId - the platform's ID for the post
+   * @param {string} commentId - the comment to reply to (null = top-level comment on post)
+   * @param {string} text - the reply text
+   * @returns {string} the new comment's platform ID
+   */
+  async replyToComment(_platformPostId, _commentId, _text) {
+    throw new Error(`replyToComment not implemented for ${this.platformCode}`);
+  }
+
   // ── Inbox ───────────────────────────────────────────────────────────────
 
   /**

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, FileText, Calendar, Eye, Pencil, Trash2, Send, X } from "lucide-react";
+import { Plus, Search, FileText, Calendar, Eye, Pencil, Send, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
@@ -33,7 +33,6 @@ export default function SocialPostsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [publishing, setPublishing] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const LIMIT = 20;
@@ -58,22 +57,6 @@ export default function SocialPostsPage() {
   }, [user, page, statusFilter, search]);
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
-
-  async function deletePost() {
-    if (!deleteTarget) return;
-    try {
-      const res = await fetch(`/api/v1/social/posts/${deleteTarget}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete");
-      }
-      toast.success("Post deleted");
-      setDeleteTarget(null);
-      await loadPosts();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  }
 
   async function publishPost(postId) {
     setPublishing(postId);
@@ -222,11 +205,6 @@ export default function SocialPostsPage() {
                         <X className="h-4 w-4" />
                       </Button>
                     )}
-                    {["Draft", "Scheduled", "Failed", "Cancelled", "Published", "PartiallyPublished"].includes(post.status) && (
-                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(post.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -247,23 +225,6 @@ export default function SocialPostsPage() {
           </div>
         )}
       </div>
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {posts.find((p) => p.id === deleteTarget)?.status === "Published" || posts.find((p) => p.id === deleteTarget)?.status === "PartiallyPublished"
-              ? "This will also attempt to delete the post from all connected platforms. This action cannot be undone."
-              : "This action cannot be undone. The post will be permanently removed."}
-          </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deletePost} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
         <AlertDialogContent>

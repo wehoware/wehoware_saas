@@ -65,15 +65,19 @@ async function exchangeFacebookToken(code, redirectUri) {
 }
 
 /**
- * Exchange an Instagram authorization code for an access token.
- * Uses the Instagram API with Instagram Login flow (api.instagram.com),
- * NOT the Facebook Graph API.
+ * Exchange an Instagram authorization code for a LONG-LIVED access token.
+ * Uses the Instagram API with Instagram Login flow:
+ *   1. Exchange code for short-lived token at api.instagram.com/oauth/access_token
+ *   2. Exchange short-lived token for long-lived (60 day) token at graph.instagram.com/access_token
+ * The short-lived token expires in 1 hour — we must exchange it immediately.
  */
 async function exchangeInstagramToken(code, redirectUri) {
   const appId = process.env.INSTAGRAM_APP_ID;
   const appSecret = process.env.INSTAGRAM_APP_SECRET;
   if (!appId || !appSecret) throw new Error("Instagram credentials not configured (INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET)");
-  const res = await fetch(PLATFORM_TOKEN_URLS.instagram, {
+
+  // Step 1: Exchange code for short-lived token (expires in 1 hour)
+  const shortRes = await fetch(PLATFORM_TOKEN_URLS.instagram, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -84,11 +88,30 @@ async function exchangeInstagramToken(code, redirectUri) {
       redirect_uri: redirectUri,
     }).toString(),
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Instagram token exchange failed: ${res.status} ${body}`);
+  if (!shortRes.ok) {
+    const body = await shortRes.text().catch(() => "");
+    throw new Error(`Instagram token exchange failed: ${shortRes.status} ${body}`);
   }
-  return res.json();
+  const shortData = await shortRes.json();
+  const shortLivedToken = shortData.access_token;
+
+  // Step 2: Exchange short-lived token for long-lived token (expires in 60 days)
+  const longRes = await fetch(
+    `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortLivedToken}`
+  );
+  if (!longRes.ok) {
+    const body = await longRes.text().catch(() => "");
+    throw new Error(`Instagram long-lived token exchange failed: ${longRes.status} ${body}`);
+  }
+  const longData = await longRes.json();
+
+  // Return in the same shape as the short-lived response, but with the long-lived token
+  return {
+    ...shortData,
+    access_token: longData.access_token,
+    token_type: longData.token_type,
+    expires_in: longData.expires_in,
+  };
 }
 
 async function exchangeTwitterToken(code, redirectUri, codeVerifier) {

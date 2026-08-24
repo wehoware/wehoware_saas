@@ -30,16 +30,16 @@ export default function PostDetailPage() {
   const [publishing, setPublishing] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
 
-  const loadPost = useCallback(async () => {
+  const loadPost = useCallback(async (skipLoadingState = false) => {
     if (!params?.id) return;
-    setLoading(true);
+    if (!skipLoadingState) setLoading(true);
     try {
       const res = await fetch(`/api/v1/social/posts/${params.id}`);
       if (!res.ok) { router.push("/admin/social-media/posts"); return; }
       const data = await res.json();
       setPost(data.post);
     } catch {
-      toast.error("Failed to load post");
+      // silent fail for polling
     } finally {
       setLoading(false);
     }
@@ -48,6 +48,16 @@ export default function PostDetailPage() {
   useEffect(() => {
     if (user) loadPost();
   }, [user, loadPost]);
+
+  // Auto-poll when post is in a transitional state (Scheduled or Publishing)
+  // so the UI updates without manual refresh
+  useEffect(() => {
+    if (!post?.id) return;
+    const transitional = ["Scheduled", "Publishing"].includes(post.status);
+    if (!transitional) return;
+    const interval = setInterval(() => loadPost(true), 5000); // poll every 5s, no loading flash
+    return () => clearInterval(interval);
+  }, [post?.id, post?.status, loadPost]);
 
   async function handlePublish() {
     setPublishing(true);

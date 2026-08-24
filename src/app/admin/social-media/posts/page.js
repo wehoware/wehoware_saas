@@ -37,9 +37,9 @@ export default function SocialPostsPage() {
   const [cancelTarget, setCancelTarget] = useState(null);
   const LIMIT = 20;
 
-  const loadPosts = useCallback(async () => {
+  const loadPosts = useCallback(async (skipLoadingState = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!skipLoadingState) setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (statusFilter) params.set("status", statusFilter);
@@ -50,13 +50,21 @@ export default function SocialPostsPage() {
       setPosts(data.posts || []);
       setTotal(data.total || 0);
     } catch {
-      toast.error("Failed to load posts");
+      if (!skipLoadingState) toast.error("Failed to load posts");
     } finally {
       setLoading(false);
     }
   }, [user, page, statusFilter, search]);
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
+
+  // Auto-poll when any post is in a transitional state (Scheduled or Publishing)
+  useEffect(() => {
+    const hasTransitional = posts.some((p) => ["Scheduled", "Publishing"].includes(p.status));
+    if (!hasTransitional) return;
+    const interval = setInterval(() => loadPosts(true), 10000); // poll every 10s, no loading flash
+    return () => clearInterval(interval);
+  }, [posts, loadPosts]);
 
   async function publishPost(postId) {
     setPublishing(postId);

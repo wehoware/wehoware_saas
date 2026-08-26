@@ -118,12 +118,12 @@ export default function SocialAccountsPage() {
     if (!deleteTarget) return;
     try {
       const res = await fetch(`/api/v1/social/accounts/${deleteTarget}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to disconnect");
-      toast.success("Account disconnected");
+      if (!res.ok) throw new Error("Failed to delete");
+      toast.success("Account deleted");
       setDeleteTarget(null);
       await loadData();
     } catch {
-      toast.error("Failed to disconnect account");
+      toast.error("Failed to delete account");
     }
   }
 
@@ -264,15 +264,15 @@ export default function SocialAccountsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect Account?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will disconnect the account and remove its access token. Scheduled posts for this account may fail. This action cannot be undone.
+              This will permanently delete the account, its access tokens, publish history, and inbox conversations. Scheduled posts for this account will be cancelled. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={disconnectAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Disconnect
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

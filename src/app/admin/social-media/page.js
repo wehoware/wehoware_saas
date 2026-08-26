@@ -2,13 +2,29 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Share2, Users, FileText, Calendar, BarChart2, AlertCircle, CheckCircle, Inbox } from "lucide-react";
+import {
+  Share2,
+  Users,
+  FileText,
+  Calendar,
+  BarChart2,
+  AlertCircle,
+  CheckCircle,
+  Inbox,
+  Plus,
+  Link2,
+  ArrowRight,
+  Loader2,
+  TrendingUp,
+  Clock,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { STATUS_COLORS } from "@/lib/social-clients/constants.js";
+import AdminPageHeader from "@/components/AdminPageHeader";
 
 export default function SocialMediaDashboardPage() {
   const { user } = useAuth();
@@ -19,11 +35,10 @@ export default function SocialMediaDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const loadDashboard = useCallback(async () => {
-    setLoading(true);
     try {
       const [accountsRes, postsRes, analyticsRes, inboxRes] = await Promise.allSettled([
         fetch("/api/v1/social/accounts"),
-        fetch("/api/v1/social/posts?limit=5"),
+        fetch("/api/v1/social/posts?limit=3"),
         fetch("/api/v1/social/analytics/posts"),
         fetch("/api/v1/social/inbox?status=Open&limit=1"),
       ]);
@@ -57,204 +72,350 @@ export default function SocialMediaDashboardPage() {
 
   const activeAccounts = accounts.filter((a) => a.status === "Active");
   const scheduledPosts = recentPosts.filter((p) => p.status === "Scheduled").length;
+  const failedPosts = analytics?.summary?.failed ?? 0;
+  const totalPosts = analytics?.summary?.total_posts ?? 0;
+  const publishedPosts = analytics?.summary?.published ?? 0;
+  const successRate = totalPosts > 0 ? Math.round((publishedPosts / totalPosts) * 100) : 0;
 
+  // ── Stat cards (4-column grid, consistent height) ──────────────────────
   const stats = [
-    { title: "Connected Accounts", value: activeAccounts.length, icon: Users, href: "/admin/social-media/accounts", color: "text-blue-500" },
-    { title: "Total Posts", value: analytics?.summary?.total_posts ?? 0, icon: FileText, href: "/admin/social-media/posts", color: "text-green-500" },
-    { title: "Scheduled", value: scheduledPosts, icon: Calendar, href: "/admin/social-media/calendar", color: "text-orange-500" },
-    { title: "Published", value: analytics?.summary?.published ?? 0, icon: CheckCircle, href: "/admin/social-media/posts", color: "text-purple-500" },
-    { title: "Unread Messages", value: inboxUnread, icon: Inbox, href: "/admin/social-media/inbox", color: "text-red-500" },
+    {
+      title: "Connected Accounts",
+      value: activeAccounts.length,
+      sub: `${accounts.length} total`,
+      icon: Users,
+      href: "/admin/social-media/accounts",
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+    },
+    {
+      title: "Total Posts",
+      value: totalPosts,
+      sub: `${publishedPosts} published`,
+      icon: FileText,
+      href: "/admin/social-media/posts",
+      iconBg: "bg-green-50",
+      iconColor: "text-green-600",
+    },
+    {
+      title: "Scheduled",
+      value: scheduledPosts,
+      sub: scheduledPosts > 0 ? "Awaiting publish" : "No pending",
+      icon: Clock,
+      href: "/admin/social-media/calendar",
+      iconBg: "bg-orange-50",
+      iconColor: "text-orange-600",
+    },
+    {
+      title: "Unread Messages",
+      value: inboxUnread,
+      sub: inboxUnread > 0 ? "Needs attention" : "All caught up",
+      icon: Inbox,
+      href: "/admin/social-media/inbox",
+      iconBg: "bg-red-50",
+      iconColor: "text-red-600",
+    },
   ];
 
-  function renderAccountList() {
-    if (loading) {
-      return (
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}
-        </div>
-      );
-    }
-    if (accounts.length === 0) {
-      return (
-        <div className="text-center py-6">
-          <Share2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">No accounts connected yet</p>
-          <Link href="/admin/social-media/accounts">
-            <Button variant="outline" size="sm" className="mt-2">Connect Account</Button>
-          </Link>
-        </div>
-      );
-    }
+  // ── Loading state ──────────────────────────────────────────────────────
+  if (loading) {
     return (
-      <div className="space-y-2">
-        {accounts.slice(0, 5).map((account) => (
-          <div key={account.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-            <div className="flex items-center gap-2">
-              {account.platform?.logoUrl
-                ? <img src={account.platform.logoUrl} alt={account.platform.name} className="w-5 h-5 rounded" />
-                : <Share2 className="w-5 h-5 text-muted-foreground" />}
-              <div>
-                <p className="text-sm font-medium">{account.account_name}</p>
-                <p className="text-xs text-muted-foreground">{account.platform?.name}</p>
-              </div>
-            </div>
-            <Badge
-              className={account.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}
-              variant="outline"
-            >
-              {account.status}
-            </Badge>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function renderPostList() {
-    if (loading) {
-      return (
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}
+      <div className="space-y-6">
+        <AdminPageHeader
+          title="Social Media Manager"
+          description="Manage and schedule posts across all platforms"
+        />
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      );
-    }
-    if (recentPosts.length === 0) {
-      return (
-        <div className="text-center py-6">
-          <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">No posts yet</p>
-          <Link href="/admin/social-media/posts/create">
-            <Button variant="outline" size="sm" className="mt-2">Create First Post</Button>
-          </Link>
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-2">
-        {recentPosts.map((post) => (
-          <Link key={post.id} href={`/admin/social-media/posts/${post.id}`}>
-            <div className="flex items-start justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{post.title || post.content?.slice(0, 50)}</p>
-                <p className="text-xs text-muted-foreground">
-                  {post.scheduled_for
-                    ? `Scheduled: ${new Date(post.scheduled_for).toLocaleDateString()}`
-                    : new Date(post.created_at).toLocaleDateString()}
-                </p>
-              </div>
-              <span className={`text-xs px-2 py-0.5 rounded-full ml-2 flex-shrink-0 ${STATUS_COLORS[post.status] || ""}`}>
-                {post.status}
-              </span>
-            </div>
-          </Link>
-        ))}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Share2 className="h-6 w-6 text-primary" />
-            Social Media Manager
-          </h1>
-          <p className="text-muted-foreground mt-1">Manage and schedule posts across all platforms</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/admin/social-media/inbox">
-            <Button variant="outline" className="relative">
-              <Inbox className="h-4 w-4 mr-2" />
-              Inbox
-              {inboxUnread > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {inboxUnread > 9 ? "9+" : inboxUnread}
-                </span>
-              )}
-            </Button>
-          </Link>
-          <Link href="/admin/social-media/posts/create">
-            <Button>Create Post</Button>
-          </Link>
-          <Link href="/admin/social-media/accounts">
-            <Button variant="outline">Connect Account</Button>
-          </Link>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Social Media Manager"
+        description="Manage and schedule posts across all platforms"
+        actionLabel="Create Post"
+        actionIcon={<Plus className="h-4 w-4" />}
+        onAction={() => (window.location.href = "/admin/social-media/posts/create")}
+        secondaryActionLabel="Connect Account"
+        secondaryActionIcon={<Link2 className="h-4 w-4" />}
+        onSecondaryAction={() => (window.location.href = "/admin/social-media/accounts")}
+      />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* ── Stats Grid (4 consistent cards) ──────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Link href={stat.href} key={stat.title}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-3xl font-bold mt-1">{loading ? "—" : stat.value}</p>
-                  </div>
-                  <stat.icon className={`h-8 w-8 ${stat.color} opacity-70`} />
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <div className={`p-2 rounded-lg ${stat.iconBg}`}>
+                  <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
                 </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-xs text-muted-foreground mt-1">{stat.sub}</p>
               </CardContent>
             </Card>
           </Link>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* ── Two-column: Accounts + Recent Posts ─────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Connected Accounts */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Connected Accounts</CardTitle>
+        <Card className="h-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-base">Connected Accounts</CardTitle>
+              <CardDescription className="text-xs mt-1">
+                {activeAccounts.length} active · {accounts.length} total
+              </CardDescription>
+            </div>
             <Link href="/admin/social-media/accounts">
-              <Button variant="ghost" size="sm">View All</Button>
+              <Button variant="outline" size="sm" className="text-xs font-medium">
+                View All <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
             </Link>
           </CardHeader>
-          <CardContent>{renderAccountList()}</CardContent>
+          <CardContent>
+            {accounts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="p-3 rounded-full bg-muted w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+                  <Share2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">No accounts connected</p>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">
+                  Connect your social platforms to start posting
+                </p>
+                <Link href="/admin/social-media/accounts">
+                  <Button variant="outline" size="sm">
+                    <Link2 className="h-3 w-3 mr-2" /> Connect Account
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {accounts.slice(0, 3).map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {account.platform?.logoUrl ? (
+                        <img
+                          src={account.platform.logoUrl}
+                          alt={account.platform.name}
+                          className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                          <Share2 className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{account.account_name}</p>
+                        <p className="text-xs text-muted-foreground">{account.platform?.name}</p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        account.status === "Active"
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : account.status === "Error"
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : "bg-gray-50 text-gray-700 border-gray-200"
+                      }
+                    >
+                      {account.status}
+                    </Badge>
+                  </div>
+                ))}
+                {accounts.length > 3 && (
+                  <Link href="/admin/social-media/accounts" className="block mt-1">
+                    <div className="text-center py-2.5 text-sm font-medium text-primary hover:underline cursor-pointer rounded-lg hover:bg-primary/5 transition-colors">
+                      + {accounts.length - 3} more accounts
+                    </div>
+                  </Link>
+                )}
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         {/* Recent Posts */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Recent Posts</CardTitle>
+        <Card className="h-full">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-base">Recent Posts</CardTitle>
+              <CardDescription className="text-xs mt-1">
+                Latest {Math.min(recentPosts.length, 3)} · {publishedPosts} published this month
+              </CardDescription>
+            </div>
             <Link href="/admin/social-media/posts">
-              <Button variant="ghost" size="sm">View All</Button>
+              <Button variant="outline" size="sm" className="text-xs font-medium">
+                View All <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
             </Link>
           </CardHeader>
-          <CardContent>{renderPostList()}</CardContent>
+          <CardContent>
+            {recentPosts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="p-3 rounded-full bg-muted w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">No posts yet</p>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">
+                  Create your first post to get started
+                </p>
+                <Link href="/admin/social-media/posts/create">
+                  <Button variant="outline" size="sm">
+                    <Plus className="h-3 w-3 mr-2" /> Create Post
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {recentPosts.map((post) => (
+                  <Link key={post.id} href={`/admin/social-media/posts/${post.id}`} className="block">
+                    <div className="flex items-start justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {post.title || post.content?.slice(0, 50) || "Untitled"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {post.scheduled_for
+                            ? `Scheduled: ${new Date(post.scheduled_for).toLocaleDateString()}`
+                            : post.published_at
+                            ? `Published: ${new Date(post.published_at).toLocaleDateString()}`
+                            : `Created: ${new Date(post.created_at).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border ml-2 flex-shrink-0 ${
+                          STATUS_COLORS[post.status] || "bg-gray-100 text-gray-700 border-gray-200"
+                        }`}
+                      >
+                        {post.status}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
         </Card>
       </div>
 
-      {/* Platform Analytics Summary */}
+      {/* ── Platform Performance ────────────────────────────────────────── */}
       {analytics?.by_platform?.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart2 className="h-4 w-4" />
-              Platform Performance (This Month)
+              Platform Performance
             </CardTitle>
+            <CardDescription className="text-xs">
+              This month · {successRate}% success rate
+              {failedPosts > 0 && (
+                <span className="text-red-600 ml-2 inline-flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> {failedPosts} failed
+                </span>
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {analytics.by_platform.map((p) => (
-                <div key={p.platform} className="text-center p-3 rounded-lg bg-muted/50">
-                  <p className="font-medium text-sm">{p.platform}</p>
-                  <p className="text-2xl font-bold text-primary">{p.published}</p>
-                  <p className="text-xs text-muted-foreground">{p.posts} total posts</p>
-                  {p.failed > 0 && (
-                    <p className="text-xs text-red-500 flex items-center justify-center gap-1 mt-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {p.failed} failed
-                    </p>
-                  )}
+                <div
+                  key={p.platform}
+                  className="p-4 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-medium text-sm">{p.platform}</p>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Published</span>
+                      <span className="text-xl font-bold text-green-600">{p.published}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-muted-foreground">Total</span>
+                      <span className="text-sm font-medium">{p.posts}</span>
+                    </div>
+                    {p.failed > 0 && (
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs text-muted-foreground">Failed</span>
+                        <span className="text-sm font-medium text-red-600">{p.failed}</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Success bar */}
+                  <div className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full transition-all"
+                      style={{
+                        width: `${p.posts > 0 ? (p.published / p.posts) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* ── Quick Actions ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Link href="/admin/social-media/posts/create">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-primary/10">
+                <Plus className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Create Post</p>
+                <p className="text-xs text-muted-foreground">Publish or schedule</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/admin/social-media/calendar">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-orange-50">
+                <Calendar className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Content Calendar</p>
+                <p className="text-xs text-muted-foreground">View scheduled posts</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/admin/social-media/analytics">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardContent className="pt-6 flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-purple-50">
+                <BarChart2 className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Analytics</p>
+                <p className="text-xs text-muted-foreground">Track performance</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
     </div>
   );
 }

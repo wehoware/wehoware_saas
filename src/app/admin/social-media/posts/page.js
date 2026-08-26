@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, FileText, Calendar, Eye, Pencil, Trash2, Send, X } from "lucide-react";
+import { Plus, Search, FileText, Calendar, Eye, Pencil, Send, X, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { STATUS_COLORS, POST_STATUSES } from "@/lib/social-clients/constants.js";
+import { STATUS_COLORS, POST_STATUSES, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
 
 const STATUSES = ["", ...POST_STATUSES];
 
@@ -33,14 +33,15 @@ export default function SocialPostsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [publishing, setPublishing] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const LIMIT = 20;
 
-  const loadPosts = useCallback(async () => {
+  const loadPosts = useCallback(async (skipLoadingState = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!skipLoadingState) setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (statusFilter) params.set("status", statusFilter);
@@ -51,7 +52,7 @@ export default function SocialPostsPage() {
       setPosts(data.posts || []);
       setTotal(data.total || 0);
     } catch {
-      toast.error("Failed to load posts");
+      if (!skipLoadingState) toast.error("Failed to load posts");
     } finally {
       setLoading(false);
     }
@@ -59,21 +60,13 @@ export default function SocialPostsPage() {
 
   useEffect(() => { loadPosts(); }, [loadPosts]);
 
-  async function deletePost() {
-    if (!deleteTarget) return;
-    try {
-      const res = await fetch(`/api/v1/social/posts/${deleteTarget}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete");
-      }
-      toast.success("Post deleted");
-      setDeleteTarget(null);
-      await loadPosts();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  }
+  // Auto-poll when any post is in a transitional state (Scheduled or Publishing)
+  useEffect(() => {
+    const hasTransitional = posts.some((p) => ["Scheduled", "Publishing"].includes(p.status));
+    if (!hasTransitional) return;
+    const interval = setInterval(() => loadPosts(true), 10000); // poll every 10s, no loading flash
+    return () => clearInterval(interval);
+  }, [posts, loadPosts]);
 
   async function publishPost(postId) {
     setPublishing(postId);
@@ -103,6 +96,25 @@ export default function SocialPostsPage() {
       await loadPosts();
     } catch (err) {
       toast.error(err.message);
+    }
+  }
+
+  async function deletePost() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/social/posts/${deleteTarget}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Delete failed");
+      }
+      toast.success("Post deleted");
+      setDeleteTarget(null);
+      await loadPosts();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -222,8 +234,8 @@ export default function SocialPostsPage() {
                         <X className="h-4 w-4" />
                       </Button>
                     )}
-                    {["Draft", "Failed", "Cancelled"].includes(post.status) && (
-                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(post.id)}>
+                    {DELETABLE_STATUSES.has(post.status) && (
+                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(post.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
@@ -248,19 +260,6 @@ export default function SocialPostsPage() {
         )}
       </div>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deletePost} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -272,6 +271,27 @@ export default function SocialPostsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
             <AlertDialogAction onClick={cancelPost}>Yes, Cancel Post</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the post and remove it from all connected platforms. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deletePost}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

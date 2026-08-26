@@ -93,13 +93,14 @@ export const DELETE = withAuth(async (request, { params }) => {
     const account = await resolveAccount(prisma, id, user);
     if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
 
-    await prisma.wehowareSocialAccount.update({
+    // Permanently delete the account and all related data (accountPosts,
+    // inbox conversations) via cascade. This is irreversible.
+    await prisma.wehowareSocialAccount.delete({
       where: { id },
-      data: { status: "Disconnected", accessToken: null, refreshToken: null, updatedBy: user.id },
     });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[DELETE /api/v1/social/accounts/[id]]", err);
-    return NextResponse.json({ error: "Failed to disconnect account" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
   }
 });

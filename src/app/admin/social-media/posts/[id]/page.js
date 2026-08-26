@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { STATUS_COLORS, AP_STATUS_COLORS } from "@/lib/social-clients/constants.js";
+import { STATUS_COLORS, AP_STATUS_COLORS, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
 
 export default function PostDetailPage() {
   const { user } = useAuth();
@@ -29,6 +29,8 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadPost = useCallback(async (skipLoadingState = false) => {
     if (!params?.id) return;
@@ -97,6 +99,24 @@ export default function PostDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/social/posts/${post.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete post");
+      }
+      toast.success("Post deleted");
+      router.push("/admin/social-media/posts");
+    } catch (err) {
+      toast.error(err.message || "Failed to delete post");
+      setDeleteTarget(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -111,6 +131,7 @@ export default function PostDetailPage() {
   const canEdit = ["Draft", "Scheduled"].includes(post.status);
   const canPublish = ["Draft", "Failed"].includes(post.status);
   const canCancel = post.status === "Scheduled";
+  const canDelete = DELETABLE_STATUSES.has(post.status);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -140,6 +161,11 @@ export default function PostDetailPage() {
           {canCancel && (
             <Button variant="outline" size="sm" onClick={() => setCancelTarget(true)}>
               <X className="h-4 w-4 mr-2" />Cancel
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(true)}>
+              <Trash2 className="h-4 w-4 mr-2" />Delete
             </Button>
           )}
         </div>
@@ -257,6 +283,27 @@ export default function PostDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancel}>Yes, Cancel Post</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the post and attempt to remove it from all connected platforms. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

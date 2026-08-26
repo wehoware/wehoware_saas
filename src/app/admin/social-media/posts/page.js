@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, FileText, Calendar, Eye, Pencil, Send, X } from "lucide-react";
+import { Plus, Search, FileText, Calendar, Eye, Pencil, Send, X, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { STATUS_COLORS, POST_STATUSES } from "@/lib/social-clients/constants.js";
+import { STATUS_COLORS, POST_STATUSES, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
 
 const STATUSES = ["", ...POST_STATUSES];
 
@@ -35,6 +35,8 @@ export default function SocialPostsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [publishing, setPublishing] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const LIMIT = 20;
 
   const loadPosts = useCallback(async (skipLoadingState = false) => {
@@ -94,6 +96,25 @@ export default function SocialPostsPage() {
       await loadPosts();
     } catch (err) {
       toast.error(err.message);
+    }
+  }
+
+  async function deletePost() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/social/posts/${deleteTarget}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Delete failed");
+      }
+      toast.success("Post deleted");
+      setDeleteTarget(null);
+      await loadPosts();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -213,6 +234,11 @@ export default function SocialPostsPage() {
                         <X className="h-4 w-4" />
                       </Button>
                     )}
+                    {DELETABLE_STATUSES.has(post.status) && (
+                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(post.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -245,6 +271,27 @@ export default function SocialPostsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
             <AlertDialogAction onClick={cancelPost}>Yes, Cancel Post</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Post?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the post and remove it from all connected platforms. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deletePost}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

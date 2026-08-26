@@ -20,6 +20,7 @@ import {
   PLATFORMS_REQUIRING_MEDIA,
   toLocalDatetimeInputValue,
 } from "@/lib/social-clients/constants.js";
+import DateTimePicker from "@/components/ui/date-time-picker";
 
 export default function EditPostPage() {
   const { user } = useAuth();
@@ -284,10 +285,13 @@ export default function EditPostPage() {
             </CardHeader>
             <CardContent>
               <Label htmlFor="scheduledFor">Publish Date &amp; Time</Label>
-              <Input id="scheduledFor" type="datetime-local" value={formData.scheduledFor}
-                min={toLocalDatetimeInputValue(new Date())}
+              <DateTimePicker
+                value={formData.scheduledFor}
                 onChange={(e) => setFormData((p) => ({ ...p, scheduledFor: e.target.value }))}
-                className="mt-1" />
+                min={new Date()}
+                placeholder="Pick a date & time"
+                className="mt-1.5"
+              />
               <p className="text-xs text-muted-foreground mt-1">Clear to save as draft</p>
             </CardContent>
           </Card>

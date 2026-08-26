@@ -1,0 +1,15 @@
+feat: social media UI overhaul — delete accounts/posts, date pickers, analytics redesign
+
+- Replace broken Wikimedia logo URLs with SimpleIcons CDN (Facebook, Instagram, Twitter/X, TikTok)
+- Account disconnect now permanently deletes record (cascade deletes accountPosts + inbox)
+- Overview page: limit to 3 recent posts/accounts, enhanced "View All" buttons
+- Create post page: wider layout, grouped account selectors, sticky action bar with status indicator
+- New DateTimePicker component with calendar popover + spinner time picker
+- Fix Calendar component for react-day-picker v9 class name changes
+- Unify DatePicker to use styled Calendar component
+- Analytics page: quick date presets, card grid for platform performance, consistent stat cards
+- Add delete buttons to posts list and post detail page with confirmation dialogs
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

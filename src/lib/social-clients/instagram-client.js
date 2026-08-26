@@ -105,10 +105,12 @@ export class InstagramClient extends BaseSocialClient {
       const body = { caption: content, access_token: this.accessToken };
       if (isVideo) { body.media_type = "REELS"; body.video_url = url; }
       else { body.image_url = url; }
+      console.log(`[instagram createPost] Creating container for ${igUserId}, url: ${url}`);
       const res = await this._fetch(`${IG_API_BASE}/${igUserId}/media`, {
         method: "POST", body: JSON.stringify(body),
       });
       containerId = res.id;
+      console.log(`[instagram createPost] Container created: ${containerId}`);
     } else {
       const itemIds = [];
       for (const url of mediaUrls) {
@@ -134,12 +136,15 @@ export class InstagramClient extends BaseSocialClient {
     // Wait for the media container to be processed before publishing.
     // Instagram processes media asynchronously; publishing too early fails with
     // "Media ID is not available" (error code 9007).
+    console.log(`[instagram createPost] Waiting for container ${containerId} to be ready...`);
     await this._waitForContainerReady(containerId);
+    console.log(`[instagram createPost] Container ${containerId} ready, publishing...`);
 
     const publish = await this._fetch(`${IG_API_BASE}/${igUserId}/media_publish`, {
       method: "POST",
       body: JSON.stringify({ creation_id: containerId, access_token: this.accessToken }),
     });
+    console.log(`[instagram createPost] Published successfully: ${publish.id}`);
     return publish.id;
   }
 

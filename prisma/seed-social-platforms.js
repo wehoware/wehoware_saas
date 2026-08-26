@@ -6,7 +6,7 @@ const SOCIAL_PLATFORMS = [
   {
     name: "Facebook",
     platformCode: "facebook",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/512px-2023_Facebook_icon.svg.png",
+    logoUrl: "https://cdn.simpleicons.org/facebook/1877F2",
     oauthConfig: {
       authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
       tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
@@ -22,7 +22,7 @@ const SOCIAL_PLATFORMS = [
   {
     name: "Instagram",
     platformCode: "instagram",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/512px-Instagram_logo_2016.svg.png",
+    logoUrl: "https://cdn.simpleicons.org/Instagram/E4405F",
     oauthConfig: {
       authUrl: "https://www.instagram.com/oauth/authorize",
       tokenUrl: "https://api.instagram.com/oauth/access_token",
@@ -38,7 +38,7 @@ const SOCIAL_PLATFORMS = [
   {
     name: "Twitter / X",
     platformCode: "twitter",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Logo_of_Twitter.svg/512px-Logo_of_Twitter.svg.png",
+    logoUrl: "https://cdn.simpleicons.org/x/000000",
     oauthConfig: {
       authUrl: "https://twitter.com/i/oauth2/authorize",
       tokenUrl: "https://api.twitter.com/2/oauth2/token",
@@ -54,7 +54,7 @@ const SOCIAL_PLATFORMS = [
   {
     name: "TikTok",
     platformCode: "tiktok",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/TikTok_logo.svg/512px-TikTok_logo.svg.png",
+    logoUrl: "https://cdn.simpleicons.org/tiktok/000000",
     oauthConfig: {
       authUrl: "https://www.tiktok.com/v2/auth/authorize",
       tokenUrl: "https://open.tiktokapis.com/v2/oauth/token",

@@ -1,24 +1,23 @@
 "use client";
 
 import React, { useState } from "react";
-import { DayPicker } from "react-day-picker";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
-import "react-day-picker/style.css";
-
-// Format date using UTC to avoid timezone shifts
-const formatUTCDate = (dateStr) => {
+// Format date for display: "Aug 25, 2026"
+const formatDate = (dateStr) => {
   if (!dateStr) return "";
   try {
-    const date = new Date(dateStr + 'T00:00:00Z');
+    const date = new Date(dateStr + "T00:00:00");
     if (Number.isNaN(date.getTime())) return "";
-    const year = date.getUTCFullYear();
-    const month = date.getUTCMonth() + 1;
-    const day = date.getUTCDate();
-    return `${month}/${day}/${year}`;
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   } catch {
     return "";
   }
@@ -33,17 +32,14 @@ const DatePicker = ({
 }) => {
   const [open, setOpen] = useState(false);
 
-  // Convert string date to Date object for DayPicker (handle UTC properly)
-  const selectedDate = value ? new Date(value + 'T00:00:00Z') : undefined;
+  const selectedDate = value ? new Date(value + "T00:00:00") : undefined;
 
   const handleSelect = (date) => {
     if (date) {
-      // Format date as YYYY-MM-DD for form submission (use UTC to avoid timezone issues)
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(date.getUTCDate()).padStart(2, '0');
-      const formattedDate = `${year}-${month}-${day}`;
-      onChange({ target: { name: props.name, value: formattedDate } });
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      onChange({ target: { name: props.name, value: `${year}-${month}-${day}` } });
     } else {
       onChange({ target: { name: props.name, value: "" } });
     }
@@ -55,24 +51,23 @@ const DatePicker = ({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          type="button"
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "w-full justify-start text-left font-normal h-10",
             !value && "text-muted-foreground",
             className
           )}
-          {...props}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? formatUTCDate(value) : placeholder}
+          <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+          {value ? formatDate(value) : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <DayPicker
+      <PopoverContent className="w-auto p-0 bg-white border shadow-lg rounded-lg overflow-hidden" align="start">
+        <Calendar
           mode="single"
           selected={selectedDate}
           onSelect={handleSelect}
           initialFocus
-          className="rounded-md border"
         />
       </PopoverContent>
     </Popover>

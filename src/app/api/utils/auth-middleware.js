@@ -1,9 +1,11 @@
 // src/app/api/utils/auth-middleware.js
 // Route-level auth middleware — NextAuth v5 JWT session verification +
+// API key authentication (Authorization: Bearer whk_...)
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
 
 function unauthorized(message) {
   return NextResponse.json({ error: message }, { status: 401 });
@@ -106,11 +108,57 @@ async function resolveActiveClientRole(profile, activeClientId) {
 }
 
 /**
+ * Extract and verify an API key from the Authorization header.
+ * Returns the matching WehowareProfile if valid, or null if not.
+ *
+ * Key format: "whk_<32 hex chars>"
+ * Stored as: SHA-256 hash of the full key string
+ */
+async function authenticateWithApiKey(request) {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) return null;
+
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") return null;
+
+  const rawKey = parts[1];
+  if (!rawKey.startsWith("whk_")) return null;
+
+  const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
+
+  let apiKey;
+  try {
+    apiKey = await prisma.wehowareApiKey.findUnique({
+      where: { keyHash },
+      include: {
+        user: {
+          select: { id: true, email: true, role: true, clientId: true },
+        },
+      },
+    });
+  } catch (err) {
+    console.warn("[withAuth] API key lookup error:", err);
+    return null;
+  }
+
+  if (!apiKey || !apiKey.active) return null;
+  if (apiKey.expiresAt && apiKey.expiresAt < new Date()) return null;
+
+  // Update lastUsedAt (fire-and-forget)
+  prisma.wehowareApiKey
+    .update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } })
+    .catch(() => {});
+
+  return apiKey.user;
+}
+
+/**
  * withAuth — higher-order function that wraps a Route Handler with:
- *   1. JWT session verification via NextAuth auth()
- *   2. Profile lookup and role-based access control
- *   3. Optional client switching with audit logging
- *   4. request.user population for the handler
+ *   1. API key authentication (Authorization: Bearer whk_...) — checked first
+ *   2. JWT session verification via NextAuth auth() — fallback if no API key
+ *   3. Profile lookup and role-based access control
+ *   4. Optional client switching with audit logging
+ *   5. request.user population for the handler
  *
  * Usage:
  *   export const GET = withAuth(handler);
@@ -124,29 +172,37 @@ async function resolveActiveClientRole(profile, activeClientId) {
  */
 export function withAuth(handler, options = {}) {
   return async (request, context) => {
-    let session;
-    try {
-      session = await auth();
-    } catch (err) {
-      return serverError("withAuth] Session read error", err);
-    }
-
-    if (!session?.user?.id) {
-      return unauthorized("Unauthorized - Not authenticated");
-    }
-
     let profile;
-    try {
-      profile = await prisma.wehowareProfile.findUnique({
-        where: { id: session.user.id },
-        select: { id: true, email: true, role: true, clientId: true },
-      });
-    } catch (err) {
-      return serverError("withAuth] DB error fetching profile", err);
-    }
 
-    if (!profile) {
-      return unauthorized("Unauthorized - User profile not found");
+    // --- API key authentication (checked first) ---
+    const apiKeyUser = await authenticateWithApiKey(request);
+    if (apiKeyUser) {
+      profile = apiKeyUser;
+    } else {
+      // --- JWT session authentication (fallback) ---
+      let session;
+      try {
+        session = await auth();
+      } catch (err) {
+        return serverError("withAuth] Session read error", err);
+      }
+
+      if (!session?.user?.id) {
+        return unauthorized("Unauthorized - Not authenticated");
+      }
+
+      try {
+        profile = await prisma.wehowareProfile.findUnique({
+          where: { id: session.user.id },
+          select: { id: true, email: true, role: true, clientId: true },
+        });
+      } catch (err) {
+        return serverError("withAuth] DB error fetching profile", err);
+      }
+
+      if (!profile) {
+        return unauthorized("Unauthorized - User profile not found");
+      }
     }
 
     // Role-based access control

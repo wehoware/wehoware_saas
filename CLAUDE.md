@@ -1,5 +1,8 @@
 # Wehoware SaaS Platform - AI Assistant Guide
 
+## ⚠️ CRITICAL DATA SAFETY RULE (READ FIRST)
+**NEVER delete existing data.** This applies to all database tables, API responses, and configurations. AI agents and integrations may create, read, and update data — but deletion (DELETE endpoints, DROP statements, TRUNCATE, soft-delete toggles) is strictly prohibited unless explicitly approved by the repository owner in writing. The SaaS API tool exposed to AI agents only contains GET and POST methods — DELETE endpoints must never be wired into agent tools.
+
 ## ⚠️ Platform Architecture (READ FIRST)
 
 **This is an admin-only SaaS platform.** It is used exclusively by:

@@ -492,11 +492,11 @@ export async function executeToolCall(toolName, args, clientId, userId) {
 
       // ─── SEO ───────────────────────────────────────────────
       case "get_seo_keywords": {
-        const keywords = await prisma.wehowareClientKeyword.findMany({
+        const keywordRecords = await prisma.wehowareClientKeyword.findMany({
           where: { clientId }, take: limit, orderBy: { createdAt: "desc" },
-          select: { id: true, keyword: true, createdAt: true },
+          select: { id: true, keywords: true, createdAt: true },
         });
-        return JSON.stringify({ keywords, total: keywords.length });
+        return JSON.stringify({ keywords: keywordRecords, total: keywordRecords.length });
       }
 
       // ─── Content ───────────────────────────────────────────

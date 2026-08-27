@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
  * Permanently delete an API key.
  */
 export const DELETE = withAuth(async (request, context) => {
-  const { id } = context.params;
+  const { id } = await context.params;
 
   if (!id) {
     return NextResponse.json({ error: "Key ID is required" }, { status: 400 });
@@ -53,7 +53,7 @@ export const DELETE = withAuth(async (request, context) => {
  *   { active: boolean }
  */
 export const PATCH = withAuth(async (request, context) => {
-  const { id } = context.params;
+  const { id } = await context.params;
 
   if (!id) {
     return NextResponse.json({ error: "Key ID is required" }, { status: 400 });

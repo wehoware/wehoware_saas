@@ -34,9 +34,6 @@ export default function BaddyChatWidget() {
     setMessages([]);
   }, [activeClient?.id]);
 
-  // Don't render if not authenticated or no active client
-  if (loading || !user || !activeClient) return null;
-
   const sendMessage = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
@@ -129,6 +126,9 @@ export default function BaddyChatWidget() {
       setIsStreaming(false);
     }
   }, [input, isStreaming, messages]);
+
+  // Don't render if not authenticated or no active client
+  if (loading || !user || !activeClient) return null;
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {

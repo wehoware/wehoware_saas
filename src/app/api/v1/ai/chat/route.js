@@ -126,9 +126,9 @@ export const POST = withAuth(async (request) => {
 
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`));
       } catch (err) {
-        console.error("[ai/chat] Stream error:", err);
+        console.error("[ai/chat] Stream error:", err?.message || err, err?.stack?.split("\n").slice(0, 3).join(" | "));
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ error: "AI service error", content: "Sorry, an error occurred. Please try again." })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ error: "AI service error", content: `Sorry, an error occurred: ${err?.message || "unknown error"}. Please try again.` })}\n\n`)
         );
       } finally {
         controller.close();

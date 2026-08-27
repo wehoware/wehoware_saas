@@ -66,6 +66,7 @@ async function getClientDetails(clientId) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     Credentials({
       // NextAuth uses these credential fields for its built-in UI (not used here

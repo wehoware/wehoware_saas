@@ -570,26 +570,35 @@ export async function* chatWithBaddy({ systemPrompt, messages, clientId, userId,
   let finalResponse = "";
 
   while (maxToolRounds-- > 0) {
-    // Call vLLM
-    const response = await fetch(`${VLLM_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${VLLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: VLLM_MODEL,
-        messages: fullMessages,
-        tools,
-        tool_choice: "auto",
-        stream: false,
-        max_tokens: 2048,
-        chat_template_kwargs: { enable_thinking: enableThinking },
-      }),
-    });
+    // Call vLLM (with 120s timeout — vLLM can be slow for tool-calling rounds)
+    let response;
+    try {
+      response = await fetch(`${VLLM_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${VLLM_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: VLLM_MODEL,
+          messages: fullMessages,
+          tools,
+          tool_choice: "auto",
+          stream: false,
+          max_tokens: 2048,
+          chat_template_kwargs: { enable_thinking: enableThinking },
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+    } catch (fetchErr) {
+      console.error("[baddy] vLLM fetch failed:", fetchErr.message);
+      yield `⚠️ I couldn't reach the AI service (${fetchErr.message}). Please try again in a moment.`;
+      return;
+    }
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("[baddy] vLLM returned non-OK:", response.status, errText.slice(0, 200));
       yield `⚠️ AI service error: ${response.status}. Please try again.`;
       return;
     }

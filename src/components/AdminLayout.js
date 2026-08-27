@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import AdminHeader from "@/components/AdminHeader";
+import BaddyChatWidget from "@/components/ai-chat/baddy-chat-widget";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,13 @@ const sidebarSections = [
     icon: <LayoutDashboard className="h-5 w-5" />,
     roles: ["admin", "employee", "client"],
     matchExact: true,
+  },
+  {
+    type: "link",
+    title: "AI Chat",
+    href: "/admin/ai-chat",
+    icon: <MessageSquare className="h-5 w-5" />,
+    roles: ["admin", "employee", "client"],
   },
   {
     type: "link",
@@ -830,6 +838,7 @@ const AdminLayout = ({ children }) => {
           </div>
         </div>
       )}
+      <BaddyChatWidget />
     </>
   );
 };

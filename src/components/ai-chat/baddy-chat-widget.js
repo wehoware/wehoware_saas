@@ -16,6 +16,8 @@ export default function BaddyChatWidget() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -31,10 +33,53 @@ export default function BaddyChatWidget() {
     }
   }, [isOpen, isStreaming]);
 
-  // Reset messages when client changes (enforce isolation in UI too)
+  // Load chat history when client changes or chat opens
   useEffect(() => {
-    setMessages([]);
-  }, [activeClient?.id]);
+    if (!activeClient?.id || !user) return;
+
+    let cancelled = false;
+
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      try {
+        // Get the most recent session for this user + client
+        const res = await fetch("/api/v1/ai/sessions", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const sessions = data.sessions || [];
+
+        if (sessions.length === 0) {
+          setMessages([]);
+          setSessionId(null);
+          return;
+        }
+
+        // Load messages from the most recent session
+        const latestSession = sessions[0];
+        const msgRes = await fetch(`/api/v1/ai/sessions/${latestSession.id}/messages`, {
+          credentials: "include",
+        });
+        if (!msgRes.ok) return;
+        const msgData = await msgRes.json();
+        const dbMessages = (msgData.messages || []).map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+
+        if (!cancelled) {
+          setSessionId(latestSession.id);
+          setMessages(dbMessages);
+        }
+      } catch (err) {
+        console.error("[chat-widget] Failed to load history:", err);
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    }
+
+    loadHistory();
+    return () => { cancelled = true; };
+  }, [activeClient?.id, user?.id]);
 
   const handleCopy = (content, idx) => {
     navigator.clipboard.writeText(content);
@@ -62,6 +107,7 @@ export default function BaddyChatWidget() {
         body: JSON.stringify({
           messages: newMessages,
           enableThinking: false,
+          sessionId, // Send existing session ID for continuity
         }),
       });
 
@@ -99,7 +145,8 @@ export default function BaddyChatWidget() {
                 });
               }
               if (data.done) {
-                // Stream complete
+                // Capture the session ID returned by the server
+                if (data.sessionId) setSessionId(data.sessionId);
               }
               if (data.error) {
                 throw new Error(data.content || data.error);
@@ -133,7 +180,7 @@ export default function BaddyChatWidget() {
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, messages]);
+  }, [input, isStreaming, messages, sessionId]);
 
   // Don't render if not authenticated or no active client
   if (loading || !user || !activeClient) return null;
@@ -189,7 +236,10 @@ export default function BaddyChatWidget() {
             <div className="flex items-center gap-1">
               {messages.length > 0 && (
                 <button
-                  onClick={() => setMessages([])}
+                  onClick={() => {
+                    setMessages([]);
+                    setSessionId(null);
+                  }}
                   className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   aria-label="Clear chat"
                 >

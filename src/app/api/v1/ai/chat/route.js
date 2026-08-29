@@ -45,7 +45,7 @@ export const POST = withAuth(async (request) => {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { messages, enableThinking } = body;
+  const { messages, enableThinking, sessionId: existingSessionId } = body;
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json(
@@ -72,6 +72,61 @@ export const POST = withAuth(async (request) => {
 
   // Limit conversation history to last 20 messages to prevent token overflow
   const trimmedMessages = messages.slice(-20);
+
+  // ─── Resolve or create a chat session ───────────────────────────
+  let session = null;
+  try {
+    if (existingSessionId) {
+      // Verify the session belongs to this user + client
+      session = await prisma.wehowareAgentSession.findFirst({
+        where: {
+          id: existingSessionId,
+          clientId,
+          userId: request.user.id,
+        },
+      });
+    }
+
+    if (!session) {
+      // Create a new session — use the first user message as the title
+      const firstUserMsg = trimmedMessages.find((m) => m.role === "user");
+      const title = firstUserMsg
+        ? firstUserMsg.content.slice(0, 80) + (firstUserMsg.content.length > 80 ? "…" : "")
+        : "New Chat";
+
+      session = await prisma.wehowareAgentSession.create({
+        data: {
+          clientId,
+          userId: request.user.id,
+          title,
+          status: "active",
+        },
+      });
+    }
+  } catch (err) {
+    console.error("[ai/chat] Session setup failed:", err);
+    // Non-fatal — continue without persistence
+  }
+
+  const sessionId = session?.id;
+
+  // ─── Save the latest user message to DB ─────────────────────────
+  const lastUserMessage = [...trimmedMessages].reverse().find((m) => m.role === "user");
+  if (sessionId && lastUserMessage) {
+    try {
+      await prisma.wehowareAgentMessage.create({
+        data: {
+          sessionId,
+          clientId,
+          userId: request.user.id,
+          role: "user",
+          content: lastUserMessage.content,
+        },
+      });
+    } catch (err) {
+      console.error("[ai/chat] Failed to save user message:", err);
+    }
+  }
 
   // ─── Fetch client details for system prompt ─────────────────────
   let client;
@@ -108,9 +163,12 @@ export const POST = withAuth(async (request) => {
 
   // ─── Stream response ────────────────────────────────────────────
   const encoder = new TextEncoder();
+  const streamStartTime = Date.now();
 
   const stream = new ReadableStream({
     async start(controller) {
+      let fullAssistantContent = "";
+
       try {
         const generator = chatWithBaddy({
           systemPrompt,
@@ -121,16 +179,43 @@ export const POST = withAuth(async (request) => {
         });
 
         for await (const chunk of generator) {
+          fullAssistantContent += chunk;
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`));
         }
 
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, sessionId })}\n\n`));
       } catch (err) {
         console.error("[ai/chat] Stream error:", err?.message || err, err?.stack?.split("\n").slice(0, 3).join(" | "));
+        fullAssistantContent = `Sorry, an error occurred: ${err?.message || "unknown error"}. Please try again.`;
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ error: "AI service error", content: `Sorry, an error occurred: ${err?.message || "unknown error"}. Please try again.` })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ error: "AI service error", content: fullAssistantContent, sessionId })}\n\n`)
         );
       } finally {
+        // ─── Save the assistant response to DB ───────────────────
+        if (sessionId && fullAssistantContent) {
+          try {
+            await prisma.wehowareAgentMessage.create({
+              data: {
+                sessionId,
+                clientId,
+                userId: request.user.id,
+                role: "assistant",
+                content: fullAssistantContent,
+                model: process.env.VLLM_MODEL || "qwen3.8-27b",
+                totalTimeMs: Date.now() - streamStartTime,
+              },
+            });
+
+            // Update session's updatedAt timestamp
+            await prisma.wehowareAgentSession.update({
+              where: { id: sessionId },
+              data: { updatedAt: new Date() },
+            });
+          } catch (err) {
+            console.error("[ai/chat] Failed to save assistant message:", err);
+          }
+        }
+
         controller.close();
       }
     },

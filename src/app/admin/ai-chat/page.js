@@ -15,6 +15,8 @@ export default function AIChatPage() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -30,12 +32,57 @@ export default function AIChatPage() {
     }
   }, [isStreaming]);
 
+  // Load chat history when client changes
   useEffect(() => {
-    setMessages([]);
-  }, [activeClient?.id]);
+    if (!activeClient?.id || !user) return;
+
+    let cancelled = false;
+
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      try {
+        const res = await fetch("/api/v1/ai/sessions", { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const sessions = data.sessions || [];
+
+        if (sessions.length === 0) {
+          if (!cancelled) {
+            setMessages([]);
+            setSessionId(null);
+          }
+          return;
+        }
+
+        const latestSession = sessions[0];
+        const msgRes = await fetch(`/api/v1/ai/sessions/${latestSession.id}/messages`, {
+          credentials: "include",
+        });
+        if (!msgRes.ok) return;
+        const msgData = await msgRes.json();
+        const dbMessages = (msgData.messages || []).map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
+
+        if (!cancelled) {
+          setSessionId(latestSession.id);
+          setMessages(dbMessages);
+        }
+      } catch (err) {
+        console.error("[ai-chat] Failed to load history:", err);
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    }
+
+    loadHistory();
+    return () => { cancelled = true; };
+  }, [activeClient?.id, user?.id]);
 
   const handleClearChat = () => {
     setMessages([]);
+    setSessionId(null);
     setInput("");
   };
 
@@ -88,7 +135,7 @@ export default function AIChatPage() {
       const response = await fetch("/api/v1/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, enableThinking: false }),
+        body: JSON.stringify({ messages: newMessages, enableThinking: false, sessionId }),
       });
 
       if (!response.ok) {
@@ -120,6 +167,9 @@ export default function AIChatPage() {
                   updated[updated.length - 1] = { role: "assistant", content: assistantContent };
                   return updated;
                 });
+              }
+              if (data.done) {
+                if (data.sessionId) setSessionId(data.sessionId);
               }
               if (data.error) {
                 throw new Error(data.content || data.error);

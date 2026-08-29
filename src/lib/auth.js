@@ -3,6 +3,14 @@
 // Strategy: JWT (stateless — no Session table in DB)
 // Provider: Credentials (email + bcrypt password)
 
+// AWS Amplify workaround: Lambda runtime doesn't inject server-side env vars.
+// Load from .env.production (written during amplify.yml build step) as fallback.
+// On Amplify Lambda, the .next/ folder is at /var/task/.next/
+// On local dev, .env.local is used by Next.js automatically.
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig({ path: ".next/.env.production", quiet: true });
+dotenvConfig({ path: ".env.production", quiet: true });
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";

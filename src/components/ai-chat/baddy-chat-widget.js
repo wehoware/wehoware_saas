@@ -5,8 +5,9 @@
 // Appears on all admin pages. Uses the user's activeClientId for isolation.
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageSquare, X, Send, Bot, User, Loader2 } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Loader2, Trash2, Copy, Check } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import ChatMarkdown from "@/components/ai-chat/ChatMarkdown";
 
 export default function BaddyChatWidget() {
   const { user, activeClient, loading } = useAuth();
@@ -14,6 +15,7 @@ export default function BaddyChatWidget() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -34,8 +36,14 @@ export default function BaddyChatWidget() {
     setMessages([]);
   }, [activeClient?.id]);
 
-  const sendMessage = useCallback(async () => {
-    const trimmed = input.trim();
+  const handleCopy = (content, idx) => {
+    navigator.clipboard.writeText(content);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const sendMessage = useCallback(async (overrideText) => {
+    const trimmed = (overrideText !== undefined ? overrideText : input).trim();
     if (!trimmed || isStreaming) return;
 
     const userMessage = { role: "user", content: trimmed };
@@ -138,10 +146,10 @@ export default function BaddyChatWidget() {
   };
 
   const quickActions = [
-    "Show me the CRM dashboard",
-    "What tasks are overdue?",
-    "List recent invoices",
-    "How many contacts do we have?",
+    { icon: "📊", label: "CRM Dashboard", text: "Show me the CRM dashboard" },
+    { icon: "⏰", label: "Overdue Tasks", text: "What tasks are overdue?" },
+    { icon: "🧾", label: "Recent Invoices", text: "List recent invoices" },
+    { icon: "👥", label: "Contacts", text: "How many contacts do we have?" },
   ];
 
   return (
@@ -167,8 +175,9 @@ export default function BaddyChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
                 <Bot className="h-5 w-5 text-white" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-green-500" />
               </div>
               <div>
                 <div className="font-semibold">Baddy AI</div>
@@ -177,13 +186,24 @@ export default function BaddyChatWidget() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              aria-label="Close chat"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {messages.length > 0 && (
+                <button
+                  onClick={() => setMessages([])}
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  aria-label="Clear chat"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Close chat"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -199,17 +219,18 @@ export default function BaddyChatWidget() {
                     Your AI assistant for {activeClient?.name || "your business"}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-2 w-full">
+                <div className="grid grid-cols-2 gap-2 w-full">
                   {quickActions.map((action) => (
                     <button
-                      key={action}
+                      key={action.text}
                       onClick={() => {
-                        setInput(action);
-                        setTimeout(() => sendMessage(), 100);
+                        setInput(action.text);
+                        setTimeout(() => sendMessage(action.text), 50);
                       }}
-                      className="rounded-lg border border-border px-3 py-2 text-sm text-left transition-colors hover:bg-accent"
+                      className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-left transition-all hover:bg-accent hover:border-primary/30"
                     >
-                      {action}
+                      <span className="text-base">{action.icon}</span>
+                      <span className="text-xs">{action.label}</span>
                     </button>
                   ))}
                 </div>
@@ -227,13 +248,39 @@ export default function BaddyChatWidget() {
                   </div>
                 )}
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
+                  className={`group relative max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
                     msg.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-foreground"
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{msg.content || "..."}</div>
+                  {msg.role === "assistant" ? (
+                    <>
+                      {msg.content ? (
+                        <ChatMarkdown content={msg.content} />
+                      ) : (
+                        <span className="text-muted-foreground">...</span>
+                      )}
+                      {isStreaming && idx === messages.length - 1 && msg.content && (
+                        <span className="inline-block w-1.5 h-4 ml-0.5 bg-blue-500 animate-pulse rounded-sm align-middle" />
+                      )}
+                      {msg.content && !isStreaming && (
+                        <button
+                          onClick={() => handleCopy(msg.content, idx)}
+                          className="absolute -bottom-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background opacity-0 transition-opacity group-hover:opacity-100"
+                          aria-label="Copy"
+                        >
+                          {copiedIdx === idx ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <Copy className="h-3 w-3 text-muted-foreground" />
+                          )}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  )}
                 </div>
                 {msg.role === "user" && (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
@@ -248,8 +295,13 @@ export default function BaddyChatWidget() {
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
                   <Loader2 className="h-4 w-4 text-white animate-spin" />
                 </div>
-                <div className="bg-muted rounded-2xl px-4 py-2 text-sm text-muted-foreground">
-                  Thinking...
+                <div className="bg-muted rounded-2xl px-4 py-2 text-sm text-muted-foreground flex items-center gap-1">
+                  <span>Thinking</span>
+                  <span className="flex gap-0.5">
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </span>
                 </div>
               </div>
             )}

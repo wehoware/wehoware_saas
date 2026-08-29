@@ -6,7 +6,8 @@
  *
  *   - Default: LOCAL filesystem storage at `public/uploads/<entityType>/<uuid>.<ext>`
  *              Served by Next.js at /uploads/<entityType>/<uuid>.<ext>
- *   - Optional: AWS S3 (enabled when all four AWS_* env vars are present)
+ *   - Optional: AWS S3 (enabled when AWS_REGION, AWS_ACCESS_KEY_ID,
+ *              AWS_SECRET_ACCESS_KEY, and S3_BUCKET_NAME are present)
  *
  * Public API (same names the old util used, so call sites can be updated
  * mechanically):
@@ -40,11 +41,16 @@ const VALID_ENTITY_TYPES = new Set([
 // ----------------------------------------------------------------
 // S3 config (optional — we only use S3 if all four are set)
 // ----------------------------------------------------------------
+// NOTE: AWS_REGION / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are auto-injected
+// by AWS Amplify from the app's service role — do NOT set them in Amplify env vars.
+// S3_BUCKET_NAME / S3_CDN_URL use a non-"AWS_" prefix because Amplify rejects
+// user-set env vars starting with "AWS_". We fall back to the AWS_-prefixed names
+// for local dev where .env.local may still use the old convention.
 const S3_REGION = process.env.AWS_REGION;
-const S3_BUCKET = process.env.AWS_S3_BUCKET_NAME;
+const S3_BUCKET = process.env.S3_BUCKET_NAME || process.env.AWS_S3_BUCKET_NAME;
 const S3_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
 const S3_KEY_SECRET = process.env.AWS_SECRET_ACCESS_KEY;
-const S3_CDN_URL = process.env.AWS_S3_CDN_URL; // optional
+const S3_CDN_URL = process.env.S3_CDN_URL || process.env.AWS_S3_CDN_URL; // optional
 const USE_S3 = Boolean(S3_REGION && S3_BUCKET && S3_KEY_ID && S3_KEY_SECRET);
 
 // Lazy-load the AWS SDK only if S3 is configured, so builds don't require the

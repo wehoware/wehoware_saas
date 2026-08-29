@@ -67,6 +67,10 @@ async function getClientDetails(clientId) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
+  // Trust the host header — required for NextAuth v5 in non-standard environments
+  // (HTTPS localhost, proxies, AWS Amplify, etc.). Without this, NextAuth throws
+  // error=Configuration on login attempts.
+  trustHost: true,
   providers: [
     Credentials({
       // NextAuth uses these credential fields for its built-in UI (not used here

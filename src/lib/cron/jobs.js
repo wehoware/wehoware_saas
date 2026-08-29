@@ -264,7 +264,7 @@ export async function runDailyReportReminderDispatcher() {
         context: {
           name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
           report_date: dateStr,
-          link: `https://app.wehoware.com/admin/daily-reports`,
+          link: `https://www.app.wehoware.ca/admin/daily-reports`,
         },
       });
       output.reminded += 1;

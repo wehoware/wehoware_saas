@@ -192,7 +192,7 @@ const TEMPLATES = {
     const { name, report_date, link } = ctx;
     const dateStr = report_date || "today";
     const subject = `Reminder: Submit your daily work report for ${dateStr}`;
-    const text = `Hi ${name || "there"},\n\nThis is a friendly reminder to submit your daily work report for ${dateStr}.\n\nYou can submit it here: ${link || "https://app.wehoware.com/admin/daily-reports"}\n\nThanks,\nWehoware Team`;
+    const text = `Hi ${name || "there"},\n\nThis is a friendly reminder to submit your daily work report for ${dateStr}.\n\nYou can submit it here: ${link || "https://www.app.wehoware.ca/admin/daily-reports"}\n\nThanks,\nWehoware Team`;
     const html = shell({
       title: subject,
       bodyHtml: `

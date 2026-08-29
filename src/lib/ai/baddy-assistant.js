@@ -526,7 +526,7 @@ export async function executeToolCall(toolName, args, clientId, userId) {
         if (args.status) where.status = args.status;
         const appointments = await prisma.wehowareAppointment.findMany({
           where, take: limit, orderBy: { createdAt: "desc" },
-          select: { id: true, name: true, email: true, status: true, date: true, time: true, createdAt: true },
+          select: { id: true, guestName: true, guestEmail: true, status: true, scheduledAt: true, location: true, meetingLink: true, timezone: true, notes: true, createdAt: true },
         });
         return JSON.stringify({ appointments, total: appointments.length });
       }

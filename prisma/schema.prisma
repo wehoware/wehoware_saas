@@ -89,6 +89,10 @@ model WehowareClient {
   crmDeals           WehowareCrmDeal[]
   crmContactListMemberships WehowareCrmContactListMembership[]
   attachments        WehowareAttachment[]
+  agentSessions      WehowareAgentSession[]
+  agentMessages      WehowareAgentMessage[]
+  agentFeedback      WehowareAgentFeedback[]
+  agentToolSettings  WehowareAgentToolSetting[]
 
   @@map("wehoware_clients")
 }
@@ -185,6 +189,9 @@ model WehowareProfile {
   createdCrmContactLists     WehowareCrmContactList[]     @relation("CrmListCreator")
   updatedCrmContactLists     WehowareCrmContactList[]     @relation("CrmListUpdater")
   apiKeys                    WehowareApiKey[]             @relation("ApiKeyOwner")
+  agentSessions              WehowareAgentSession[]       @relation("AgentSessionUser")
+  agentMessages              WehowareAgentMessage[]       @relation("AgentMessageUser")
+  agentFeedback              WehowareAgentFeedback[]      @relation("AgentFeedbackUser")
 
   @@index([role])
   @@index([clientId])
@@ -2788,4 +2795,90 @@ model WehowareCrmContactListMembership {
   @@index([contactId])
   @@index([clientId])
   @@map("wehoware_crm_contact_list_memberships")
+}
+
+// ─── AI Agent Tables (synced from RDS) ─────────────────────────
+
+model WehowareAgentSession {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  clientId  String   @map("client_id") @db.VarChar(36)
+  userId    String?  @map("user_id") @db.VarChar(36)
+  title     String?  @db.VarChar(500)
+  status    String   @default("active") @db.VarChar(50)
+  metadata  Json?    @db.Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client    WehowareClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user      WehowareProfile?       @relation("AgentSessionUser", fields: [userId], references: [id], onDelete: SetNull)
+  messages  WehowareAgentMessage[]
+  feedback  WehowareAgentFeedback[]
+
+  @@index([clientId])
+  @@index([userId])
+  @@index([status])
+  @@map("wehoware_agent_sessions")
+}
+
+model WehowareAgentMessage {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  sessionId    String   @map("session_id") @db.VarChar(36)
+  clientId     String   @map("client_id") @db.VarChar(36)
+  userId       String?  @map("user_id") @db.VarChar(36)
+  role         String   @db.VarChar(20)
+  content      String   @db.LongText
+  toolCalls    Json?    @map("tool_calls") @db.Json
+  toolResults  Json?    @map("tool_results") @db.Json
+  steps        Json?    @db.Json
+  model        String?  @db.VarChar(100)
+  totalTimeMs  Float?   @map("total_time_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  session      WehowareAgentSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  client       WehowareClient          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         WehowareProfile?        @relation("AgentMessageUser", fields: [userId], references: [id], onDelete: SetNull)
+  feedback     WehowareAgentFeedback?
+
+  @@index([sessionId])
+  @@index([clientId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("wehoware_agent_messages")
+}
+
+model WehowareAgentFeedback {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  messageId String   @unique @map("message_id") @db.VarChar(36)
+  sessionId String   @map("session_id") @db.VarChar(36)
+  clientId  String   @map("client_id") @db.VarChar(36)
+  userId    String?  @map("user_id") @db.VarChar(36)
+  rating    String   @db.VarChar(20)
+  comment   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message   WehowareAgentMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  session   WehowareAgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  client    WehowareClient       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user      WehowareProfile?     @relation("AgentFeedbackUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([clientId])
+  @@index([userId])
+  @@map("wehoware_agent_feedback")
+}
+
+model WehowareAgentToolSetting {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  clientId  String   @map("client_id") @db.VarChar(36)
+  toolName  String   @map("tool_name") @db.VarChar(100)
+  enabled   Boolean  @default(true)
+  config    Json?    @db.Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client    WehowareClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, toolName])
+  @@index([clientId])
+  @@map("wehoware_agent_tool_settings")
 }

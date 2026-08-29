@@ -20,6 +20,9 @@ const nextConfig = {
   poweredByHeader: false,
   // Allow LAN IP access to dev resources
   allowedDevOrigins: ['172.7.10.104'],
+  // Disable source maps in production to reduce .next/ output size
+  // (saves ~60MB — critical for AWS Amplify's 230MB deploy artifact limit)
+  productionBrowserSourceMaps: false,
 };
 
 export default nextConfig;

@@ -13,10 +13,12 @@ frontend:
     build:
       commands:
         - npm run build
-        # Remove build cache + trace from .next/ so the deploy artifact stays
-        # under Amplify's 230 MB limit. Cache is restored separately via the
-        # `cache` section below, so this doesn't slow down rebuilds.
-        - rm -rf .next/cache .next/trace
+        # Strip source maps + build cache + trace from .next/ so the deploy
+        # artifact stays under Amplify's 230 MB limit. Source maps aren't
+        # needed at runtime in production. Cache is preserved separately via
+        # the `cache` section below, so this doesn't slow down rebuilds.
+        - find .next -name "*.map" -type f -delete
+        - rm -rf .next/cache .next/trace .next/server/cache .next/dev
   artifacts:
     baseDirectory: .next
     files:

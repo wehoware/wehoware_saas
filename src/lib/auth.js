@@ -65,8 +65,16 @@ async function getClientDetails(clientId) {
   };
 }
 
+// Resolve the auth secret — support both NEXTAUTH_SECRET (v4 legacy) and
+// AUTH_SECRET (v5 standard) env var names. Amplify might have either set.
+const AUTH_SECRET = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET;
+
+if (!AUTH_SECRET) {
+  console.error("[auth] FATAL: No NEXTAUTH_SECRET or AUTH_SECRET environment variable set. NextAuth will throw Configuration errors.");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: AUTH_SECRET,
   // Trust the host header — required for NextAuth v5 in non-standard environments
   // (HTTPS localhost, proxies, AWS Amplify, etc.). Without this, NextAuth throws
   // error=Configuration on login attempts.

@@ -176,6 +176,9 @@ export const POST = withAuth(async (request) => {
           clientId, // STRICT client isolation — enforced in executeToolCall
           userId: request.user.id,
           enableThinking: Boolean(enableThinking),
+          userRole: request.user.role,
+          clientRole: request.user.activeClientRole,
+          sessionId, // For session-level memory context
         });
 
         for await (const chunk of generator) {
@@ -206,10 +209,14 @@ export const POST = withAuth(async (request) => {
               },
             });
 
-            // Update session's updatedAt timestamp
+            // Update session's updatedAt timestamp, lastMessageAt, and messageCount
             await prisma.wehowareAgentSession.update({
               where: { id: sessionId },
-              data: { updatedAt: new Date() },
+              data: {
+                updatedAt: new Date(),
+                lastMessageAt: new Date(),
+                messageCount: { increment: 2 }, // user message + assistant response
+              },
             });
           } catch (err) {
             console.error("[ai/chat] Failed to save assistant message:", err);

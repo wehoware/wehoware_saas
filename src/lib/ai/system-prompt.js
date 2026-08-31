@@ -187,6 +187,10 @@ You are part of the WeHowAre platform. Be professional, helpful, and always prio
  * Dynamic context (client name, user name, memory) is appended after the
  * cached prefix.
  *
+ * ROLE-AWARE: The dynamic context includes role-specific instructions so
+ * the assistant knows what the user can and cannot do. This aligns with
+ * the role-based tool filtering in tools/definitions.js.
+ *
  * @param {object} user - The authenticated user profile
  * @param {object} client - The active client (WehowareClient)
  * @param {string} memoryContext - Optional memory text from Mem0 (appended last)
@@ -200,9 +204,48 @@ export function buildSystemPrompt(user, client, memoryContext = "") {
   const userRole = user.role;
   const clientRole = user.activeClientRole || user.role;
 
-  const dynamicContext = `\n\n## Current Context:\nYou are helping the user "${userName}" (role: ${userRole}, client role: ${clientRole}) manage data for ${clientName} (domain: ${clientDomain}, industry: ${clientIndustry}).${memoryContext}`;
+  // Build role-specific capability description
+  const roleCapabilities = getRoleCapabilities(userRole, clientRole);
+
+  const dynamicContext = `\n\n## Current Context:\nYou are helping the user "${userName}" (role: ${userRole}, client role: ${clientRole}) manage data for ${clientName} (domain: ${clientDomain}, industry: ${clientIndustry}).\n\n${roleCapabilities}${memoryContext}`;
 
   return BASE_PROMPT + dynamicContext;
+}
+
+/**
+ * Get role-specific capability description for the system prompt.
+ * This tells the LLM what the user can and cannot do, aligned with
+ * the role-based tool filtering in tools/definitions.js.
+ */
+function getRoleCapabilities(userRole, clientRole) {
+  if (userRole === "admin") {
+    return `## Your Permissions (Admin):
+You have FULL access to all modules and tools for this client. You can create, read, and update any record. You can also view team members and user management. You cannot delete records (platform policy).`;
+  }
+
+  if (userRole === "employee") {
+    return `## Your Permissions (Employee):
+You have FULL access to all modules and tools for this client, including team member management. You can create, read, and update any record. You cannot delete records (platform policy).`;
+  }
+
+  // Client-role users — permissions depend on per-client role
+  switch (clientRole) {
+    case "client":
+      return `## Your Permissions (Client Owner):
+You have full access to all business modules: CRM, Tasks, Social Media, Invoices, Appointments, Blogs, Services, Forms, Reports, Inventory, Goals, Vendors/Customers, Banking, SEO, and Client Settings. You can create, read, and update records. You cannot manage platform users or delete records.`;
+    case "manager":
+      return `## Your Permissions (Manager):
+You have full access to all business modules: CRM, Tasks, Social Media, Invoices, Appointments, Blogs, Services, Forms, Reports, Inventory, Goals, Vendors/Customers, Banking, SEO, and Client Settings. You can create, read, and update records. You cannot manage platform users or delete records.`;
+    case "editor":
+      return `## Your Permissions (Editor):
+You can manage content and day-to-day operations: CRM (contacts, deals, activities), Tasks, Social Media, Appointments, Blogs, Services, Forms, Inquiries, and SEO. You can create, read, and update records in these modules. You do NOT have access to Invoices, Banking, Inventory, Reports, Goals, Integrations, or User Management. You cannot delete records.`;
+    case "viewer":
+      return `## Your Permissions (Viewer):
+You have READ-ONLY access to all business modules. You can view CRM data, tasks, social media posts, invoices, appointments, blogs, services, reports, inventory, and settings. You CANNOT create or update any records. If the user asks you to create or update something, explain that they have viewer-only access and need to ask a manager or admin to make changes.`;
+    default:
+      return `## Your Permissions:
+You have limited access to this client's data. You can view records but may not be able to create or update them.`;
+  }
 }
 
 /**

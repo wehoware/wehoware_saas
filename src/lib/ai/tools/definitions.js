@@ -1573,6 +1573,85 @@ export const TOOL_TO_CATEGORY = {
   "update_task": "TASKS",
 };
 
+// ─── Role-based tool access control ──────────────────────────────────
+// Defines which tool categories each role can access.
+// - admin/employee: ALL categories (full platform management)
+// - client (owner) / manager: All categories except USER (can't list users across platform)
+// - editor: Content + CRM + Tasks + Appointments + Social + Blog + Service + SEO + Forms + Inquiries
+// - viewer: Read-only tools (get_*) — no create/update tools
+
+export const ROLE_TOOL_CATEGORIES = {
+  admin: null,   // null = all categories
+  employee: null, // null = all categories
+  client: [
+    "CRM", "TASKS", "SOCIAL_MEDIA", "INVOICE", "APPOINTMENT", "BLOG",
+    "SERVICE", "FORM", "REPORT", "INVENTORY", "GOAL", "VENDOR_CUSTOMER",
+    "BANKING", "DAILY_REPORT", "INQUIRY", "INTEGRATION", "CLIENT", "SEO",
+  ],
+  manager: [
+    "CRM", "TASKS", "SOCIAL_MEDIA", "INVOICE", "APPOINTMENT", "BLOG",
+    "SERVICE", "FORM", "REPORT", "INVENTORY", "GOAL", "VENDOR_CUSTOMER",
+    "BANKING", "DAILY_REPORT", "INQUIRY", "INTEGRATION", "CLIENT", "SEO",
+  ],
+  editor: [
+    "CRM", "TASKS", "SOCIAL_MEDIA", "APPOINTMENT", "BLOG",
+    "SERVICE", "FORM", "INQUIRY", "SEO",
+  ],
+  viewer: [
+    "CRM", "TASKS", "SOCIAL_MEDIA", "INVOICE", "APPOINTMENT", "BLOG",
+    "SERVICE", "FORM", "REPORT", "INVENTORY", "GOAL", "VENDOR_CUSTOMER",
+    "BANKING", "DAILY_REPORT", "INQUIRY", "INTEGRATION", "CLIENT", "SEO",
+  ],
+};
+
+// Tools that are read-only (safe for viewer role)
+const READ_ONLY_TOOL_NAMES = new Set(
+  Object.values(TOOL_CATEGORIES)
+    .flat()
+    .filter(name => name.startsWith("get_"))
+);
+
+/**
+ * Filter tools based on the user's role and per-client role.
+ *
+ * - admin/employee: all tools
+ * - client/manager: all categories except USER
+ * - editor: content + CRM + tasks + social + blog + service + SEO + forms
+ * - viewer: read-only tools only (get_*)
+ *
+ * @param {array} tools - Array of tool definition objects
+ * @param {string} userRole - Global role: "admin" | "employee" | "client"
+ * @param {string|null} clientRole - Per-client role: "client" | "manager" | "editor" | "viewer"
+ * @returns {array} Filtered tool definitions
+ */
+export function filterToolsByRole(tools, userRole, clientRole) {
+  // Admins and employees get all tools
+  if (userRole === "admin" || userRole === "employee") {
+    return tools;
+  }
+
+  // For client-role users, use their per-client role
+  const effectiveRole = clientRole || "viewer";
+  const allowedCategories = ROLE_TOOL_CATEGORIES[effectiveRole] || ROLE_TOOL_CATEGORIES.viewer;
+
+  if (!allowedCategories) {
+    return tools; // null = all
+  }
+
+  const allowedCategorySet = new Set(allowedCategories);
+
+  // For viewers, only allow read-only tools
+  if (effectiveRole === "viewer") {
+    return tools.filter(t => READ_ONLY_TOOL_NAMES.has(t.function.name));
+  }
+
+  // For other roles, filter by allowed categories
+  return tools.filter(t => {
+    const category = TOOL_TO_CATEGORY[t.function.name];
+    return category && allowedCategorySet.has(category);
+  });
+}
+
 /**
  * Get all tool definitions (full set — use sparingly).
  * Prefer getRelevantTools() for dynamic selection.
@@ -1603,18 +1682,28 @@ export function getToolsByCategory(category) {
  * Always includes the "CLIENT" category (dashboard, settings) as a fallback
  * so the assistant can always provide a general overview.
  *
+ * ROLE-BASED FILTERING: After selecting relevant tools by intent, the
+ * result is filtered by the user's role and per-client role. Viewers
+ * get read-only tools; editors get content+CRM+tasks; managers/clients
+ * get everything except user management; admins/employees get all.
+ *
  * @param {string} userMessage - The latest user message
  * @param {number} maxTools - Maximum tools to return (default 25)
+ * @param {object} roleContext - { userRole, clientRole } for role-based filtering
  * @returns {array} Tool definition objects relevant to the message
  */
-export function getRelevantTools(userMessage, maxTools = 25) {
+export function getRelevantTools(userMessage, maxTools = 25, roleContext = null) {
   if (!userMessage || typeof userMessage !== "string") {
     // No message — return a default set of common tools
-    return [
+    let defaultTools = [
       ...getToolsByCategory("CLIENT"),
       ...getToolsByCategory("CRM"),
       ...getToolsByCategory("TASKS"),
-    ].slice(0, maxTools);
+    ];
+    if (roleContext) {
+      defaultTools = filterToolsByRole(defaultTools, roleContext.userRole, roleContext.clientRole);
+    }
+    return defaultTools.slice(0, maxTools);
   }
 
   const msgLower = userMessage.toLowerCase();
@@ -1663,6 +1752,11 @@ export function getRelevantTools(userMessage, maxTools = 25) {
         seen.add(t.function.name);
       }
     }
+  }
+
+  // Apply role-based filtering
+  if (roleContext) {
+    selected = filterToolsByRole(selected, roleContext.userRole, roleContext.clientRole);
   }
 
   return selected.slice(0, maxTools);

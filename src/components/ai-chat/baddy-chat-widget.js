@@ -5,7 +5,7 @@
 // Appears on all admin pages. Uses the user's activeClientId for isolation.
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageSquare, X, Send, Bot, User, Loader2, Trash2, Copy, Check } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Loader2, Trash2, Copy, Check, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import ChatMarkdown from "@/components/ai-chat/ChatMarkdown";
 
@@ -18,6 +18,8 @@ export default function BaddyChatWidget() {
   const [copiedIdx, setCopiedIdx] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showSessionList, setShowSessionList] = useState(false);
+  const [sessions, setSessions] = useState([]);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -42,20 +44,24 @@ export default function BaddyChatWidget() {
     async function loadHistory() {
       setIsLoadingHistory(true);
       try {
-        // Get the most recent session for this user + client
+        // Get sessions for this user + client
         const res = await fetch("/api/v1/ai/sessions", { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
-        const sessions = data.sessions || [];
+        const sessionList = data.sessions || [];
 
-        if (sessions.length === 0) {
-          setMessages([]);
-          setSessionId(null);
+        if (!cancelled) setSessions(sessionList);
+
+        if (sessionList.length === 0) {
+          if (!cancelled) {
+            setMessages([]);
+            setSessionId(null);
+          }
           return;
         }
 
         // Load messages from the most recent session
-        const latestSession = sessions[0];
+        const latestSession = sessionList[0];
         const msgRes = await fetch(`/api/v1/ai/sessions/${latestSession.id}/messages`, {
           credentials: "include",
         });
@@ -80,6 +86,46 @@ export default function BaddyChatWidget() {
     loadHistory();
     return () => { cancelled = true; };
   }, [activeClient?.id, user?.id]);
+
+  // Load messages for a specific session
+  const loadSessionMessages = useCallback(async (sid) => {
+    if (!sid) {
+      setMessages([]);
+      setSessionId(null);
+      return;
+    }
+    setIsLoadingHistory(true);
+    try {
+      const msgRes = await fetch(`/api/v1/ai/sessions/${sid}/messages`, {
+        credentials: "include",
+      });
+      if (!msgRes.ok) return;
+      const msgData = await msgRes.json();
+      const dbMessages = (msgData.messages || []).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      setMessages(dbMessages);
+      setSessionId(sid);
+      setShowSessionList(false);
+    } catch (err) {
+      console.error("[chat-widget] Failed to load session:", err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  // Refresh session list when sessionId changes (new session created)
+  const refreshSessions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/ai/sessions", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSessions(data.sessions || []);
+    } catch (err) {
+      console.error("[chat-widget] Failed to refresh sessions:", err);
+    }
+  }, []);
 
   const handleCopy = (content, idx) => {
     navigator.clipboard.writeText(content);
@@ -146,7 +192,10 @@ export default function BaddyChatWidget() {
               }
               if (data.done) {
                 // Capture the session ID returned by the server
-                if (data.sessionId) setSessionId(data.sessionId);
+                if (data.sessionId) {
+                  setSessionId(data.sessionId);
+                  refreshSessions();
+                }
               }
               if (data.error) {
                 throw new Error(data.content || data.error);
@@ -180,7 +229,7 @@ export default function BaddyChatWidget() {
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, messages, sessionId]);
+  }, [input, isStreaming, messages, sessionId, refreshSessions]);
 
   // Don't render if not authenticated or no active client
   if (loading || !user || !activeClient) return null;
@@ -234,6 +283,30 @@ export default function BaddyChatWidget() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setSessionId(null);
+                  setShowSessionList(false);
+                  refreshSessions();
+                }}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="New chat"
+                title="New chat"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => {
+                  setShowSessionList(!showSessionList);
+                  refreshSessions();
+                }}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Conversation history"
+                title="Conversation history"
+              >
+                <MessageSquare className="h-4 w-4" />
+              </button>
               {messages.length > 0 && (
                 <button
                   onClick={() => {
@@ -255,6 +328,32 @@ export default function BaddyChatWidget() {
               </button>
             </div>
           </div>
+
+          {/* Session list dropdown */}
+          {showSessionList && (
+            <div className="border-b border-border bg-card max-h-48 overflow-y-auto">
+              {sessions.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+                  No conversations yet
+                </div>
+              ) : (
+                sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => loadSessionMessages(s.id)}
+                    className={`flex w-full items-center justify-between px-4 py-2 text-left text-xs transition-colors hover:bg-accent ${
+                      s.id === sessionId ? "bg-accent font-medium" : ""
+                    }`}
+                  >
+                    <span className="truncate flex-1">{s.title || "Untitled"}</span>
+                    <span className="text-muted-foreground ml-2 shrink-0">
+                      {s._count?.messages || 0} msgs
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">

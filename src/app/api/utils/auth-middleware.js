@@ -74,7 +74,36 @@ async function resolveActiveClientId(profile, candidates, request) {
 
   // Fallback
   if (profile.role === "client") {
-    return profile.clientId ?? null;
+    // SECURITY FIX: Do NOT trust profile.clientId directly — verify the user
+    // still has an active WehowareUserClient row for that client.
+    // This prevents removed/deactivated members from retaining access.
+    if (profile.clientId) {
+      try {
+        const verified = await prisma.wehowareUserClient.findFirst({
+          where: { userId: profile.id, clientId: profile.clientId, active: true },
+          select: { clientId: true },
+        });
+        if (verified) return verified.clientId;
+      } catch (err) {
+        console.warn("[withAuth] Client fallback verification failed:", err);
+      }
+    }
+    // If profile.clientId is not verified, try primary or any active client
+    try {
+      const primary =
+        (await prisma.wehowareUserClient.findFirst({
+          where: { userId: profile.id, isPrimary: true, active: true },
+          select: { clientId: true },
+        })) ??
+        (await prisma.wehowareUserClient.findFirst({
+          where: { userId: profile.id, active: true },
+          select: { clientId: true },
+        }));
+      return primary?.clientId ?? null;
+    } catch (err) {
+      console.warn("[withAuth] Fallback client lookup failed:", err);
+      return null;
+    }
   }
   try {
     const primary =

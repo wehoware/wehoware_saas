@@ -20,6 +20,7 @@
 // No DELETE or destructive operations are available.
 
 export { buildSystemPrompt, getBasePrompt } from "./system-prompt.js";
-export { getToolDefinitions, getRelevantTools, getToolsByCategory, ALL_TOOLS, TOOL_CATEGORIES } from "./tools/definitions.js";
+export { getToolDefinitions, getRelevantTools, getToolsByCategory, filterToolsByRole, ALL_TOOLS, TOOL_CATEGORIES, ROLE_TOOL_CATEGORIES } from "./tools/definitions.js";
 export { executeToolCall } from "./tools/execution.js";
 export { chatWithBaddy } from "./chat.js";
+export { searchMemories, storeConversationMemory, getRecentSessionContext, updateSessionSummary } from "./constants.js";

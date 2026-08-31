@@ -16,9 +16,11 @@ import {
   MAX_TOOL_ITERATIONS,
   searchMemories,
   storeConversationMemory,
+  getRecentSessionContext,
+  updateSessionSummary,
 } from "./constants.js";
 import { buildSystemPrompt } from "./system-prompt.js";
-import { getRelevantTools, getToolDefinitions, TOOL_TO_CATEGORY } from "./tools/definitions.js";
+import { getRelevantTools, getToolDefinitions, filterToolsByRole, TOOL_TO_CATEGORY } from "./tools/definitions.js";
 import { executeToolCall } from "./tools/execution.js";
 
 // Re-export for backward compatibility
@@ -26,6 +28,7 @@ export { buildSystemPrompt } from "./system-prompt.js";
 export { getToolDefinitions } from "./tools/definitions.js";
 export { executeToolCall } from "./tools/execution.js";
 export { getRelevantTools } from "./tools/definitions.js";
+export { filterToolsByRole } from "./tools/definitions.js";
 
 /**
  * Main chat function — async generator that yields text chunks for streaming.
@@ -49,10 +52,10 @@ export { getRelevantTools } from "./tools/definitions.js";
  * improves Qwen's tool-calling accuracy (smaller tool surface = fewer
  * selection errors).
  *
- * @param {object} params - { systemPrompt, messages, clientId, userId, enableThinking }
+ * @param {object} params - { systemPrompt, messages, clientId, userId, enableThinking, userRole, clientRole, sessionId }
  * @yields {string} - text chunks of the assistant response
  */
-export async function* chatWithBaddy({ systemPrompt, messages, clientId, userId, enableThinking }) {
+export async function* chatWithBaddy({ systemPrompt, messages, clientId, userId, enableThinking, userRole, clientRole, sessionId }) {
   if (!clientId) {
     yield "I don't have an active client context. Please select a client workspace first, then I can help you manage their data.";
     return;
@@ -60,17 +63,25 @@ export async function* chatWithBaddy({ systemPrompt, messages, clientId, userId,
 
   // ─── Build system prompt with memory ──────────────────────────────
   // The systemPrompt passed in is already built by the route handler.
-  // We append memory context (dynamic, changes per turn) AFTER the
-  // static base prompt so the cached prefix remains valid.
+  // We append two types of dynamic memory context AFTER the static
+  // base prompt so the cached prefix remains valid:
+  //   1. Mem0: semantic long-term memory (user preferences, past interactions)
+  //   2. DB session context: summaries of recent conversations for continuity
   const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content || "";
-  const memoryContext = await searchMemories(userId, clientId, lastUserMsg);
-  const fullSystemPrompt = systemPrompt + memoryContext;
+  const [memoryContext, sessionContext] = await Promise.all([
+    searchMemories(userId, clientId, lastUserMsg),
+    getRecentSessionContext(userId, clientId, sessionId),
+  ]);
+  const fullSystemPrompt = systemPrompt + sessionContext + memoryContext;
 
-  // ─── Dynamic tool selection ───────────────────────────────────────
-  // Select only the tools relevant to the user's message.
-  // This reduces token overhead and improves tool-calling accuracy.
-  const relevantTools = getRelevantTools(lastUserMsg, 25);
-  console.log(`[baddy] Selected ${relevantTools.length}/${getToolDefinitions().length} tools for message: "${lastUserMsg.slice(0, 80)}"`);
+  // ─── Dynamic tool selection with role-based filtering ─────────────
+  // Select only the tools relevant to the user's message, then filter
+  // by the user's role so viewers get read-only, editors get content,
+  // and managers/clients get everything except user management.
+  const roleContext = { userRole, clientRole };
+  const relevantTools = getRelevantTools(lastUserMsg, 25, roleContext);
+  const allFilteredTools = filterToolsByRole(getToolDefinitions(), userRole, clientRole);
+  console.log(`[baddy] Selected ${relevantTools.length}/${allFilteredTools.length} tools (role: ${userRole}/${clientRole || "N/A"}) for message: "${lastUserMsg.slice(0, 80)}"`);
 
   // ─── Prepare messages for the LLM ─────────────────────────────────
   const llmMessages = [
@@ -82,9 +93,10 @@ export async function* chatWithBaddy({ systemPrompt, messages, clientId, userId,
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     // On subsequent iterations (after tool results), we may need to expand
     // the tool set if the model is trying to call a tool that wasn't included
+    // But still respect role-based filtering
     const toolsForThisIteration = iteration === 0
       ? relevantTools
-      : getToolDefinitions(); // After first iteration, send all tools in case the model needs a different one
+      : allFilteredTools; // After first iteration, send all role-allowed tools
 
     // Call vLLM with streaming
     const response = await fetch(`${VLLM_BASE_URL}/chat/completions`, {
@@ -199,8 +211,12 @@ export async function* chatWithBaddy({ systemPrompt, messages, clientId, userId,
     }
 
     // ─── No tool calls — final response ────────────────────────────
-    // Store conversation in Mem0 (async, non-blocking)
+    // Store conversation in Mem0 (async, non-blocking) for long-term memory
     storeConversationMemory(userId, clientId, lastUserMsg, fullContent);
+    // Update session summary for conversation continuity (async, non-blocking)
+    if (sessionId) {
+      updateSessionSummary(sessionId, lastUserMsg, fullContent);
+    }
     return;
   }
 

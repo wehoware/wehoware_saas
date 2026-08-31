@@ -93,6 +93,7 @@ model WehowareClient {
   agentMessages      WehowareAgentMessage[]
   agentFeedback      WehowareAgentFeedback[]
   agentToolSettings  WehowareAgentToolSetting[]
+  agentUserPreferences WehowareAgentUserPreference[]
 
   @@map("wehoware_clients")
 }
@@ -189,9 +190,10 @@ model WehowareProfile {
   createdCrmContactLists     WehowareCrmContactList[]     @relation("CrmListCreator")
   updatedCrmContactLists     WehowareCrmContactList[]     @relation("CrmListUpdater")
   apiKeys                    WehowareApiKey[]             @relation("ApiKeyOwner")
-  agentSessions              WehowareAgentSession[]       @relation("AgentSessionUser")
-  agentMessages              WehowareAgentMessage[]       @relation("AgentMessageUser")
-  agentFeedback              WehowareAgentFeedback[]      @relation("AgentFeedbackUser")
+  agentSessions              WehowareAgentSession[]           @relation("AgentSessionUser")
+  agentMessages              WehowareAgentMessage[]           @relation("AgentMessageUser")
+  agentFeedback              WehowareAgentFeedback[]          @relation("AgentFeedbackUser")
+  agentUserPreferences       WehowareAgentUserPreference[]    @relation("AgentUserPrefUser")
 
   @@index([role])
   @@index([clientId])
@@ -2800,23 +2802,29 @@ model WehowareCrmContactListMembership {
 // ─── AI Agent Tables (synced from RDS) ─────────────────────────
 
 model WehowareAgentSession {
-  id        String   @id @default(uuid()) @db.VarChar(36)
-  clientId  String   @map("client_id") @db.VarChar(36)
-  userId    String?  @map("user_id") @db.VarChar(36)
-  title     String?  @db.VarChar(500)
-  status    String   @default("active") @db.VarChar(50)
-  metadata  Json?    @db.Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  clientId       String    @map("client_id") @db.VarChar(36)
+  userId         String?   @map("user_id") @db.VarChar(36)
+  title          String?   @db.VarChar(500)
+  status         String    @default("active") @db.VarChar(50)
+  summary        String?   @db.Text
+  messageCount   Int       @default(0) @map("message_count")
+  lastMessageAt  DateTime? @map("last_message_at")
+  metadata       Json?     @db.Json
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   client    WehowareClient         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   user      WehowareProfile?       @relation("AgentSessionUser", fields: [userId], references: [id], onDelete: SetNull)
   messages  WehowareAgentMessage[]
   feedback  WehowareAgentFeedback[]
 
+  @@index([clientId, userId])
+  @@index([userId, clientId])
   @@index([clientId])
   @@index([userId])
   @@index([status])
+  @@index([lastMessageAt])
   @@map("wehoware_agent_sessions")
 }
 
@@ -2840,6 +2848,7 @@ model WehowareAgentMessage {
   feedback     WehowareAgentFeedback?
 
   @@index([sessionId])
+  @@index([clientId, userId])
   @@index([clientId])
   @@index([userId])
   @@index([createdAt])
@@ -2881,4 +2890,27 @@ model WehowareAgentToolSetting {
   @@unique([clientId, toolName])
   @@index([clientId])
   @@map("wehoware_agent_tool_settings")
+}
+
+/// Per-user AI assistant preferences — stored per user + client so
+/// different clients can have different AI behavior for the same user.
+model WehowareAgentUserPreference {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  userId          String   @map("user_id") @db.VarChar(36)
+  clientId        String   @map("client_id") @db.VarChar(36)
+  language        String?  @db.VarChar(20)
+  responseStyle   String?  @map("response_style") @db.VarChar(50)
+  detailLevel     String?  @map("detail_level") @db.VarChar(20)
+  enabledModules  Json?    @map("enabled_modules") @db.Json
+  customPrompt    String?  @map("custom_prompt") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user    WehowareProfile @relation("AgentUserPrefUser", fields: [userId], references: [id], onDelete: Cascade)
+  client  WehowareClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([userId])
+  @@index([clientId])
+  @@map("wehoware_agent_user_preferences")
 }

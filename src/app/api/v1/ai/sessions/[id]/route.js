@@ -53,8 +53,9 @@ export const GET = withAuth(async (request, { params }) => {
 
 /**
  * PATCH /api/v1/ai/sessions/[id]
- * Update session (e.g., change title or status).
+ * Update session (e.g., change title or archive).
  * Body: { title?: string, status?: string }
+ * Note: status "archived" is a soft-delete — data is preserved.
  */
 export const PATCH = withAuth(async (request, { params }) => {
   const sessionId = params.id;
@@ -96,4 +97,42 @@ export const PATCH = withAuth(async (request, { params }) => {
   });
 
   return NextResponse.json({ session: updated });
+}, { allowedRoles: ["admin", "employee", "client"] });
+
+/**
+ * DELETE /api/v1/ai/sessions/[id]
+ * Archive a chat session (soft-delete — sets status to "archived").
+ * Data is NOT deleted — it is preserved per platform policy.
+ * Archived sessions are excluded from the default session list.
+ */
+export const DELETE = withAuth(async (request, { params }) => {
+  const sessionId = params.id;
+  const clientId = request.user.activeClientId;
+
+  if (!clientId) {
+    return NextResponse.json(
+      { error: "No active client selected." },
+      { status: 400 }
+    );
+  }
+
+  // Verify ownership
+  const existing = await request.prisma.wehowareAgentSession.findFirst({
+    where: { id: sessionId, clientId, userId: request.user.id },
+  });
+
+  if (!existing) {
+    return NextResponse.json(
+      { error: "Session not found" },
+      { status: 404 }
+    );
+  }
+
+  // Soft-delete: archive the session, preserve all data
+  const updated = await request.prisma.wehowareAgentSession.update({
+    where: { id: sessionId },
+    data: { status: "archived" },
+  });
+
+  return NextResponse.json({ session: updated, archived: true });
 }, { allowedRoles: ["admin", "employee", "client"] });

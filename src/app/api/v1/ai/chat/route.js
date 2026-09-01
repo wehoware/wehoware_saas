@@ -102,10 +102,11 @@ export const POST = withAuth(async (request) => {
           status: "active",
         },
       });
+      console.log(`[ai/chat] Created new session ${session.id} for user ${request.user.id} client ${clientId}`);
     }
   } catch (err) {
-    console.error("[ai/chat] Session setup failed:", err);
-    // Non-fatal — continue without persistence
+    console.error("[ai/chat] Session setup failed — conversations will NOT be persisted:", err?.message || err);
+    // Non-fatal — continue without persistence, but the user should be informed
   }
 
   const sessionId = session?.id;
@@ -124,8 +125,10 @@ export const POST = withAuth(async (request) => {
         },
       });
     } catch (err) {
-      console.error("[ai/chat] Failed to save user message:", err);
+      console.error("[ai/chat] Failed to save user message to DB:", err?.message || err);
     }
+  } else if (!sessionId) {
+    console.warn("[ai/chat] No session ID — user message will not be persisted");
   }
 
   // ─── Fetch client details for system prompt ─────────────────────
@@ -176,6 +179,9 @@ export const POST = withAuth(async (request) => {
           clientId, // STRICT client isolation — enforced in executeToolCall
           userId: request.user.id,
           enableThinking: Boolean(enableThinking),
+          userRole: request.user.role,
+          clientRole: request.user.activeClientRole,
+          sessionId, // For session-level memory context
         });
 
         for await (const chunk of generator) {
@@ -205,15 +211,29 @@ export const POST = withAuth(async (request) => {
                 totalTimeMs: Date.now() - streamStartTime,
               },
             });
+            console.log(`[ai/chat] Saved assistant message to session ${sessionId} (${fullAssistantContent.length} chars)`);
+          } catch (err) {
+            console.error("[ai/chat] Failed to save assistant message to DB:", err?.message || err);
+          }
 
-            // Update session's updatedAt timestamp
+          // Update session's updatedAt, lastMessageAt, and messageCount
+          // Separate try/catch so a failure here doesn't mask the message save result
+          try {
             await prisma.wehowareAgentSession.update({
               where: { id: sessionId },
-              data: { updatedAt: new Date() },
+              data: {
+                updatedAt: new Date(),
+                lastMessageAt: new Date(),
+                messageCount: { increment: 2 },
+              },
             });
           } catch (err) {
-            console.error("[ai/chat] Failed to save assistant message:", err);
+            console.error("[ai/chat] Failed to update session metadata:", err?.message || err);
           }
+        } else if (!sessionId) {
+          console.warn("[ai/chat] No session ID — assistant response will not be persisted");
+        } else if (!fullAssistantContent) {
+          console.warn("[ai/chat] Empty assistant content — not saving to DB");
         }
 
         controller.close();

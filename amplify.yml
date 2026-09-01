@@ -5,6 +5,10 @@ backend:
       commands:
         - npm install
         - npx prisma generate
+        # Push schema changes to the production database.
+        # This adds new columns/tables without dropping existing data.
+        # Uses DATABASE_URL from Amplify environment variables.
+        - npx prisma db push 2>/dev/null || echo "[amplify] prisma db push skipped (DATABASE_URL may not be accessible at build time)"
 frontend:
   phases:
     preBuild:

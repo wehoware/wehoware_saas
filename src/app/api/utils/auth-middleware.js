@@ -74,7 +74,36 @@ async function resolveActiveClientId(profile, candidates, request) {
 
   // Fallback
   if (profile.role === "client") {
-    return profile.clientId ?? null;
+    // SECURITY FIX: Do NOT trust profile.clientId directly — verify the user
+    // still has an active WehowareUserClient row for that client.
+    // This prevents removed/deactivated members from retaining access.
+    if (profile.clientId) {
+      try {
+        const verified = await prisma.wehowareUserClient.findFirst({
+          where: { userId: profile.id, clientId: profile.clientId, active: true },
+          select: { clientId: true },
+        });
+        if (verified) return verified.clientId;
+      } catch (err) {
+        console.warn("[withAuth] Client fallback verification failed:", err);
+      }
+    }
+    // If profile.clientId is not verified, try primary or any active client
+    try {
+      const primary =
+        (await prisma.wehowareUserClient.findFirst({
+          where: { userId: profile.id, isPrimary: true, active: true },
+          select: { clientId: true },
+        })) ??
+        (await prisma.wehowareUserClient.findFirst({
+          where: { userId: profile.id, active: true },
+          select: { clientId: true },
+        }));
+      return primary?.clientId ?? null;
+    } catch (err) {
+      console.warn("[withAuth] Fallback client lookup failed:", err);
+      return null;
+    }
   }
   try {
     const primary =
@@ -132,7 +161,7 @@ async function authenticateWithApiKey(request) {
       where: { keyHash },
       include: {
         user: {
-          select: { id: true, email: true, role: true, clientId: true },
+          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true },
         },
       },
     });
@@ -194,7 +223,7 @@ export function withAuth(handler, options = {}) {
       try {
         profile = await prisma.wehowareProfile.findUnique({
           where: { id: session.user.id },
-          select: { id: true, email: true, role: true, clientId: true },
+          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true },
         });
       } catch (err) {
         return serverError("withAuth] DB error fetching profile", err);
@@ -219,6 +248,8 @@ export function withAuth(handler, options = {}) {
       email: profile.email,
       role: profile.role,
       clientId: profile.clientId ?? null,
+      firstName: profile.firstName ?? null,
+      lastName: profile.lastName ?? null,
     };
 
     // Resolve active client context

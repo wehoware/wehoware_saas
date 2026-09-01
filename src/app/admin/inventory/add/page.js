@@ -551,21 +551,21 @@ export default function AddInventoryPage() {
           <Tabs defaultValue="basic" className="w-full">
             <TabsList>
               <TabsTrigger value="basic">
-                <FileText className="mr-2 h-4 w-4" /> Basic Info
+                <FileText className="mr-1.5 h-4 w-4" /> Basic Info
               </TabsTrigger>
               <TabsTrigger value="details">
-                <Tag className="mr-2 h-4 w-4" /> Details & Pricing
+                <Tag className="mr-1.5 h-4 w-4" /> Details & Pricing
               </TabsTrigger>
               {formData.type === "vehicle" && (
                 <TabsTrigger value="vehicle">
-                  <Car className="mr-2 h-4 w-4" /> Vehicle Specs
+                  <Car className="mr-1.5 h-4 w-4" /> Vehicle Specs
                 </TabsTrigger>
               )}
               <TabsTrigger value="attributes">
-                <Tag className="mr-2 h-4 w-4" /> Attributes & Images
+                <Tag className="mr-1.5 h-4 w-4" /> Attributes & Images
               </TabsTrigger>
               <TabsTrigger value="seo">
-                <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg xmlns="http://www.w3.org/2000/svg" className="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 SEO
@@ -573,9 +573,9 @@ export default function AddInventoryPage() {
             </TabsList>
 
             <TabsContent value="basic" className="space-y-4 pt-4">
-              <Card>
+              <Card className="border-border/60 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Item Information</CardTitle>
+                  <CardTitle className="text-base">Item Information</CardTitle>
                   <CardDescription>Enter the basic details about this inventory item</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -663,9 +663,9 @@ export default function AddInventoryPage() {
             </TabsContent>
 
             <TabsContent value="details" className="space-y-4 pt-4">
-              <Card>
+              <Card className="border-border/60 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Pricing & Stock</CardTitle>
+                  <CardTitle className="text-base">Pricing & Stock</CardTitle>
                   <CardDescription>Set pricing, stock levels, and visibility</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -732,17 +732,17 @@ export default function AddInventoryPage() {
 
                   <div className="space-y-2">
                     <Label>Thumbnail</Label>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                      <div className="w-24 h-24 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border border-border/40 bg-muted/20">
+                      <div className="w-24 h-24 rounded-lg border border-dashed border-border flex items-center justify-center bg-background overflow-hidden flex-shrink-0">
                         {previewUrl ? (
                           <Image src={previewUrl} alt="Preview" width={96} height={96} className="w-full h-full object-cover" />
                         ) : (
-                          <ImagePlus className="w-10 h-10 text-muted-foreground" />
+                          <ImagePlus className="w-8 h-8 text-muted-foreground/50" />
                         )}
                       </div>
                       <div className="flex-grow space-y-2 w-full">
                         <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                          <UploadCloud className="mr-2 h-4 w-4" />
+                          <UploadCloud className="mr-1.5 h-4 w-4" />
                           {thumbnailFile ? "Change File" : "Upload File"}
                         </Button>
                         <Input
@@ -759,7 +759,7 @@ export default function AddInventoryPage() {
                         )}
                         <div className="relative flex items-center">
                           <span className="flex-shrink px-2 text-xs text-muted-foreground">OR</span>
-                          <div className="flex-grow border-t border-muted"></div>
+                          <div className="flex-grow border-t border-border/40"></div>
                         </div>
                         <Input
                           id="thumbnail"
@@ -772,7 +772,7 @@ export default function AddInventoryPage() {
                         />
                       </div>
                       {(thumbnailFile || formData.thumbnail) && !isUploading && (
-                        <Button type="button" variant="ghost" size="icon" onClick={clearThumbnail} title="Clear Thumbnail" className="self-start sm:self-center">
+                        <Button type="button" variant="ghost" size="icon" onClick={clearThumbnail} title="Clear Thumbnail" className="self-start sm:self-center text-muted-foreground hover:text-destructive">
                           <XIcon className="h-4 w-4" />
                         </Button>
                       )}
@@ -835,9 +835,9 @@ export default function AddInventoryPage() {
 
             {formData.type === "vehicle" && (
               <TabsContent value="vehicle" className="space-y-4 pt-4">
-                <Card>
+                <Card className="border-border/60 shadow-sm">
                   <CardHeader>
-                    <CardTitle>Vehicle Specifications</CardTitle>
+                    <CardTitle className="text-base">Vehicle Specifications</CardTitle>
                     <CardDescription>Enter vehicle-specific details. These will be displayed in the vehicle detail page.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -873,14 +873,14 @@ export default function AddInventoryPage() {
             )}
 
             <TabsContent value="attributes" className="space-y-4 pt-4">
-              <Card>
+              <Card className="border-border/60 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Custom Attributes</CardTitle>
+                  <CardTitle className="text-base">Custom Attributes</CardTitle>
                   <CardDescription>Add flexible key-value attributes for this item. These can be used for any item type.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {customAttributes.map((attr, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                    <div key={index} className="flex items-center gap-2 p-2 rounded-lg border border-border/40 hover:border-border/60 transition-colors">
                       <Input
                         placeholder="Key (e.g. warranty)"
                         value={attr.key}
@@ -899,31 +899,32 @@ export default function AddInventoryPage() {
                         size="icon"
                         onClick={() => handleRemoveCustomAttribute(index)}
                         title="Remove attribute"
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
                   <Button type="button" variant="outline" size="sm" onClick={handleAddCustomAttribute}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-4 w-4 mr-1.5" />
                     Add Attribute
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border/60 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Image Gallery</CardTitle>
+                  <CardTitle className="text-base">Image Gallery</CardTitle>
                   <CardDescription>Upload images or paste image URLs for this item</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {images.map((img, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <div className="w-12 h-12 rounded border border-dashed flex items-center justify-center bg-muted overflow-hidden flex-shrink-0">
+                    <div key={index} className="flex items-center gap-2 p-2 rounded-lg border border-border/40 hover:border-border/60 transition-colors">
+                      <div className="w-12 h-12 rounded-md border border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden flex-shrink-0">
                         {img.url ? (
                           <img src={img.url} alt={img.alt || "Gallery"} className="w-full h-full object-cover" />
                         ) : (
-                          <ImagePlus className="w-5 h-5 text-muted-foreground" />
+                          <ImagePlus className="w-5 h-5 text-muted-foreground/50" />
                         )}
                       </div>
                       <Input
@@ -965,6 +966,7 @@ export default function AddInventoryPage() {
                         onClick={() => handleRemoveImage(index)}
                         disabled={isBatchUploading}
                         title="Remove image"
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -972,7 +974,7 @@ export default function AddInventoryPage() {
                   ))}
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={handleAddImage} disabled={isBatchUploading}>
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="h-4 w-4 mr-1.5" />
                       Add Image
                     </Button>
                     <Button
@@ -982,7 +984,7 @@ export default function AddInventoryPage() {
                       onClick={() => galleryFileInputRef.current?.click()}
                       disabled={isBatchUploading}
                     >
-                      {isBatchUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+                      {isBatchUploading ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-1.5" />}
                       Upload Multiple
                     </Button>
                     <input
@@ -1002,14 +1004,14 @@ export default function AddInventoryPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border/60 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Video Gallery</CardTitle>
+                  <CardTitle className="text-base">Video Gallery</CardTitle>
                   <CardDescription>Add video URLs for this item (YouTube, Vimeo, or direct links)</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {videos.map((vid, index) => (
-                    <div key={`vid-${index}`} className="flex items-center gap-2">
+                    <div key={`vid-${index}`} className="flex items-center gap-2 p-2 rounded-lg border border-border/40 hover:border-border/60 transition-colors">
                       <Input
                         placeholder="Video URL (e.g. https://youtube.com/watch?v=...)"
                         value={vid.url}
@@ -1028,13 +1030,14 @@ export default function AddInventoryPage() {
                         size="icon"
                         onClick={() => handleRemoveVideo(index)}
                         title="Remove video"
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   ))}
                   <Button type="button" variant="outline" size="sm" onClick={handleAddVideo}>
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-4 w-4 mr-1.5" />
                     Add Video
                   </Button>
                 </CardContent>
@@ -1042,9 +1045,9 @@ export default function AddInventoryPage() {
             </TabsContent>
 
             <TabsContent value="seo" className="space-y-4 pt-4">
-              <Card>
+              <Card className="border-border/60 shadow-sm">
                 <CardHeader>
-                  <CardTitle>SEO Information</CardTitle>
+                  <CardTitle className="text-base">SEO Information</CardTitle>
                   <CardDescription>Optimize this item page for search engines</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1094,8 +1097,8 @@ export default function AddInventoryPage() {
                     <p className="text-sm text-muted-foreground">Unique identifier for the item URL</p>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    <h4 className="text-sm font-semibold">Open Graph</h4>
+                  <div className="border-t border-border/40 pt-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Open Graph</h4>
                     <div className="space-y-2">
                       <Label htmlFor="open_graph_title">OG Title</Label>
                       <Input
@@ -1130,8 +1133,8 @@ export default function AddInventoryPage() {
                     </div>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    <h4 className="text-sm font-semibold">Twitter Cards</h4>
+                  <div className="border-t border-border/40 pt-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Twitter Cards</h4>
                     <div className="space-y-2">
                       <Label htmlFor="twitter_title">Twitter Title</Label>
                       <Input
@@ -1166,8 +1169,8 @@ export default function AddInventoryPage() {
                     </div>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    <h4 className="text-sm font-semibold">Advanced SEO</h4>
+                  <div className="border-t border-border/40 pt-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Advanced SEO</h4>
                     <div className="space-y-2">
                       <Label htmlFor="canonical_url">Canonical URL</Label>
                       <Input
@@ -1220,8 +1223,8 @@ export default function AddInventoryPage() {
                     </div>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    <h4 className="text-sm font-semibold">Call to Action</h4>
+                  <div className="border-t border-border/40 pt-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Call to Action</h4>
                     <div className="space-y-2">
                       <Label htmlFor="cta_heading">CTA Heading</Label>
                       <Input
@@ -1267,8 +1270,8 @@ export default function AddInventoryPage() {
                     </div>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
-                    <h4 className="text-sm font-semibold">Social Sharing</h4>
+                  <div className="border-t border-border/40 pt-4 space-y-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Social Sharing</h4>
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="allow_social_share"
@@ -1286,8 +1289,8 @@ export default function AddInventoryPage() {
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-end gap-2 mt-4">
-            <Button type="button" variant="outline" onClick={() => router.push("/admin/inventory")}>
+          <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border/40">
+            <Button type="button" variant="ghost" onClick={() => router.push("/admin/inventory")}>
               Cancel
             </Button>
             <Button type="submit" disabled={isBusy}>

@@ -11,9 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -32,6 +30,8 @@ import {
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { format, subDays } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Download,
   RefreshCw,
@@ -47,6 +47,7 @@ import {
   ChevronRight,
   Users,
   Timer,
+  ListTodo,
 } from "lucide-react";
 import {
   BarChart,
@@ -66,7 +67,50 @@ import {
 
 const PRIORITY_COLORS = { High: "#ef4444", Medium: "#f59e0b", Low: "#22c55e" };
 const STATUS_COLORS = { "To Do": "#94a3b8", "In Progress": "#3b82f6", Done: "#22c55e", Backlog: "#8b5cf6" };
-const STATUS_BADGE_VARIANT = { "To Do": "secondary", "In Progress": "default", Done: "outline", Backlog: "secondary" };
+
+// Status pill styles (borderless)
+const STATUS_PILL_STYLES = {
+  "To Do": "bg-orange-500/10 text-orange-600",
+  "In Progress": "bg-yellow-500/10 text-yellow-600",
+  "Done": "bg-green-500/10 text-green-600",
+  "Backlog": "bg-muted text-muted-foreground",
+};
+
+const PRIORITY_PILL_STYLES = {
+  High: "bg-red-500/10 text-red-600",
+  Medium: "bg-orange-500/10 text-orange-600",
+  Low: "bg-blue-500/10 text-blue-600",
+};
+
+function StatusPill({ status }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+      STATUS_PILL_STYLES[status] || "bg-muted text-muted-foreground"
+    )}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[status] ?? "#94a3b8" }} />
+      {status || "Unknown"}
+    </span>
+  );
+}
+
+function PriorityPill({ priority }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+      PRIORITY_PILL_STYLES[priority] || "bg-muted text-muted-foreground"
+    )}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: PRIORITY_COLORS[priority] ?? "#94a3b8" }} />
+      {priority || "N/A"}
+    </span>
+  );
+}
+
+function getInitials(first, last) {
+  const f = first?.charAt(0) || "";
+  const l = last?.charAt(0) || "";
+  return (f + l).toUpperCase() || "?";
+}
 
 function SortIcon({ sortKey, currentSort, currentDir }) {
   if (sortKey !== currentSort) return <ArrowUpDown className="h-3 w-3 opacity-50" />;
@@ -82,15 +126,19 @@ const INITIAL_FILTERS = {
   granularity: "weekly",
 };
 
-function MetricsCard({ title, value, sub, icon: Icon, color = "text-foreground" }) {
+function MetricsCard({ title, value, sub, icon: Icon, accent }) {
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow duration-200">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        {Icon && (
+          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", accent)}>
+            <Icon className="h-4 w-4" />
+          </div>
+        )}
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-bold ${color}`}>{value}</div>
+        <div className="text-2xl font-bold">{value}</div>
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
@@ -295,7 +343,7 @@ export default function TaskReportsPage() {
   );
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+    <div className="flex-1 space-y-4">
       <AdminPageHeader
         backLink="/admin/tasks"
         backIcon={<ArrowLeft className="h-4 w-4" />}
@@ -304,40 +352,32 @@ export default function TaskReportsPage() {
       />
 
       {/* Filters */}
-      <Card>
+      <Card className="border-border/60 shadow-sm">
         <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">From</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">From</label>
               <Input
                 type="date"
                 value={filters.date_from}
-                onChange={(e) =>
-                  setFilters({ ...filters, date_from: e.target.value })
-                }
-                className="w-36"
+                onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">To</Label>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">To</label>
               <Input
                 type="date"
                 value={filters.date_to}
-                onChange={(e) =>
-                  setFilters({ ...filters, date_to: e.target.value })
-                }
-                className="w-36"
+                onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Employee</Label>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Employee</label>
               <Select
                 value={filters.user_id || "all"}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, user_id: v === "all" ? "" : v })
-                }
+                onValueChange={(v) => setFilters({ ...filters, user_id: v === "all" ? "" : v })}
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="All Employees" />
                 </SelectTrigger>
                 <SelectContent>
@@ -350,15 +390,13 @@ export default function TaskReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Status</Label>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Status</label>
               <Select
                 value={filters.status || "all"}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, status: v === "all" ? "" : v })
-                }
+                onValueChange={(v) => setFilters({ ...filters, status: v === "all" ? "" : v })}
               >
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
@@ -370,15 +408,13 @@ export default function TaskReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Priority</Label>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Priority</label>
               <Select
                 value={filters.priority || "all"}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, priority: v === "all" ? "" : v })
-                }
+                onValueChange={(v) => setFilters({ ...filters, priority: v === "all" ? "" : v })}
               >
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
@@ -389,15 +425,13 @@ export default function TaskReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Granularity</Label>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Granularity</label>
               <Select
                 value={filters.granularity}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, granularity: v })
-                }
+                onValueChange={(v) => setFilters({ ...filters, granularity: v })}
               >
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -408,12 +442,15 @@ export default function TaskReportsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleApply} variant="outline" size="sm">
+          </div>
+
+          <div className="flex items-center justify-end gap-2 mt-3">
+            <Button onClick={handleClear} variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+              Clear
+            </Button>
+            <Button onClick={handleApply} size="sm">
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
               Apply
-            </Button>
-            <Button onClick={handleClear} variant="ghost" size="sm">
-              Clear
             </Button>
             <Button
               onClick={handleExport}
@@ -438,27 +475,30 @@ export default function TaskReportsPage() {
           <MetricsCard
             title="Total Tasks"
             value={dashboard.total_tasks}
+            sub="In selected period"
             icon={TrendingUp}
+            accent="text-blue-500 bg-blue-500/10"
           />
           <MetricsCard
             title="Completion Rate"
             value={`${dashboard.completion_rate?.toFixed(1) ?? 0}%`}
             sub={`${dashboard.by_status?.Done ?? 0} tasks done`}
             icon={CheckCircle}
-            color={dashboard.completion_rate >= 70 ? "text-green-600" : "text-yellow-600"}
+            accent={dashboard.completion_rate >= 70 ? "text-green-500 bg-green-500/10" : "text-yellow-500 bg-yellow-500/10"}
           />
           <MetricsCard
             title="Overdue Tasks"
             value={dashboard.overdue_count ?? 0}
             sub={`${dashboard.due_soon_count ?? 0} due soon`}
             icon={AlertTriangle}
-            color={(dashboard.overdue_count ?? 0) > 0 ? "text-destructive" : "text-foreground"}
+            accent={(dashboard.overdue_count ?? 0) > 0 ? "text-red-500 bg-red-500/10" : "text-muted-foreground bg-muted"}
           />
           <MetricsCard
             title="Hours Tracked"
             value={`${Number(dashboard.total_hours_tracked ?? 0).toFixed(1)}h`}
             sub={dashboard.total_estimated_hours ? `of ${Number(dashboard.total_estimated_hours).toFixed(1)}h estimated` : undefined}
             icon={Clock}
+            accent="text-orange-500 bg-orange-500/10"
           />
         </div>
       ) : null}
@@ -466,9 +506,9 @@ export default function TaskReportsPage() {
       {/* Charts row */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* By Status */}
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm">Tasks by Status</CardTitle>
+            <CardTitle className="text-base">Tasks by Status</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -490,9 +530,9 @@ export default function TaskReportsPage() {
         </Card>
 
         {/* By Priority */}
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm">Tasks by Priority</CardTitle>
+            <CardTitle className="text-base">Tasks by Priority</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -517,9 +557,9 @@ export default function TaskReportsPage() {
       </div>
 
       {/* Completion history */}
-      <Card>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Completion Trend ({filters.granularity})</CardTitle>
+          <CardTitle className="text-base">Completion Trend ({filters.granularity})</CardTitle>
           <CardDescription>Tasks completed per period</CardDescription>
         </CardHeader>
         <CardContent>
@@ -540,11 +580,11 @@ export default function TaskReportsPage() {
       </Card>
 
       {/* Team performance */}
-      <Card>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4" />
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
               Team Performance
             </CardTitle>
             <CardDescription>Task completion by team member in the selected period</CardDescription>
@@ -560,12 +600,15 @@ export default function TaskReportsPage() {
           {isLoading ? (
             <Skeleton className="h-32" />
           ) : !teamPerf?.team?.length ? (
-            <p className="text-sm text-muted-foreground">No data for this period.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Users className="h-10 w-10 text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">No data for this period.</p>
+            </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-border/40 scrollbar-thin">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/30">
                     <TableHead className="text-left">Member</TableHead>
                     <TableHead className="text-right">Assigned</TableHead>
                     <TableHead className="text-right">Completed</TableHead>
@@ -576,23 +619,39 @@ export default function TaskReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {teamPerf.team.map((m) => (
-                    <TableRow key={m.user_id}>
-                      <TableCell className="font-medium">
-                        {m.first_name} {m.last_name}
+                    <TableRow key={m.user_id} className="hover:bg-muted/40 transition-colors">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarFallback className="text-[10px]">
+                              {getInitials(m.first_name, m.last_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium text-sm">
+                            {m.first_name} {m.last_name}
+                          </span>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right">{m.tasks_assigned}</TableCell>
-                      <TableCell className="text-right">{m.tasks_completed}</TableCell>
+                      <TableCell className="text-right tabular-nums">{m.tasks_assigned}</TableCell>
+                      <TableCell className="text-right tabular-nums">{m.tasks_completed}</TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={m.completion_rate >= 70 ? "outline" : "secondary"}>
+                        <span className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
+                          m.completion_rate >= 70 ? "bg-green-500/10 text-green-600"
+                          : m.completion_rate >= 40 ? "bg-yellow-500/10 text-yellow-600"
+                          : "bg-red-500/10 text-red-600"
+                        )}>
                           {m.completion_rate?.toFixed(0) ?? 0}%
-                        </Badge>
+                        </span>
                       </TableCell>
-                      <TableCell className="text-right">{Number(m.hours_logged ?? 0).toFixed(1)}h</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{Number(m.hours_logged ?? 0).toFixed(1)}h</TableCell>
                       <TableCell className="text-right">
                         {m.overdue_tasks > 0 ? (
-                          <Badge variant="destructive">{m.overdue_tasks}</Badge>
+                          <span className="inline-flex items-center rounded-full bg-red-500/10 text-red-600 px-2 py-0.5 text-xs font-medium tabular-nums">
+                            {m.overdue_tasks}
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground">0</span>
+                          <span className="text-muted-foreground tabular-nums">0</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -605,33 +664,44 @@ export default function TaskReportsPage() {
       </Card>
 
       {/* Overdue tasks */}
-      <Card>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-500" />
             Overdue Tasks
           </CardTitle>
+          <CardDescription>
+            {overdue?.tasks?.length ? `${overdue.tasks.length} task(s) past due date` : "Tasks past their due date"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-24" />
           ) : !overdue?.tasks?.length ? (
-            <p className="text-sm text-muted-foreground">No overdue tasks.</p>
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <CheckCircle className="h-10 w-10 text-green-500/40 mb-2" />
+              <p className="text-sm text-muted-foreground">No overdue tasks. Great job!</p>
+            </div>
           ) : (
             <div className="space-y-2">
               {overdue.tasks.slice(0, 15).map((t) => (
-                <div key={t.id} className="flex items-center justify-between py-1.5 border-b last:border-b-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{t.title}</p>
-                    {t.assignee && (
-                      <p className="text-xs text-muted-foreground">
-                        {t.assignee.first_name} {t.assignee.last_name}
-                      </p>
-                    )}
+                <div key={t.id} className="flex items-center justify-between py-2 border-b last:border-b-0 border-border/40 hover:bg-muted/30 rounded px-2 -mx-2 transition-colors">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" title={t.title}>{t.title}</p>
+                      {t.assignee && (
+                        <p className="text-xs text-muted-foreground">
+                          {t.assignee.first_name} {t.assignee.last_name}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-3">
-                    <Badge variant={t.priority === "High" ? "destructive" : "secondary"}>{t.priority}</Badge>
-                    <span className="text-xs text-destructive whitespace-nowrap">{t.days_overdue}d overdue</span>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    {t.priority && <PriorityPill priority={t.priority} />}
+                    <span className="text-xs text-destructive font-medium whitespace-nowrap tabular-nums">
+                      {t.days_overdue}d overdue
+                    </span>
                   </div>
                 </div>
               ))}
@@ -642,38 +712,38 @@ export default function TaskReportsPage() {
 
       {/* Cycle time */}
       {cycleTime && (
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm">Cycle Time Analysis</CardTitle>
+            <CardTitle className="text-base">Cycle Time Analysis</CardTitle>
             <CardDescription>Average time from task creation to completion</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold">{cycleTime.avg_cycle_days?.toFixed(1) ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">Avg days</p>
+            <div className="grid grid-cols-3 gap-4 mb-5">
+              <div className="rounded-lg border border-border/40 p-4 text-center">
+                <p className="text-2xl font-bold tabular-nums">{cycleTime.avg_cycle_days?.toFixed(1) ?? "—"}</p>
+                <p className="text-xs text-muted-foreground mt-1">Avg days</p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">{cycleTime.median_cycle_days?.toFixed(1) ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">Median days</p>
+              <div className="rounded-lg border border-border/40 p-4 text-center">
+                <p className="text-2xl font-bold tabular-nums">{cycleTime.median_cycle_days?.toFixed(1) ?? "—"}</p>
+                <p className="text-xs text-muted-foreground mt-1">Median days</p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold">{cycleTime.sample_size ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Tasks analyzed</p>
+              <div className="rounded-lg border border-border/40 p-4 text-center">
+                <p className="text-2xl font-bold tabular-nums">{cycleTime.sample_size ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-1">Tasks analyzed</p>
               </div>
             </div>
             {cycleTime.by_priority && (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {Object.entries(cycleTime.by_priority).map(([priority, data]) => (
-                  <div key={priority} className="flex items-center justify-between text-sm">
+                  <div key={priority} className="flex items-center justify-between text-sm py-1.5 border-b last:border-b-0 border-border/40">
                     <span className="flex items-center gap-2">
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: PRIORITY_COLORS[priority] ?? "#94a3b8" }}
                       />
-                      {priority}
+                      <span className="font-medium">{priority}</span>
                     </span>
-                    <span>
+                    <span className="tabular-nums">
                       {data.avg_days?.toFixed(1)} days avg
                       <span className="text-muted-foreground ml-2">({data.count} tasks)</span>
                     </span>
@@ -687,10 +757,10 @@ export default function TaskReportsPage() {
 
       {/* Time Summary */}
       {timeSummary && timeSummary.summary?.length > 0 && (
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Timer className="h-4 w-4" />
+            <CardTitle className="text-base flex items-center gap-2">
+              <Timer className="h-4 w-4 text-muted-foreground" />
               Time Entry Summary
             </CardTitle>
             <CardDescription>
@@ -698,10 +768,10 @@ export default function TaskReportsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-border/40 scrollbar-thin">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/30">
                     <TableHead className="text-left">Member</TableHead>
                     <TableHead className="text-right">Total Hours</TableHead>
                     <TableHead className="text-right">Entries</TableHead>
@@ -711,12 +781,21 @@ export default function TaskReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {timeSummary.summary.map((emp) => (
-                    <TableRow key={emp.user_id}>
-                      <TableCell className="font-medium">{emp.label}</TableCell>
-                      <TableCell className="text-right">{emp.total_hours}h</TableCell>
-                      <TableCell className="text-right">{emp.entry_count}</TableCell>
-                      <TableCell className="text-right">{emp.task_count}</TableCell>
-                      <TableCell className="text-right">{emp.avg_hours_per_entry}h</TableCell>
+                    <TableRow key={emp.user_id} className="hover:bg-muted/40 transition-colors">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarFallback className="text-[10px]">
+                              {getInitials(emp.label?.split(" ")[0], emp.label?.split(" ")[1])}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium text-sm">{emp.label}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{emp.total_hours}h</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{emp.entry_count}</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{emp.task_count}</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums text-muted-foreground">{emp.avg_hours_per_entry}h</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -727,9 +806,9 @@ export default function TaskReportsPage() {
       )}
 
       {/* Detailed Task List */}
-      <Card>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm">Task List</CardTitle>
+          <CardTitle className="text-base">Task List</CardTitle>
           <CardDescription>Detailed task listing with filtering and sorting</CardDescription>
         </CardHeader>
         <CardContent>
@@ -748,13 +827,16 @@ export default function TaskReportsPage() {
           {!taskList ? (
             <Skeleton className="h-48" />
           ) : !taskList.tasks?.length ? (
-            <p className="text-sm text-muted-foreground">No tasks found matching the filters.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <ListTodo className="h-10 w-10 text-muted-foreground/40 mb-2" />
+              <p className="text-sm text-muted-foreground">No tasks found matching the filters.</p>
+            </div>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-md border">
+              <div className="overflow-x-auto rounded-lg border border-border/40 scrollbar-thin">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="bg-muted/30">
                       <TableHead className="cursor-pointer select-none" onClick={() => handleTaskSort("title")}>
                         <span className="flex items-center gap-1">
                           Title
@@ -786,29 +868,26 @@ export default function TaskReportsPage() {
                   </TableHeader>
                   <TableBody>
                     {taskList.tasks.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-medium max-w-xs truncate">{t.title}</TableCell>
+                      <TableRow key={t.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell className="font-medium max-w-xs truncate" title={t.title}>{t.title}</TableCell>
+                        <TableCell><StatusPill status={t.status} /></TableCell>
+                        <TableCell>{t.priority && <PriorityPill priority={t.priority} />}</TableCell>
                         <TableCell>
-                          <Badge variant={STATUS_BADGE_VARIANT[t.status] ?? "secondary"}>
-                            {t.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {t.priority && (
-                            <span className="flex items-center gap-1.5 text-sm">
-                              <span
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: PRIORITY_COLORS[t.priority] ?? "#94a3b8" }}
-                              />
-                              {t.priority}
-                            </span>
+                          {t.assignee?.label ? (
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6 shrink-0">
+                                <AvatarFallback className="text-[9px]">
+                                  {getInitials(t.assignee.label?.split(" ")[0], t.assignee.label?.split(" ")[1])}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm truncate">{t.assignee.label}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground italic">Unassigned</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {t.assignee?.label ?? "Unassigned"}
-                        </TableCell>
-                        <TableCell className="text-sm">{t.due_date ?? "—"}</TableCell>
-                        <TableCell className="text-right text-sm">
+                        <TableCell className="text-sm whitespace-nowrap">{t.due_date ?? "—"}</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums">
                           {Number(t.actual_hours ?? 0).toFixed(1)}
                           {t.estimated_hours !== null && (
                             <span className="text-muted-foreground">
@@ -816,7 +895,7 @@ export default function TaskReportsPage() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-sm">
+                        <TableCell className="text-right text-sm tabular-nums">
                           {t.subtask_count > 0
                             ? `${t.subtask_completed}/${t.subtask_count}`
                             : "—"}
@@ -828,7 +907,7 @@ export default function TaskReportsPage() {
               </div>
 
               <div className="flex items-center justify-between mt-4">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground tabular-nums">
                   {taskList.total} task{taskList.total !== 1 ? "s" : ""} • Page {taskList.page} of {taskList.total_pages}
                 </p>
                 <div className="flex items-center gap-2">

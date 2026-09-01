@@ -1,26 +1,73 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
 import DailyReportList from "@/components/daily-reports/DailyReportList";
 import DailyReportFilters from "@/components/daily-reports/DailyReportFilters";
+import AdminPageHeader from "@/components/AdminPageHeader";
+import { useAuth } from "@/contexts/auth-context";
+import { Plus, FileText, CheckCircle2, Clock, TrendingUp, Target } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 10;
+
+function StatCard({ title, value, subtitle, icon: Icon, accent }) {
+  return (
+    <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-muted-foreground">{title}</span>
+          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", accent)}>
+            <Icon className="h-4 w-4" />
+          </div>
+        </div>
+        <div className="text-2xl font-bold">{value}</div>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DailyReportsPage() {
+  const { isAdmin, isClient } = useAuth();
+  const canViewAnalytics = isAdmin || isClient;
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [filters, setFilters] = useState({});
   const [employees, setEmployees] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const sentinelRef = useRef(null);
 
-  async function fetchReports(currentPage = 1, currentFilters = filters) {
+  // Fetch summary stats (admin/client only)
+  const fetchSummary = useCallback(async () => {
+    if (!canViewAnalytics) return;
+    try {
+      const res = await fetch("/api/v1/daily-reports/analytics/summary?granularity=monthly");
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data.summary || null);
+      }
+    } catch {
+      // silent — stats are optional
+    }
+  }, [canViewAnalytics]);
+
+  // Fetch first page
+  const fetchReports = useCallback(async (currentFilters = filters) => {
     setLoading(true);
+    setPage(1);
+    setHasMore(true);
     try {
       const qs = new URLSearchParams();
-      qs.set("page", String(currentPage));
-      qs.set("limit", "10");
+      qs.set("page", "1");
+      qs.set("limit", String(PAGE_SIZE));
       if (currentFilters.start_date) qs.set("start_date", currentFilters.start_date);
       if (currentFilters.end_date) qs.set("end_date", currentFilters.end_date);
       if (currentFilters.status) qs.set("status", currentFilters.status);
@@ -31,44 +78,49 @@ export default function DailyReportsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to fetch reports");
       setReports(data.reports || []);
       setTotal(data.total || 0);
-      setPage(data.page || 1);
+      setHasMore((data.reports?.length || 0) < (data.total || 0));
     } catch (err) {
       toast.error(err.message);
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const qs = new URLSearchParams();
-        qs.set("page", "1");
-        qs.set("limit", "10");
-        if (filters.start_date) qs.set("start_date", filters.start_date);
-        if (filters.end_date) qs.set("end_date", filters.end_date);
-        if (filters.status) qs.set("status", filters.status);
-        if (filters.user_id) qs.set("user_id", filters.user_id);
-        const res = await fetch(`/api/v1/daily-reports?${qs.toString()}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to fetch reports");
-        if (!cancelled) {
-          setReports(data.reports || []);
-          setTotal(data.total || 0);
-          setPage(data.page || 1);
-        }
-      } catch (err) {
-        if (!cancelled) toast.error(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
   }, [filters]);
 
+  // Load more (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || loading || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const qs = new URLSearchParams();
+      qs.set("page", String(nextPage));
+      qs.set("limit", String(PAGE_SIZE));
+      if (filters.start_date) qs.set("start_date", filters.start_date);
+      if (filters.end_date) qs.set("end_date", filters.end_date);
+      if (filters.status) qs.set("status", filters.status);
+      if (filters.user_id) qs.set("user_id", filters.user_id);
+
+      const res = await fetch(`/api/v1/daily-reports?${qs.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch reports");
+      const newReports = data.reports || [];
+      setReports((prev) => [...prev, ...newReports]);
+      setPage(nextPage);
+      setHasMore(newReports.length > 0 && nextPage * PAGE_SIZE < (data.total || 0));
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [page, loadingMore, loading, hasMore, filters]);
+
+  // Initial load
+  useEffect(() => {
+    fetchReports(filters);
+    fetchSummary();
+  }, [fetchReports, fetchSummary]);
+
+  // Load employees for filter
   useEffect(() => {
     async function loadEmployees() {
       try {
@@ -76,11 +128,28 @@ export default function DailyReportsPage() {
         const data = await res.json();
         if (res.ok) setEmployees(data.employees || []);
       } catch {
-        // ignore — employee filter is optional
+        // ignore
       }
     }
     loadEmployees();
   }, []);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore, hasMore, loadingMore, loading]);
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this report?")) return;
@@ -89,7 +158,8 @@ export default function DailyReportsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to delete");
       toast.success("Report deleted");
-      fetchReports(page, filters);
+      fetchReports(filters);
+      fetchSummary();
     } catch (err) {
       toast.error(err.message);
     }
@@ -101,7 +171,8 @@ export default function DailyReportsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to submit");
       toast.success("Report submitted");
-      fetchReports(page, filters);
+      fetchReports(filters);
+      fetchSummary();
     } catch (err) {
       toast.error(err.message);
     }
@@ -113,31 +184,67 @@ export default function DailyReportsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to unsubmit");
       toast.success("Report unsubmitted");
-      fetchReports(page, filters);
+      fetchReports(filters);
+      fetchSummary();
     } catch (err) {
       toast.error(err.message);
     }
   };
 
-  const totalPages = Math.ceil(total / 10);
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Daily Work Reports</h1>
-        <Button asChild>
-          <Link href="/admin/daily-reports/new">New Report</Link>
-        </Button>
-      </div>
+    <div className="flex-1 space-y-4">
+      <AdminPageHeader
+        title="Daily Work Reports"
+        description="Track and manage daily work reports from your team."
+        actionLabel="New Report"
+        actionIcon={<Plus className="mr-2 h-4 w-4" />}
+        onAction={() => window.location.href = "/admin/daily-reports/new"}
+      />
 
+      {/* Stat cards (admin/client only) */}
+      {canViewAnalytics && summary && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Total Reports"
+            value={summary.total_reports}
+            subtitle="All time"
+            icon={FileText}
+            accent="text-blue-500 bg-blue-500/10"
+          />
+          <StatCard
+            title="Submitted"
+            value={summary.submitted_count}
+            subtitle={`${summary.draft_count} drafts pending`}
+            icon={CheckCircle2}
+            accent="text-green-500 bg-green-500/10"
+          />
+          <StatCard
+            title="Total Hours"
+            value={summary.total_hours?.toFixed(1) || "0"}
+            subtitle={`${summary.avg_hours_per_report?.toFixed(1) || "0"} avg per report`}
+            icon={Clock}
+            accent="text-orange-500 bg-orange-500/10"
+          />
+          <StatCard
+            title="Tasks Completed"
+            value={summary.tasks_completed}
+            subtitle="Unique tasks worked on"
+            icon={Target}
+            accent="text-purple-500 bg-purple-500/10"
+          />
+        </div>
+      )}
+
+      {/* Filters */}
       <DailyReportFilters
         filters={filters}
         employees={employees}
         onChange={setFilters}
-        onApply={(f) => { setFilters(f); fetchReports(1, f); }}
-        onClear={() => { setFilters({}); fetchReports(1, {}); }}
+        onApply={(f) => { setFilters(f); fetchReports(f); }}
+        onClear={() => { setFilters({}); fetchReports({}); }}
       />
 
+      {/* Reports list */}
       <DailyReportList
         reports={reports}
         loading={loading}
@@ -146,25 +253,19 @@ export default function DailyReportsPage() {
         onUnsubmit={handleUnsubmit}
       />
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1}
-            onClick={() => fetchReports(page - 1, filters)}
-          >
-            Previous
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            disabled={page >= totalPages}
-            onClick={() => fetchReports(page + 1, filters)}
-          >
-            Next
-          </Button>
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} className="h-1" />
+      {loadingMore && (
+        <div className="flex items-center justify-center py-6">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+            Loading more reports...
+          </div>
+        </div>
+      )}
+      {!hasMore && reports.length > 0 && !loadingMore && (
+        <div className="text-center py-4 text-xs text-muted-foreground">
+          You&apos;ve reached the end — {reports.length} of {total} reports loaded.
         </div>
       )}
     </div>

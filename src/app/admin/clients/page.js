@@ -161,42 +161,42 @@ export default function ClientsPage() {
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
             ) : (
-              <div className="relative w-full overflow-auto">
-                <table className="w-full caption-bottom text-sm">
+              <div className="relative w-full overflow-x-auto scrollbar-thin">
+                <table className="w-full caption-bottom text-sm table-fixed">
                   <thead className="[&_tr]:border-b">
                     <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                       {/* Add sorting handlers */}
                       <th
-                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[22%] cursor-pointer"
                         onClick={() => handleSort("company_name")}
                       >
                         Company <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                       </th>
                       <th
-                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[18%] cursor-pointer"
                         onClick={() => handleSort("contact_person")}
                       >
                         Contact <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                       </th>
                       <th
-                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[22%] cursor-pointer"
                         onClick={() => handleSort("email")}
                       >
                         Email <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                       </th>
                       <th
-                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[16%] cursor-pointer"
                         onClick={() => handleSort("domain")}
                       >
                         Domain <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                       </th>
                       <th
-                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 cursor-pointer"
+                        className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[12%] cursor-pointer"
                         onClick={() => handleSort("public_slug")}
                       >
-                        Public Slug <ArrowUpDown className="ml-1 h-3 w-3 inline" />
+                        Slug <ArrowUpDown className="ml-1 h-3 w-3 inline" />
                       </th>
-                      <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
+                      <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground w-[10%]">
                         Actions
                       </th>
                     </tr>
@@ -208,57 +208,67 @@ export default function ClientsPage() {
                           key={client.id}
                           className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
                         >
-                          <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 font-medium">
-                            <div className="flex items-center">
-                              <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                              {client.company_name || "-"}
+                          <td className="p-4 align-middle font-medium">
+                            <div className="flex items-center min-w-0">
+                              <Building2 className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
+                              <span className="truncate" title={client.company_name || ""}>
+                                {client.company_name || "-"}
+                              </span>
                             </div>
                           </td>
-                          <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                            <div className="flex items-center space-x-2">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                                 <User className="h-4 w-4 text-primary" />
                               </div>
-                              <div>{client.contact_person || "-"}</div>
+                              <span className="truncate" title={client.contact_person || ""}>
+                                {client.contact_person || "-"}
+                              </span>
                             </div>
                           </td>
-                          <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                            <div className="flex items-center">
-                              <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                              {client.email || "-"}
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center min-w-0">
+                              <Mail className="h-4 w-4 mr-2 shrink-0 text-muted-foreground" />
+                              <span className="truncate" title={client.email || ""}>
+                                {client.email || "-"}
+                              </span>
                             </div>
                           </td>
-                          <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                            {client.domain || "-"}
+                          <td className="p-4 align-middle">
+                            <span className="truncate block" title={client.domain || ""}>
+                              {client.domain || "-"}
+                            </span>
                           </td>
-                          <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 text-muted-foreground">
+                          <td className="p-4 align-middle text-muted-foreground">
                             {client.public_slug ? (
-                              <a href={`/book/${client.public_slug}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{client.public_slug}</a>
+                              <a href={`/book/${client.public_slug}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block" title={client.public_slug}>
+                                {client.public_slug}
+                              </a>
                             ) : (
                               "-"
                             )}
                           </td>
-                          <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 text-right">
-                            <div className="flex justify-end space-x-1">
+                          <td className="p-4 align-middle text-right">
+                            <div className="flex justify-end items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="h-8 px-2"
                                 onClick={() =>
                                   router.push(
                                     `/admin/clients/edit?id=${client.id}`
                                   )
                                 }
                               >
-                                <Edit className="h-3.5 w-3.5 mr-1" />
-                                Edit
+                                <Edit className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="h-8 px-2 text-destructive hover:text-destructive"
                                 onClick={() => openDeleteDialog(client)}
                               >
-                                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                                Delete
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </td>

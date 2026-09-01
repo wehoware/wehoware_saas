@@ -5,13 +5,14 @@
 // Appears on all admin pages. Uses the user's activeClientId for isolation.
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageSquare, X, Send, Bot, User, Loader2, Trash2, Copy, Check } from "lucide-react";
+import { MessageSquare, X, Send, User, Loader2, Trash2, Copy, Check, Maximize2, Minimize2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import ChatMarkdown from "@/components/ai-chat/ChatMarkdown";
 
 export default function BaddyChatWidget() {
   const { user, activeClient, loading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -218,12 +219,16 @@ export default function BaddyChatWidget() {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex h-[600px] max-h-[calc(100vh-3rem)] w-[400px] max-w-[calc(100vw-3rem)] flex-col rounded-2xl border border-border bg-card shadow-2xl">
+        <div className={`fixed bottom-6 right-6 z-50 flex flex-col rounded-2xl border border-border bg-card shadow-2xl transition-all duration-300 ${
+          isExpanded
+            ? "h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] max-w-5xl"
+            : "h-[600px] max-h-[calc(100vh-3rem)] w-[400px] max-w-[calc(100vw-3rem)]"
+        }`}>
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border p-4">
             <div className="flex items-center gap-3">
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-                <Bot className="h-5 w-5 text-white" />
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-2 ring-blue-500/30">
+                <img src="/images/wehoware%20logo.png" alt="Baddy" className="h-full w-full object-cover" />
                 <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-green-500" />
               </div>
               <div>
@@ -247,6 +252,18 @@ export default function BaddyChatWidget() {
                 </button>
               )}
               <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label={isExpanded ? "Shrink chat" : "Enlarge chat"}
+                title={isExpanded ? "Shrink" : "Enlarge"}
+              >
+                {isExpanded ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </button>
+              <button
                 onClick={() => setIsOpen(false)}
                 className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 aria-label="Close chat"
@@ -257,11 +274,11 @@ export default function BaddyChatWidget() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-                  <Bot className="h-8 w-8 text-white" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full overflow-hidden ring-2 ring-blue-500/30">
+                  <img src="/images/wehoware%20logo.png" alt="Baddy" className="h-full w-full object-cover" />
                 </div>
                 <div>
                   <div className="font-medium">Hi, I&apos;m Baddy</div>
@@ -293,12 +310,12 @@ export default function BaddyChatWidget() {
                 className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-                    <Bot className="h-4 w-4 text-white" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden ring-1 ring-blue-500/30">
+                    <img src="/images/wehoware%20logo.png" alt="Baddy" className="h-full w-full object-cover" />
                   </div>
                 )}
                 <div
-                  className={`group relative max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+                  className={`group relative max-w-[80%] sm:max-w-prose rounded-2xl px-4 py-2 text-sm ${
                     msg.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-foreground"

@@ -32,9 +32,15 @@ import {
   Settings as SettingsIcon,
   Terminal,
   Check,
+  TrendingUp,
+  CheckCircle,
+  ShoppingCart,
+  AlertTriangle,
+  Wallet,
 } from "lucide-react";
 import SelectInput from "@/components/ui/select";
 import AdminPageHeader from "@/components/AdminPageHeader";
+import { cn } from "@/lib/utils";
 
 import {
   DropdownMenu,
@@ -82,23 +88,23 @@ const STATUS_OPTIONS = [
 function getStatusBadgeClass(status) {
   switch (status) {
     case "active":
-      return "bg-green-50 text-green-700 border border-green-200";
+      return "bg-green-500/10 text-green-600";
     case "in_stock":
-      return "bg-green-50 text-green-700 border border-green-200";
+      return "bg-green-500/10 text-green-600";
     case "low_stock":
-      return "bg-orange-50 text-orange-700 border border-orange-200";
+      return "bg-orange-500/10 text-orange-600";
     case "draft":
-      return "bg-yellow-50 text-yellow-700 border border-yellow-200";
+      return "bg-yellow-500/10 text-yellow-600";
     case "sold":
-      return "bg-blue-50 text-blue-700 border border-blue-200";
+      return "bg-blue-500/10 text-blue-600";
     case "reserved":
-      return "bg-purple-50 text-purple-700 border border-purple-200";
+      return "bg-purple-500/10 text-purple-600";
     case "archived":
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "bg-muted text-muted-foreground";
     case "out_of_stock":
-      return "bg-red-50 text-red-700 border border-red-200";
+      return "bg-red-500/10 text-red-600";
     default:
-      return "bg-gray-50 text-gray-700 border border-gray-200";
+      return "bg-muted text-muted-foreground";
   }
 }
 
@@ -372,13 +378,13 @@ export default function InventoryPage() {
           onSecondaryAction={() => router.push("/admin/inventory/categories")}
         />
 
-        <div className="flex justify-end -mt-2 mb-4 gap-2">
+        <div className="flex justify-end -mt-2 mb-4 gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
             onClick={() => router.push("/admin/inventory/stock-movements")}
           >
-            <Archive className="h-4 w-4 mr-2" />
+            <Archive className="h-4 w-4 mr-1.5" />
             Stock Movements
           </Button>
           <Button
@@ -386,7 +392,7 @@ export default function InventoryPage() {
             size="sm"
             onClick={() => router.push("/admin/inventory/settings")}
           >
-            <SettingsIcon className="h-4 w-4 mr-2" />
+            <SettingsIcon className="h-4 w-4 mr-1.5" />
             Settings
           </Button>
           <Button
@@ -394,49 +400,64 @@ export default function InventoryPage() {
             size="sm"
             onClick={() => setApiDialogOpen(true)}
           >
-            <Terminal className="h-4 w-4 mr-2" />
-            Developer API Reference
+            <Terminal className="h-4 w-4 mr-1.5" />
+            Developer API
           </Button>
         </div>
 
-        <Card className="border border-gray-200 shadow-sm hover:shadow transition-shadow duration-200">
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>Inventory Statistics</CardTitle>
+            <CardTitle className="text-base">Inventory Statistics</CardTitle>
             <CardDescription>
               Overview of your inventory performance
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
-              <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
-                <div className="text-sm font-medium text-muted-foreground">
-                  Total Items
+              <div className="p-4 border border-border/40 rounded-lg hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">Total Items</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+                    <TrendingUp className="h-4 w-4 text-blue-500" />
+                  </div>
                 </div>
-                <div className="text-2xl font-bold">{stats.total || pagination.totalItems}</div>
+                <div className="text-2xl font-bold tabular-nums">{stats.total || pagination.totalItems}</div>
               </div>
-              <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
-                <div className="text-sm font-medium text-muted-foreground">
-                  Active
+              <div className="p-4 border border-border/40 rounded-lg hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">Active</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  </div>
                 </div>
-                <div className="text-2xl font-bold text-green-600">{stats.active || 0}</div>
+                <div className="text-2xl font-bold text-green-600 tabular-nums">{stats.active || 0}</div>
               </div>
-              <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
-                <div className="text-sm font-medium text-muted-foreground">
-                  Sold
+              <div className="p-4 border border-border/40 rounded-lg hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">Sold</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10">
+                    <ShoppingCart className="h-4 w-4 text-blue-500" />
+                  </div>
                 </div>
-                <div className="text-2xl font-bold text-blue-600">{stats.sold || 0}</div>
+                <div className="text-2xl font-bold text-blue-600 tabular-nums">{stats.sold || 0}</div>
               </div>
-              <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
-                <div className="text-sm font-medium text-muted-foreground">
-                  Low Stock
+              <div className="p-4 border border-border/40 rounded-lg hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">Low Stock</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  </div>
                 </div>
-                <div className="text-2xl font-bold text-orange-600">{stats.lowStock || 0}</div>
+                <div className="text-2xl font-bold text-orange-600 tabular-nums">{stats.lowStock || 0}</div>
               </div>
-              <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
-                <div className="text-sm font-medium text-muted-foreground">
-                  Total Value
+              <div className="p-4 border border-border/40 rounded-lg hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">Total Value</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+                    <Wallet className="h-4 w-4 text-emerald-500" />
+                  </div>
                 </div>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold tabular-nums">
                   {stats.totalValue ? Number(stats.totalValue).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
                 </div>
               </div>
@@ -444,9 +465,9 @@ export default function InventoryPage() {
           </CardContent>
         </Card>
 
-        <Card className="border border-gray-200 shadow-sm hover:shadow transition-shadow duration-200">
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>Inventory Items</CardTitle>
+            <CardTitle className="text-base">Inventory Items</CardTitle>
             <CardDescription>
               Manage the items in your inventory
             </CardDescription>
@@ -459,13 +480,16 @@ export default function InventoryPage() {
                     onSubmit={handleSearch}
                     className="flex items-center space-x-2"
                   >
-                    <Input
-                      type="text"
-                      placeholder="Search items..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-[250px]"
-                    />
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder="Search items..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-[250px] pl-8"
+                      />
+                    </div>
                     <Button
                       type="submit"
                       variant="outline"
@@ -538,7 +562,7 @@ export default function InventoryPage() {
                         Sort
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuItem onClick={() => handleSort("title")}>
                         Sort by Title
                       </DropdownMenuItem>
@@ -557,8 +581,8 @@ export default function InventoryPage() {
               </div>
 
               {selectedIds.length > 0 && (
-                <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-md">
-                  <span className="text-sm font-medium text-blue-700">
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+                  <span className="text-sm font-medium text-primary">
                     {selectedIds.length} selected
                   </span>
                   <Button
@@ -585,7 +609,7 @@ export default function InventoryPage() {
                   >
                     Delete
                   </Button>
-                  {bulkLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                  {bulkLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                 </div>
               )}
 
@@ -595,14 +619,14 @@ export default function InventoryPage() {
                 </div>
               ) : (
                 <>
-                  <div className="w-full overflow-auto rounded-md border bg-white">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                  <div className="w-full overflow-auto rounded-lg border border-border/40 scrollbar-thin">
+                    <table className="min-w-full divide-y divide-border/60">
+                      <thead className="bg-muted/30">
                         <tr>
                           <th className="px-3 py-3 text-left w-[40px]">
                             <input
                               type="checkbox"
-                              className="rounded border-gray-300"
+                              className="rounded border-input"
                               checked={allOnPageSelected}
                               onChange={toggleSelectAll}
                               title="Select all on page"
@@ -613,7 +637,7 @@ export default function InventoryPage() {
                           </th>
                           <th
                             scope="col"
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer max-w-[200px]"
+                            className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer max-w-[200px]"
                             onClick={() => handleSort("title")}
                           >
                             <div className="flex items-center gap-1">
@@ -631,7 +655,7 @@ export default function InventoryPage() {
                           </th> */}
                           <th
                             scope="col"
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort("price")}
                           >
                             <div className="flex items-center gap-1">
@@ -644,7 +668,7 @@ export default function InventoryPage() {
                           </th>
                           <th
                             scope="col"
-                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort("quantity")}
                           >
                             <div className="flex items-center gap-1">
@@ -654,10 +678,10 @@ export default function InventoryPage() {
                               )}
                             </div>
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             SEO
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             Status
                           </th>
                           {/* <th
@@ -674,22 +698,22 @@ export default function InventoryPage() {
                           </th> */}
                           <th
                             scope="col"
-                            className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider"
                           >
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="divide-y divide-border/60">
                         {items.map((item) => (
                           <tr
                             key={item.id}
-                            className="hover:bg-gray-50 transition-colors"
+                            className="hover:bg-muted/40 transition-colors"
                           >
                             <td className="px-3 py-3">
                               <input
                                 type="checkbox"
-                                className="rounded border-gray-300"
+                                className="rounded border-input"
                                 checked={selectedIds.includes(item.id)}
                                 onChange={() => toggleSelectOne(item.id)}
                               />
@@ -704,20 +728,20 @@ export default function InventoryPage() {
                                 }
                                 width={64}
                                 height={64}
-                                className="w-16 h-16 object-cover rounded"
+                                className="w-16 h-16 object-cover rounded-md border border-border/40"
                               />
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center">
                                 <div className="min-w-0">
-                                  <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                                  <div className="text-sm font-medium truncate max-w-[200px]" title={item.title}>
                                     {item.title}
                                   </div>
                                   {/* <div className="text-sm text-gray-500">
                                     {item.sku || item.slug}
                                   </div>*/}
                                   {item.attributes?.make && item.attributes?.model && (
-                                    <div className="text-xs text-gray-400">
+                                    <div className="text-xs text-muted-foreground">
                                       {item.attributes.make} {item.attributes.model}
                                       {item.attributes.year ? ` ${item.attributes.year}` : ""}
                                     </div>
@@ -738,7 +762,7 @@ export default function InventoryPage() {
                               </div>
                             </td> */}
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
+                              <div className="text-sm tabular-nums">
                                 {formatPrice(item.price, item.currency)}
                               </div>
                               {!item.price_visible && item.price && (
@@ -746,7 +770,7 @@ export default function InventoryPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
+                              <div className="text-sm tabular-nums">
                                 {item.quantity ?? 0}
                               </div>
                               {item.quantity <= (item.reorder_threshold || 0) && item.quantity > 0 && (
@@ -761,12 +785,15 @@ export default function InventoryPage() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(item.status)}`}
+                                className={cn(
+                                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize",
+                                  getStatusBadgeClass(item.status)
+                                )}
                               >
                                 {item.status || "draft"}
                               </span>
                               {item.featured && (
-                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600">
                                   Featured
                                 </span>
                               )}
@@ -777,7 +804,7 @@ export default function InventoryPage() {
                               </div>
                             </td> */}
                             <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                              <div className="flex space-x-2 justify-end">
+                              <div className="flex space-x-1 justify-end">
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -821,6 +848,7 @@ export default function InventoryPage() {
                                   size="icon"
                                   title="Delete"
                                   onClick={() => openDeleteDialog(item)}
+                                  className="text-muted-foreground hover:text-destructive"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -833,19 +861,29 @@ export default function InventoryPage() {
                   </div>
 
                   {items.length === 0 && (
-                    <div className="text-center py-10">
-                      <Package className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium">No inventory items found</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Try changing your search or filter criteria, or add a new item.
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-4">
+                        <Package className="h-7 w-7 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-base font-medium">No inventory items found</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                        Try changing your search or filter criteria, or add a new item to get started.
                       </p>
+                      <Button
+                        className="mt-4"
+                        size="sm"
+                        onClick={() => router.push("/admin/inventory/add")}
+                      >
+                        <Plus className="h-4 w-4 mr-1.5" />
+                        Add New Item
+                      </Button>
                     </div>
                   )}
 
                   {pagination.totalPages > 1 && (
-                    <div className="flex items-center justify-between pt-2">
-                      <p className="text-sm text-muted-foreground">
-                        Page {pagination.page} of {pagination.totalPages} &middot; Showing {startItem}–{endItem} of {pagination.totalItems}
+                    <div className="flex items-center justify-between pt-4">
+                      <p className="text-sm text-muted-foreground tabular-nums">
+                        Page <span className="font-medium text-foreground">{pagination.page}</span> of {pagination.totalPages} &middot; Showing {startItem}–{endItem} of {pagination.totalItems}
                       </p>
                       <div className="flex items-center gap-2">
                         <Button

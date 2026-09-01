@@ -19,6 +19,11 @@ import {
   Save,
   Loader2,
   Settings as SettingsIcon,
+  SlidersHorizontal,
+  Globe,
+  Phone,
+  Share2,
+  Search,
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
@@ -210,9 +215,12 @@ export default function InventorySettingsPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>General Settings</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                  General Settings
+                </CardTitle>
                 <CardDescription>Default configuration for inventory items</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -264,54 +272,57 @@ export default function InventorySettingsPage() {
                   <p className="text-xs text-muted-foreground">Automatically archive items sold/inactive for this many days. Set to 0 to disable.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <div className="flex items-center space-x-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <label htmlFor="enable_stock_tracking" className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border/40 hover:border-border/60 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <span className="text-sm">Enable Stock Tracking</span>
                     <Switch
                       id="enable_stock_tracking"
                       checked={formData.enable_stock_tracking}
                       onCheckedChange={(checked) => handleInputChange({ target: { name: "enable_stock_tracking", type: "checkbox", checked } })}
                     />
-                    <Label htmlFor="enable_stock_tracking">Enable Stock Tracking</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
+                  </label>
+                  <label htmlFor="enable_low_stock_alerts" className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border/40 hover:border-border/60 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <span className="text-sm">Enable Low Stock Alerts</span>
                     <Switch
                       id="enable_low_stock_alerts"
                       checked={formData.enable_low_stock_alerts}
                       onCheckedChange={(checked) => handleInputChange({ target: { name: "enable_low_stock_alerts", type: "checkbox", checked } })}
                     />
-                    <Label htmlFor="enable_low_stock_alerts">Enable Low Stock Alerts</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
+                  </label>
+                  <label htmlFor="enable_public_listing" className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border/40 hover:border-border/60 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <span className="text-sm">Enable Public Listing Page</span>
                     <Switch
                       id="enable_public_listing"
                       checked={formData.enable_public_listing}
                       onCheckedChange={(checked) => handleInputChange({ target: { name: "enable_public_listing", type: "checkbox", checked } })}
                     />
-                    <Label htmlFor="enable_public_listing">Enable Public Listing Page</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
+                  </label>
+                  <label htmlFor="enable_inquiries" className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border/40 hover:border-border/60 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <span className="text-sm">Enable Inquiries</span>
                     <Switch
                       id="enable_inquiries"
                       checked={formData.enable_inquiries}
                       onCheckedChange={(checked) => handleInputChange({ target: { name: "enable_inquiries", type: "checkbox", checked } })}
                     />
-                    <Label htmlFor="enable_inquiries">Enable Inquiries</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
+                  </label>
+                  <label htmlFor="enable_test_drive" className="flex items-center justify-between gap-2 p-3 rounded-lg border border-border/40 hover:border-border/60 hover:bg-muted/30 transition-colors cursor-pointer">
+                    <span className="text-sm">Enable Test Drive Booking (Vehicles)</span>
                     <Switch
                       id="enable_test_drive"
                       checked={formData.enable_test_drive}
                       onCheckedChange={(checked) => handleInputChange({ target: { name: "enable_test_drive", type: "checkbox", checked } })}
                     />
-                    <Label htmlFor="enable_test_drive">Enable Test Drive Booking (Vehicles)</Label>
-                  </div>
+                  </label>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>Public Listing Page</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  Public Listing Page
+                </CardTitle>
                 <CardDescription>Configure the public-facing inventory listing page</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -333,14 +344,18 @@ export default function InventorySettingsPage() {
                     placeholder="Brief description shown on the listing page"
                     value={formData.listing_page_description}
                     onChange={handleInputChange}
+                    rows={3}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>Contact Information</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  Contact Information
+                </CardTitle>
                 <CardDescription>Displayed on item detail pages and inquiry forms</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -385,14 +400,18 @@ export default function InventorySettingsPage() {
                     placeholder="Business address shown on listing pages"
                     value={formData.address}
                     onChange={handleInputChange}
+                    rows={3}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>Social Media Links</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-muted-foreground" />
+                  Social Media Links
+                </CardTitle>
                 <CardDescription>Social profiles displayed on the inventory pages</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -445,9 +464,12 @@ export default function InventorySettingsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>SEO Settings</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  SEO Settings
+                </CardTitle>
                 <CardDescription>Search engine optimization for the inventory listing page</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -469,6 +491,7 @@ export default function InventorySettingsPage() {
                     placeholder="Description for search engines"
                     value={formData.seo_description}
                     onChange={handleInputChange}
+                    rows={3}
                   />
                 </div>
                 <div className="space-y-2">
@@ -484,12 +507,12 @@ export default function InventorySettingsPage() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => router.push("/admin/inventory")}>
+            <div className="flex justify-end gap-2 pt-4 border-t border-border/40">
+              <Button type="button" variant="ghost" onClick={() => router.push("/admin/inventory")}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
                 {isLoading ? "Saving..." : "Save Settings"}
               </Button>
             </div>

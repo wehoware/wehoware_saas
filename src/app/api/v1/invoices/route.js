@@ -165,6 +165,9 @@ export const GET = withAuth(
         )
       );
       const status = url.searchParams.get("status") || "";
+      const search = (url.searchParams.get("search") || "").trim();
+      const from = url.searchParams.get("from") || "";
+      const to = url.searchParams.get("to") || "";
       const rawSortBy = url.searchParams.get("sortBy") || "invoiceDate";
       const sortBy = VALID_SORT_FIELDS[rawSortBy] ?? "invoiceDate";
       const sortOrder =
@@ -172,8 +175,28 @@ export const GET = withAuth(
 
       const where = { clientId };
       if (status && VALID_STATUSES.has(status)) where.status = status;
+      if (search) {
+        where.OR = [
+          { invoiceNumber: { contains: search } },
+          { clientName: { contains: search } },
+          { clientEmail: { contains: search } },
+          { customer: { name: { contains: search } } },
+          { customer: { email: { contains: search } } },
+        ];
+      }
+      if (from || to) {
+        where.invoiceDate = {};
+        if (from) {
+          const fromDate = new Date(`${from}T00:00:00`);
+          if (!Number.isNaN(fromDate.getTime())) where.invoiceDate.gte = fromDate;
+        }
+        if (to) {
+          const toDate = new Date(`${to}T23:59:59.999`);
+          if (!Number.isNaN(toDate.getTime())) where.invoiceDate.lte = toDate;
+        }
+      }
 
-      const [items, totalItems] = await Promise.all([
+      const [items, totalItems, statusGroups] = await Promise.all([
         prisma.wehowareInvoice.findMany({
           where,
           include: {
@@ -185,7 +208,48 @@ export const GET = withAuth(
           take: limit,
         }),
         prisma.wehowareInvoice.count({ where }),
+        // Aggregations across the filtered set (ignores pagination) for summary cards.
+        prisma.wehowareInvoice.groupBy({
+          by: ["status"],
+          where,
+          _count: { _all: true },
+          _sum: { total: true, amountPaid: true },
+        }),
       ]);
+
+      // Build summary object keyed by status.
+      const summary = {
+        total: totalItems,
+        paid: 0,
+        pending: 0,
+        overdue: 0,
+        draft: 0,
+        cancelled: 0,
+        revenue: 0,
+        outstanding: 0,
+        byStatus: {},
+      };
+      for (const g of statusGroups) {
+        const s = g.status;
+        const count = g._count._all;
+        const total = Number(g._sum.total || 0);
+        const paid = Number(g._sum.amountPaid || 0);
+        summary.byStatus[s] = { count, total, paid };
+        if (s === "Paid") {
+          summary.paid = count;
+          summary.revenue += total;
+        } else if (s === "Pending") {
+          summary.pending = count;
+          summary.outstanding += total - paid;
+        } else if (s === "Overdue") {
+          summary.overdue = count;
+          summary.outstanding += total - paid;
+        } else if (s === "Draft") {
+          summary.draft = count;
+        } else if (s === "Cancelled") {
+          summary.cancelled = count;
+        }
+      }
 
       return NextResponse.json({
         data: items.map(serializeInvoice),
@@ -195,6 +259,7 @@ export const GET = withAuth(
           limit,
           totalPages: Math.max(1, Math.ceil(totalItems / limit)),
         },
+        summary,
       });
     } catch (err) {
       console.error("[GET /api/v1/invoices] error:", err);

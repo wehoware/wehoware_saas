@@ -32,36 +32,99 @@ import {
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { format } from "date-fns";
-import { Plus, Target, Trophy, Loader2, Trash2, ChevronRight, ArrowLeft } from "lucide-react";
+import {
+  Plus, Target, Trophy, Loader2, Trash2, ChevronRight, ArrowLeft,
+  CheckCircle2, Clock, TrendingUp, ListTodo, Calendar, User as UserIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const GOAL_TYPE_COLORS = { OKR: "default", Goal: "secondary", Milestone: "outline" };
-const STATUS_COLORS = {
-  "Not Started": "secondary",
-  "In Progress": "default",
-  Completed: "outline",
-  Cancelled: "destructive",
+// ─── Style maps ──────────────────────────────────────────────
+
+const GOAL_TYPE_STYLES = {
+  OKR: "bg-purple-500/10 text-purple-600",
+  Goal: "bg-blue-500/10 text-blue-600",
+  Milestone: "bg-cyan-500/10 text-cyan-600",
 };
 
+const STATUS_STYLES = {
+  "Not Started": "bg-muted text-muted-foreground",
+  "In Progress": "bg-yellow-500/10 text-yellow-600",
+  "Completed": "bg-green-500/10 text-green-600",
+  "Cancelled": "bg-red-500/10 text-red-600",
+};
+
+function TypeBadge({ type }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+      GOAL_TYPE_STYLES[type] || GOAL_TYPE_STYLES.Goal
+    )}>
+      {type}
+    </span>
+  );
+}
+
+function StatusBadge({ status }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
+      STATUS_STYLES[status] || STATUS_STYLES["Not Started"]
+    )}>
+      {status}
+    </span>
+  );
+}
+
+// ─── Stat Card ───────────────────────────────────────────────
+
+function StatCard({ title, value, subtitle, icon: Icon, accent }) {
+  return (
+    <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {title}
+        </CardTitle>
+        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", accent)}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {subtitle && (
+          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Goal Card ───────────────────────────────────────────────
+
 function GoalCard({ goal, onSelect, onDelete, userRole }) {
+  const isCompleted = goal.status === "Completed";
+  const isCancelled = goal.status === "Cancelled";
+
   return (
     <Card
-      className="cursor-pointer hover:border-primary/50 transition-colors"
+      className="cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
       onClick={() => onSelect(goal)}
     >
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <Badge variant={GOAL_TYPE_COLORS[goal.type] ?? "secondary"}>{goal.type}</Badge>
-              <Badge variant={STATUS_COLORS[goal.status] ?? "secondary"}>{goal.status}</Badge>
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <TypeBadge type={goal.type} />
+              <StatusBadge status={goal.status} />
             </div>
-            <CardTitle className="text-base leading-snug">{goal.title}</CardTitle>
+            <CardTitle className="text-base leading-snug group-hover:text-primary transition-colors">
+              {goal.title}
+            </CardTitle>
           </div>
           {userRole === "admin" && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 shrink-0"
+              className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={(e) => { e.stopPropagation(); onDelete(goal.id); }}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
@@ -73,35 +136,58 @@ function GoalCard({ goal, onSelect, onDelete, userRole }) {
         {goal.description && (
           <p className="text-sm text-muted-foreground line-clamp-2">{goal.description}</p>
         )}
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Progress</span>
-            <span className="font-medium">{goal.progress_percentage}%</span>
+
+        {/* Progress */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Progress</span>
+            <span className="font-semibold tabular-nums">{goal.progress_percentage}%</span>
           </div>
-          <Progress value={goal.progress_percentage} className="h-1.5" />
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                isCompleted ? "bg-green-500"
+                : isCancelled ? "bg-red-400"
+                : "bg-primary"
+              )}
+              style={{ width: `${goal.progress_percentage}%` }}
+            />
+          </div>
         </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
+
+        {/* Dates + owner */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
             {goal.start_date ? format(new Date(goal.start_date), "MMM d") : "—"} →{" "}
             {goal.end_date ? format(new Date(goal.end_date), "MMM d, yyyy") : "—"}
           </span>
           {goal.owner && (
-            <span>
+            <span className="flex items-center gap-1">
+              <UserIcon className="h-3 w-3" />
               {goal.owner.first_name} {goal.owner.last_name}
             </span>
           )}
         </div>
-        <div className="flex gap-3 text-xs text-muted-foreground">
-          <span>{goal.key_results?.length ?? 0} key results</span>
-          <span>{goal.task_links?.length ?? 0} linked tasks</span>
+
+        {/* Stats footer */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground pt-2 border-t border-border/40">
+          <span className="flex items-center gap-1">
+            <Target className="h-3 w-3" />
+            {goal.key_results?.length ?? 0} key results
+          </span>
+          <span className="flex items-center gap-1">
+            <ListTodo className="h-3 w-3" />
+            {goal.task_links?.length ?? 0} linked tasks
+          </span>
         </div>
-        <Button variant="ghost" size="sm" className="w-full mt-1" onClick={(e) => { e.stopPropagation(); onSelect(goal); }}>
-          View Details <ChevronRight className="h-3.5 w-3.5 ml-1" />
-        </Button>
       </CardContent>
     </Card>
   );
 }
+
+// ─── Create Goal Form ────────────────────────────────────────
 
 function CreateGoalForm({ onCreated, onCancel, clients }) {
   const [formData, setFormData] = useState({
@@ -302,6 +388,8 @@ function CreateGoalForm({ onCreated, onCancel, clients }) {
   );
 }
 
+// ─── Goal Detail Sheet ───────────────────────────────────────
+
 function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
   const [editStatus, setEditStatus] = useState(goal?.status ?? "");
   const [updating, setUpdating] = useState(false);
@@ -360,11 +448,11 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto scrollbar-thin">
         <SheetHeader>
           <div className="flex items-center gap-2">
-            <Badge variant={GOAL_TYPE_COLORS[goal.type]}>{goal.type}</Badge>
-            <Badge variant={STATUS_COLORS[goal.status]}>{goal.status}</Badge>
+            <TypeBadge type={goal.type} />
+            <StatusBadge status={goal.status} />
           </div>
           <SheetTitle>{goal.title}</SheetTitle>
           {goal.description && <SheetDescription>{goal.description}</SheetDescription>}
@@ -373,29 +461,43 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
         <div className="mt-4 space-y-5">
           {/* Progress */}
           <div>
-            <div className="flex justify-between text-sm mb-1">
+            <div className="flex justify-between text-sm mb-1.5">
               <span className="text-muted-foreground">Overall Progress</span>
-              <span className="font-medium">{goal.progress_percentage}%</span>
+              <span className="font-semibold tabular-nums">{goal.progress_percentage}%</span>
             </div>
-            <Progress value={goal.progress_percentage} />
+            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  goal.status === "Completed" ? "bg-green-500"
+                  : goal.status === "Cancelled" ? "bg-red-400"
+                  : "bg-primary"
+                )}
+                style={{ width: `${goal.progress_percentage}%` }}
+              />
+            </div>
           </div>
 
           {/* Dates */}
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className="text-muted-foreground text-xs">Start</p>
-              <p>{goal.start_date ? format(new Date(goal.start_date), "MMM d, yyyy") : "—"}</p>
+            <div className="rounded-lg border border-border/60 p-3">
+              <p className="text-muted-foreground text-xs flex items-center gap-1">
+                <Calendar className="h-3 w-3" /> Start
+              </p>
+              <p className="font-medium mt-1">{goal.start_date ? format(new Date(goal.start_date), "MMM d, yyyy") : "—"}</p>
             </div>
-            <div>
-              <p className="text-muted-foreground text-xs">End</p>
-              <p>{goal.end_date ? format(new Date(goal.end_date), "MMM d, yyyy") : "—"}</p>
+            <div className="rounded-lg border border-border/60 p-3">
+              <p className="text-muted-foreground text-xs flex items-center gap-1">
+                <Calendar className="h-3 w-3" /> End
+              </p>
+              <p className="font-medium mt-1">{goal.end_date ? format(new Date(goal.end_date), "MMM d, yyyy") : "—"}</p>
             </div>
           </div>
 
           {/* Status update */}
           <div>
             <label className="text-sm font-medium">Update Status</label>
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2 mt-1.5">
               <Select value={editStatus} onValueChange={setEditStatus} disabled={updating}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -414,20 +516,36 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
           {/* Key results */}
           {goal.key_results?.length > 0 && (
             <div>
-              <p className="text-sm font-medium mb-2">Key Results</p>
+              <p className="text-sm font-medium mb-2.5">Key Results</p>
               <div className="space-y-3">
                 {goal.key_results.map((kr) => {
                   const kv = krValues[kr.id] ?? { current_value: kr.current_value, status: kr.status };
                   return (
-                    <div key={kr.id} className="border rounded-md p-3 space-y-2">
-                      <p className="text-sm font-medium">{kr.title}</p>
+                    <div key={kr.id} className="rounded-lg border border-border/60 p-3 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">{kr.title}</p>
+                        <span className={cn(
+                          "text-xs font-medium rounded-full px-2 py-0.5 shrink-0",
+                          STATUS_STYLES[kr.status] || STATUS_STYLES["Not Started"]
+                        )}>
+                          {kr.status}
+                        </span>
+                      </div>
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>
                           {kr.current_value}{kr.unit ? ` ${kr.unit}` : ""} / {kr.target_value ?? "—"}{kr.unit ? ` ${kr.unit}` : ""}
                         </span>
-                        <span>{kr.progress_percentage}%</span>
+                        <span className="font-medium">{kr.progress_percentage}%</span>
                       </div>
-                      <Progress value={kr.progress_percentage} className="h-1" />
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-500",
+                            kr.status === "Completed" ? "bg-green-500" : "bg-primary"
+                          )}
+                          style={{ width: `${kr.progress_percentage}%` }}
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <Input
                           type="number"
@@ -452,7 +570,7 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
                         </Select>
                       </div>
                       <Button variant="outline" size="sm" className="w-full" onClick={() => updateKr(kr.id)} disabled={updating}>
-                        Update
+                        Update Key Result
                       </Button>
                     </div>
                   );
@@ -464,14 +582,19 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
           {/* Linked tasks */}
           {goal.task_links?.length > 0 && (
             <div>
-              <p className="text-sm font-medium mb-2">Linked Tasks ({goal.task_links.length})</p>
+              <p className="text-sm font-medium mb-2.5">Linked Tasks ({goal.task_links.length})</p>
               <div className="space-y-1.5">
                 {goal.task_links.map((link) => (
-                  <div key={link.id} className="flex items-center justify-between text-sm py-1 border-b last:border-b-0">
+                  <div key={link.id} className="flex items-center justify-between text-sm py-2 border-b last:border-b-0 border-border/40">
                     <span className="truncate">{link.task?.title ?? "Task"}</span>
                     <div className="flex items-center gap-2 ml-2 shrink-0">
-                      <Badge variant="outline" className="text-xs">{link.task?.status}</Badge>
-                      <span className="text-xs text-muted-foreground">{link.contribution_pct}%</span>
+                      <span className={cn(
+                        "text-xs font-medium rounded-full px-2 py-0.5",
+                        STATUS_STYLES[link.task?.status] || "bg-muted text-muted-foreground"
+                      )}>
+                        {link.task?.status}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{link.contribution_pct}%</span>
                     </div>
                   </div>
                 ))}
@@ -483,6 +606,8 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
     </Sheet>
   );
 }
+
+// ─── Main Page ───────────────────────────────────────────────
 
 export default function GoalsPage() {
   const { activeClient } = useAuth();
@@ -561,7 +686,7 @@ export default function GoalsPage() {
     : 0;
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+    <div className="flex-1 space-y-4">
       <AdminPageHeader
         title="Goals & Achievements"
         description="Track OKRs, business goals, and team achievements."
@@ -572,30 +697,68 @@ export default function GoalsPage() {
         onAction={() => setShowCreate(true)}
       />
 
-      {/* Summary row */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Goals</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{goals.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">In Progress</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-blue-600">{inProgress}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Completed</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-green-600">{completed}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Avg Progress</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{avgProgress}%</div></CardContent>
-        </Card>
+      {/* Stat cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Goals"
+          value={goals.length}
+          subtitle="All goals"
+          icon={Target}
+          accent="text-blue-500 bg-blue-500/10"
+        />
+        <StatCard
+          title="In Progress"
+          value={inProgress}
+          subtitle="Currently being worked on"
+          icon={Clock}
+          accent="text-yellow-500 bg-yellow-500/10"
+        />
+        <StatCard
+          title="Completed"
+          value={completed}
+          subtitle="Successfully achieved"
+          icon={CheckCircle2}
+          accent="text-green-500 bg-green-500/10"
+        />
+        <StatCard
+          title="Avg Progress"
+          value={`${avgProgress}%`}
+          subtitle="Across all goals"
+          icon={TrendingUp}
+          accent="text-purple-500 bg-purple-500/10"
+        />
       </div>
 
+      {/* Overall progress bar */}
+      {goals.length > 0 && (
+        <Card className="border-border/60 shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Overall Goal Progress</span>
+              </div>
+              <span className="text-2xl font-bold tabular-nums">{avgProgress}%</span>
+            </div>
+            <div className="h-3 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
+                style={{ width: `${avgProgress}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+              <span>{completed} completed</span>
+              <span>{goals.length - completed} remaining</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
-      <Card>
+      <Card className="border-border/60 shadow-sm">
         <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <span className="text-xs font-medium text-muted-foreground">Filter:</span>
             <Select value={statusFilter || "_all"} onValueChange={(v) => setStatusFilter(v === "_all" ? "" : v)}>
               <SelectTrigger className="w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
               <SelectContent>
@@ -615,13 +778,23 @@ export default function GoalsPage() {
                 <SelectItem value="Milestone">Milestone</SelectItem>
               </SelectContent>
             </Select>
+            {(statusFilter || typeFilter) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setStatusFilter(""); setTypeFilter(""); }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Create goal form */}
       {showCreate && (
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Create New Goal</CardTitle>
             <CardDescription>Define your goal, key results, and timeline.</CardDescription>
@@ -635,14 +808,19 @@ export default function GoalsPage() {
       {/* Goals grid */}
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-48" />)}
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)}
         </div>
       ) : goals.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Target className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No goals yet. Create your first goal to get started.</p>
-            <Button className="mt-4" onClick={() => setShowCreate(true)}>
+        <Card className="border-dashed border-border/60">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
+              <Target className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+            <p className="text-sm font-medium">No goals yet</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-4">
+              Create your first goal to start tracking progress.
+            </p>
+            <Button onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4 mr-2" /> Create Goal
             </Button>
           </CardContent>
@@ -663,20 +841,26 @@ export default function GoalsPage() {
 
       {/* Achievements */}
       {achievements.length > 0 && (
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Trophy className="h-4 w-4 text-yellow-500" />
               Recent Achievements
             </CardTitle>
+            <CardDescription>Team milestones and awards</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2">
               {achievements.slice(0, 12).map((a) => (
-                <div key={a.id} className="flex items-center gap-2 border rounded-full px-3 py-1.5 text-sm">
+                <div
+                  key={a.id}
+                  className="flex items-center gap-2 rounded-full border border-yellow-500/20 bg-yellow-500/5 px-3 py-1.5 text-sm"
+                >
                   <Trophy className="h-3.5 w-3.5 text-yellow-500" />
-                  <span>{a.title}</span>
-                  {a.user && <span className="text-muted-foreground">— {a.user.first_name}</span>}
+                  <span className="font-medium">{a.title}</span>
+                  {a.user && (
+                    <span className="text-muted-foreground">— {a.user.first_name}</span>
+                  )}
                 </div>
               ))}
             </div>

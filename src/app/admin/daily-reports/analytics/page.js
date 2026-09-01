@@ -6,6 +6,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import {
   Table,
@@ -15,9 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import DailyReportAnalyticsFilters from "@/components/daily-reports/DailyReportAnalyticsFilters";
 import DailyReportAnalyticsSummary from "@/components/daily-reports/DailyReportAnalyticsSummary";
 import DailyReportAnalyticsTable from "@/components/daily-reports/DailyReportAnalyticsTable";
+import AdminPageHeader from "@/components/AdminPageHeader";
+import { ArrowLeft, TrendingUp, Users, BarChart3 } from "lucide-react";
+import Link from "next/link";
 
 const DEFAULT_FILTERS = {
   date_from: "",
@@ -57,6 +62,69 @@ function downloadCSV(data, filename) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+// Simple inline bar chart for trend data
+function TrendChart({ trend, granularity }) {
+  if (!trend || trend.length === 0) return null;
+
+  const maxHours = Math.max(...trend.map((t) => t.total_hours), 1);
+  const maxReports = Math.max(...trend.map((t) => t.reports), 1);
+
+  return (
+    <div className="space-y-4">
+      {/* Hours bar chart */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Total Hours</p>
+        <div className="flex items-end gap-1 h-32">
+          {trend.slice(-20).map((t) => {
+            const heightPct = (t.total_hours / maxHours) * 100;
+            return (
+              <div
+                key={t.period}
+                className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group relative"
+              >
+                <div className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity tabular-nums">
+                  {Number(t.total_hours).toFixed(1)}h
+                </div>
+                <div
+                  className="w-full rounded-t bg-primary/80 group-hover:bg-primary transition-colors"
+                  style={{ height: `${Math.max(heightPct, 2)}%` }}
+                />
+                <div className="text-[9px] text-muted-foreground truncate w-full text-center" title={t.period}>
+                  {t.period.slice(5)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Reports bar chart */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Reports</p>
+        <div className="flex items-end gap-1 h-24">
+          {trend.slice(-20).map((t) => {
+            const heightPct = (t.reports / maxReports) * 100;
+            return (
+              <div
+                key={t.period}
+                className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group relative"
+              >
+                <div className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity tabular-nums">
+                  {t.reports}
+                </div>
+                <div
+                  className="w-full rounded-t bg-blue-500/60 group-hover:bg-blue-500 transition-colors"
+                  style={{ height: `${Math.max(heightPct, 2)}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function DailyReportAnalyticsPage() {
@@ -138,15 +206,13 @@ export default function DailyReportAnalyticsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Daily Report Analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            Review employee work reports with detailed breakdowns and trends.
-          </p>
-        </div>
-      </div>
+    <div className="flex-1 space-y-4">
+      <AdminPageHeader
+        title="Daily Report Analytics"
+        description="Review employee work reports with detailed breakdowns and trends."
+        backLink="/admin/daily-reports"
+        backIcon={<ArrowLeft className="h-4 w-4" />}
+      />
 
       <DailyReportAnalyticsFilters
         filters={filters}
@@ -159,46 +225,69 @@ export default function DailyReportAnalyticsPage() {
       />
 
       {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-          {error}
-        </div>
+        <Card className="border-destructive/40">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <BarChart3 className="h-4 w-4" />
+              {error}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
+      {/* Summary stat cards */}
       <DailyReportAnalyticsSummary
         summary={data?.summary}
         isLoading={loading}
       />
 
-      {/* Trend Table */}
+      {/* Trend chart + table */}
       {data?.trend && data.trend.length > 0 && (
-        <Card>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>Hours Trend ({filters.granularity || "daily"})</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              Hours & Reports Trend
+            </CardTitle>
+            <CardDescription>
+              {filters.granularity || "daily"} view — last 20 periods
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto rounded-md border">
+            <TrendChart trend={data.trend} granularity={filters.granularity} />
+
+            {/* Trend table */}
+            <div className="mt-6 overflow-x-auto rounded-md border border-border/40 scrollbar-thin">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Period</TableHead>
-                    <TableHead className="text-right">Reports</TableHead>
-                    <TableHead className="text-right">Submitted</TableHead>
-                    <TableHead className="text-right">Drafts</TableHead>
-                    <TableHead className="text-right">Total Hours</TableHead>
-                    <TableHead className="text-right">Tasks Completed</TableHead>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="text-xs">Period</TableHead>
+                    <TableHead className="text-xs text-right">Reports</TableHead>
+                    <TableHead className="text-xs text-right">Submitted</TableHead>
+                    <TableHead className="text-xs text-right">Drafts</TableHead>
+                    <TableHead className="text-xs text-right">Total Hours</TableHead>
+                    <TableHead className="text-xs text-right">Tasks Completed</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.trend.map((t) => (
-                    <TableRow key={t.period}>
-                      <TableCell className="font-medium">{t.period}</TableCell>
-                      <TableCell className="text-right">{t.reports}</TableCell>
-                      <TableCell className="text-right">{t.submitted}</TableCell>
-                      <TableCell className="text-right">{t.drafts}</TableCell>
-                      <TableCell className="text-right">
+                    <TableRow key={t.period} className="hover:bg-muted/40 transition-colors">
+                      <TableCell className="font-medium text-sm">{t.period}</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{t.reports}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        <span className="inline-flex items-center rounded-full bg-green-500/10 text-green-600 px-2 py-0.5 text-xs font-medium tabular-nums">
+                          {t.submitted}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        <span className="inline-flex items-center rounded-full bg-yellow-500/10 text-yellow-600 px-2 py-0.5 text-xs font-medium tabular-nums">
+                          {t.drafts}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
                         {Number(t.total_hours).toFixed(1)}h
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right text-sm tabular-nums">
                         {t.tasks_completed}
                       </TableCell>
                     </TableRow>
@@ -210,17 +299,31 @@ export default function DailyReportAnalyticsPage() {
         </Card>
       )}
 
-      {/* Per-Employee Table */}
-      <Card>
+      {/* Per-Employee table */}
+      <Card className="border-border/60 shadow-sm">
         <CardHeader>
-          <CardTitle>Per-Employee Breakdown</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            Per-Employee Breakdown
+          </CardTitle>
+          <CardDescription>
+            Click any row to expand task details
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <DailyReportAnalyticsTable
-            perEmployee={data?.per_employee}
-            taskDetails={data?.task_details}
-            isLoading={loading}
-          />
+          {loading ? (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <DailyReportAnalyticsTable
+              perEmployee={data?.per_employee}
+              taskDetails={data?.task_details}
+              isLoading={loading}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

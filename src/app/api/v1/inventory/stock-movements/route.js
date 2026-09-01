@@ -30,6 +30,17 @@ function serializeMovement(m) {
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
+const SORTABLE_FIELDS = {
+  created_at: "createdAt",
+  quantity_change: "quantityChange",
+  quantity_after: "quantityAfter",
+};
+
+// Movement types that increase stock (positive contribution)
+const INBOUND_TYPES = new Set(["restock", "return"]);
+// Movement types that decrease stock (negative contribution)
+const OUTBOUND_TYPES = new Set(["sale", "damage"]);
+
 export const GET = withAuth(async (request) => {
   try {
     const { prisma, user } = request;
@@ -42,6 +53,11 @@ export const GET = withAuth(async (request) => {
     const search = (url.searchParams.get("search") || "").trim();
     const movementType = url.searchParams.get("movement_type") || "";
     const itemId = url.searchParams.get("itemId") || "";
+    const from = url.searchParams.get("from") || "";
+    const to = url.searchParams.get("to") || "";
+    const sortByRaw = (url.searchParams.get("sortBy") || "created_at").trim();
+    const sortBy = SORTABLE_FIELDS[sortByRaw] || "createdAt";
+    const sortOrder = (url.searchParams.get("sortOrder") || "desc").toLowerCase() === "asc" ? "asc" : "desc";
 
     const where = { clientId };
     if (movementType) where.movementType = movementType;
@@ -53,20 +69,52 @@ export const GET = withAuth(async (request) => {
         { item: { sku: { contains: search } } },
       ];
     }
+    if (from || to) {
+      where.createdAt = {};
+      if (from) {
+        const fromDate = new Date(`${from}T00:00:00`);
+        if (!Number.isNaN(fromDate.getTime())) where.createdAt.gte = fromDate;
+      }
+      if (to) {
+        // Inclusive of the entire "to" day
+        const toDate = new Date(`${to}T23:59:59.999`);
+        if (!Number.isNaN(toDate.getTime())) where.createdAt.lte = toDate;
+      }
+    }
 
-    const [movements, totalItems] = await Promise.all([
+    const [movements, totalItems, summaryRows] = await Promise.all([
       prisma.wehowareInventoryStockMovement.findMany({
         where,
         include: {
           item: { select: { id: true, title: true, sku: true } },
           creator: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * limit,
         take: limit,
       }),
       prisma.wehowareInventoryStockMovement.count({ where }),
+      // Aggregate totals across the filtered set (ignores pagination)
+      prisma.wehowareInventoryStockMovement.groupBy({
+        by: ["movementType"],
+        where,
+        _sum: { quantityChange: true },
+        _count: { _all: true },
+      }),
     ]);
+
+    // Build a flat summary object keyed by movement type
+    const byType = {};
+    let stockIn = 0;
+    let stockOut = 0;
+    let totalChange = 0;
+    for (const row of summaryRows) {
+      const change = row._sum.quantityChange || 0;
+      byType[row.movementType] = { count: row._count._all, netChange: change };
+      totalChange += change;
+      if (INBOUND_TYPES.has(row.movementType)) stockIn += change;
+      if (OUTBOUND_TYPES.has(row.movementType)) stockOut += Math.abs(change);
+    }
 
     return NextResponse.json({
       data: movements.map(serializeMovement),
@@ -75,6 +123,13 @@ export const GET = withAuth(async (request) => {
         page,
         limit,
         totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+      },
+      summary: {
+        totalMovements: totalItems,
+        stockIn,
+        stockOut,
+        netChange: totalChange,
+        byType,
       },
     });
   } catch (err) {

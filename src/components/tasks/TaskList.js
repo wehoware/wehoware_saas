@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -30,42 +30,36 @@ import AlertComponent from "@/components/ui/alert-component";
 import {
   Edit,
   Trash2,
+  ArrowUp,
+  ArrowDown,
   ArrowUpDown,
   MoreHorizontal,
-  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  ListTodo,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Helper function for date formatting
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
-    // Handle different date formats
     let dateStr = dateString;
-    
-    // If it's already a full ISO string, use as-is
     if (dateString.includes('T') && dateString.includes('Z')) {
       dateStr = dateString;
     } else if (dateString.includes('T')) {
-      // Already has time component
       dateStr = dateString;
     } else {
-      // Add time component to avoid timezone issues
       dateStr = dateString + 'T00:00:00';
     }
-    
     const date = new Date(dateStr);
-    
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-      return "Invalid Date";
-    }
-    
-    // Use UTC methods to avoid timezone shifts
+    if (isNaN(date.getTime())) return "Invalid Date";
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const month = months[date.getUTCMonth()];
     const day = date.getUTCDate();
     const year = date.getUTCFullYear();
-    
     return `${month} ${day}, ${year}`;
   } catch (e) {
     console.error('Date formatting error:', e, 'for dateString:', dateString);
@@ -73,7 +67,6 @@ const formatDate = (dateString) => {
   }
 };
 
-// Helper to get initials
 const getInitials = (firstName, lastName) => {
   if (!firstName && !lastName) return "?";
   const first = firstName?.charAt(0) || "";
@@ -81,24 +74,74 @@ const getInitials = (firstName, lastName) => {
   return (first + last).toUpperCase();
 };
 
+// Status badge styles
+const STATUS_STYLES = {
+  "To Do": { className: "bg-orange-500/10 text-orange-600", icon: Clock },
+  "In Progress": { className: "bg-yellow-500/10 text-yellow-600", icon: Loader2 },
+  "Done": { className: "bg-green-500/10 text-green-600", icon: CheckCircle2 },
+  "Backlog": { className: "bg-muted text-muted-foreground", icon: ListTodo },
+};
+
+function StatusBadge({ status }) {
+  const style = STATUS_STYLES[status] || STATUS_STYLES["Backlog"];
+  const Icon = style.icon;
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+      style.className
+    )}>
+      <Icon className="h-3 w-3" />
+      {status || "N/A"}
+    </span>
+  );
+}
+
+// Priority badge styles
+const PRIORITY_STYLES = {
+  High: { className: "bg-red-500/10 text-red-600", dot: "bg-red-500" },
+  Medium: { className: "bg-orange-500/10 text-orange-600", dot: "bg-orange-500" },
+  Low: { className: "bg-blue-500/10 text-blue-600", dot: "bg-blue-500" },
+};
+
+function PriorityBadge({ priority }) {
+  const style = PRIORITY_STYLES[priority] || PRIORITY_STYLES.Low;
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+      style.className
+    )}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", style.dot)} />
+      {priority || "N/A"}
+    </span>
+  );
+}
+
+// Sort indicator
+function SortIndicator({ active, order }) {
+  if (!active) return <ArrowUpDown className="h-3 w-3 ml-1 text-muted-foreground/50" />;
+  return order === "asc"
+    ? <ArrowUp className="h-3 w-3 ml-1" />
+    : <ArrowDown className="h-3 w-3 ml-1" />;
+}
+
 const TaskList = ({
   tasks = [],
   isLoading,
+  isLoadingMore = false,
   error,
+  hasMore = false,
+  onLoadMore,
   onUpdateTask,
   onTaskDelete,
   userRole,
   sort,
   handleSort,
-  pagination,
-  setPagination,
   currentUser = null,
 }) => {
   const router = useRouter();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const [errorAlertOpen, setErrorAlertOpen] = useState(false);
+  const sentinelRef = useRef(null);
 
   useEffect(() => {
     if (error) {
@@ -106,19 +149,30 @@ const TaskList = ({
     }
   }, [error]);
 
-  const handlePageChange = (newPage) => {
-    if (newPage > 0 && newPage <= Math.ceil(pagination.total / pagination.limit)) {
-      setPagination((prev) => ({ ...prev, page: newPage }));
-    }
-  };
+  // Infinite scroll — observe sentinel element
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !onLoadMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore, isLoadingMore, isLoading]);
 
   if (isLoading) {
     return (
-      <div className="border rounded-md">
+      <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
-              {[...Array(8)].map((_, i) => (
+              {[...Array(7)].map((_, i) => (
                 <TableHead key={i}>
                   <Skeleton className="h-5 w-full" />
                 </TableHead>
@@ -126,9 +180,9 @@ const TaskList = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {[...Array(pagination.limit)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <TableRow key={i}>
-                {[...Array(8)].map((_, j) => (
+                {[...Array(7)].map((_, j) => (
                   <TableCell key={j}>
                     <Skeleton className="h-5 w-full" />
                   </TableCell>
@@ -143,99 +197,87 @@ const TaskList = ({
 
   if (!isLoading && error) {
     return (
-      <div className="text-center py-10">
-        <p className="text-red-500">Could not load tasks. An error occurred.</p>
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <AlertTriangle className="h-10 w-10 text-destructive/50 mb-3" />
+        <p className="text-sm font-medium text-destructive">Could not load tasks</p>
+        <p className="text-xs text-muted-foreground mt-1">An error occurred while fetching tasks.</p>
       </div>
     );
   }
 
   if (!tasks.length) {
     return (
-      <div className="text-center text-gray-500 mt-10 p-4 border rounded-md">
-        <p>No tasks found.</p>
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-col items-center justify-center py-16 text-center border rounded-lg border-dashed">
+        <ListTodo className="h-12 w-12 text-muted-foreground/40 mb-3" />
+        <p className="text-sm font-medium">No tasks found</p>
+        <p className="text-xs text-muted-foreground mt-1">
           Try adjusting your filters or creating a new task.
         </p>
       </div>
     );
   }
 
-  const getPriorityProps = (priority) => {
-    switch (priority) {
-      case "High":
-        return { color: "text-red-500" };
-      case "Medium":
-        return { color: "text-orange-500" };
-      case "Low":
-        return { color: "text-gray-500" };
-      default:
-        return { color: "text-gray-500" };
-    }
-  };
-
-
-
   const stopPropagation = (e) => e.stopPropagation();
 
   return (
     <TooltipProvider delayDuration={100}>
       <>
-        <div className="border rounded-md">
-          <Table>
+        <div className="border rounded-lg overflow-x-auto scrollbar-thin">
+          <Table className="table-fixed">
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[25%]">
+              <TableRow className="bg-muted/30">
+                <TableHead className="w-[28%]">
                   <Button
                     variant="ghost"
                     onClick={() => handleSort("title")}
-                    className="px-1"
+                    className="px-1 h-auto py-0 text-xs font-medium text-muted-foreground hover:text-foreground"
                   >
                     Title
-                    {sort.field === "title" && (sort.order === "asc" ? "🔼" : "🔽")}
+                    <SortIndicator active={sort.field === "title"} order={sort.order} />
                   </Button>
                 </TableHead>
                 <TableHead className="w-[15%]">
                   <Button
                     variant="ghost"
                     onClick={() => handleSort("assignee_id")}
-                    className="px-1"
+                    className="px-1 h-auto py-0 text-xs font-medium text-muted-foreground hover:text-foreground"
                   >
-                    Client Name
-                    {sort.field === "client_id" && (sort.order === "asc" ? "🔼" : "🔽")}
+                    Client
+                    <SortIndicator active={sort.field === "client_id"} order={sort.order} />
                   </Button>
                 </TableHead>
                 <TableHead className="w-[15%]">Assignee</TableHead>
-                <TableHead className="w-[10%]">
+                <TableHead className="w-[12%]">
                   <Button
                     variant="ghost"
                     onClick={() => handleSort("due_date")}
-                    className="px-1"
+                    className="px-1 h-auto py-0 text-xs font-medium text-muted-foreground hover:text-foreground"
                   >
                     Due Date
-                    {sort.field === "due_date" && (sort.order === "asc" ? "🔼" : "🔽")}
+                    <SortIndicator active={sort.field === "due_date"} order={sort.order} />
                   </Button>
                 </TableHead>
-                <TableHead className="w-[10%]">
+                <TableHead className="w-[12%]">
                   <Button
                     variant="ghost"
                     onClick={() => handleSort("status")}
-                    className="px-1"
+                    className="px-1 h-auto py-0 text-xs font-medium text-muted-foreground hover:text-foreground"
                   >
                     Status
-                    {sort.field === "status" && (sort.order === "asc" ? "🔼" : "🔽")}
+                    <SortIndicator active={sort.field === "status"} order={sort.order} />
                   </Button>
                 </TableHead>
                 <TableHead className="w-[10%]">
                   <Button
                     variant="ghost"
                     onClick={() => handleSort("priority")}
-                    className="px-1"
+                    className="px-1 h-auto py-0 text-xs font-medium text-muted-foreground hover:text-foreground"
                   >
                     Priority
-                    {sort.field === "priority" && (sort.order === "asc" ? "🔼" : "🔽")}
+                    <SortIndicator active={sort.field === "priority"} order={sort.order} />
                   </Button>
                 </TableHead>
-                <TableHead className="w-[5%] text-right">Actions</TableHead>
+                <TableHead className="w-[8%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -255,7 +297,6 @@ const TaskList = ({
                     dueDate = null;
                   }
                 }
-                // Use UTC date for comparison to avoid timezone issues
                 const todayUTC = new Date();
                 todayUTC.setUTCHours(0, 0, 0, 0);
                 const isOverdue = dueDate && dueDate < todayUTC && task.status !== "Done";
@@ -265,30 +306,46 @@ const TaskList = ({
                   <TableRow
                     key={task.id}
                     onClick={() => router.push(`/admin/tasks/edit/${task.id}`)}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer hover:bg-muted/40 transition-colors"
                   >
-                    <TableCell className="font-medium">{task.title}</TableCell>
-                    <TableCell>
-                      {task.client?.company_name || "N/A"}
+                    <TableCell className="font-medium min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isOverdue && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>This task is overdue</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        <span className="truncate" title={task.title}>{task.title}</span>
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-0">
+                      <span className="text-sm text-muted-foreground truncate block" title={task.client?.company_name || ""}>
+                        {task.client?.company_name || "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="min-w-0">
                       {assignee ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center gap-2">
-                              <Avatar className="h-6 w-6">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Avatar className="h-7 w-7 shrink-0">
                                 <AvatarImage
                                   src={assignee.avatar_url}
                                   alt={assignee.first_name}
                                 />
-                                <AvatarFallback>
+                                <AvatarFallback className="text-[10px]">
                                   {getInitials(
                                     assignee.first_name,
                                     assignee.last_name
                                   )}
                                 </AvatarFallback>
                               </Avatar>
-                              <span>
+                              <span className="text-sm truncate" title={`${assignee.first_name || ""} ${assignee.last_name || ""}`.trim()}>
                                 {`${assignee.first_name || ""} ${
                                   assignee.last_name || ""
                                 }`.trim()}
@@ -300,25 +357,26 @@ const TaskList = ({
                           </TooltipContent>
                         </Tooltip>
                       ) : (
-                        <span className="text-muted-foreground">
+                        <span className="text-sm text-muted-foreground italic">
                           Unassigned
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className={isOverdue ? "text-destructive" : ""}>
-                      {formatDate(task.dueDate)}
+                    <TableCell className="whitespace-nowrap">
+                      <span className={cn(
+                        "text-sm",
+                        isOverdue && "text-destructive font-medium"
+                      )}>
+                        {formatDate(task.dueDate)}
+                      </span>
                     </TableCell>
-                    <TableCell onClick={stopPropagation}>
+                    <TableCell onClick={stopPropagation} className="whitespace-nowrap">
                       {task._permissions?.allowed ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full justify-start text-left"
-                            >
-                              {task.status || "Select"}
-                            </Button>
+                            <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
+                              <StatusBadge status={task.status} />
+                            </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
                             <DropdownMenuRadioGroup
@@ -340,24 +398,16 @@ const TaskList = ({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {task.status || "N/A"}
-                        </span>
+                        <StatusBadge status={task.status} />
                       )}
                     </TableCell>
-                    <TableCell onClick={stopPropagation}>
+                    <TableCell onClick={stopPropagation} className="whitespace-nowrap">
                       {task._permissions?.allowed ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`w-full justify-start text-left font-semibold ${getPriorityProps(
-                                task.priority
-                              ).color}`}
-                            >
-                              {task.priority || "Select"}
-                            </Button>
+                            <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
+                              <PriorityBadge priority={task.priority} />
+                            </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
                             <DropdownMenuRadioGroup
@@ -379,9 +429,7 @@ const TaskList = ({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <span className={`text-sm font-semibold ${getPriorityProps(task.priority).color}`}>
-                          {task.priority || "N/A"}
-                        </span>
+                        <PriorityBadge priority={task.priority} />
                       )}
                     </TableCell>
                     <TableCell
@@ -390,7 +438,7 @@ const TaskList = ({
                     >
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -422,38 +470,21 @@ const TaskList = ({
             </TableBody>
           </Table>
         </div>
-        <div className="flex items-center justify-between py-4">
-          <div className="text-sm text-muted-foreground">
-            Showing{" "}
-            {pagination.page * pagination.limit - pagination.limit + 1}-
-            {(pagination.page * pagination.limit) > pagination.total
-              ? pagination.total
-              : pagination.page * pagination.limit}{" "}
-            of {pagination.total} tasks.
+
+        {/* Infinite scroll sentinel + loading indicator */}
+        <div ref={sentinelRef} className="h-1" />
+        {isLoadingMore && (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading more tasks...</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(pagination.page - 1)}
-              disabled={pagination.page <= 1}
-            >
-              Previous
-            </Button>
-            <span className="text-sm">
-              Page {pagination.page} of{" "}
-              {Math.ceil(pagination.total / pagination.limit) || 1}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(pagination.page + 1)}
-              disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
-            >
-              Next
-            </Button>
+        )}
+        {!hasMore && tasks.length > 0 && !isLoadingMore && (
+          <div className="text-center py-4 text-xs text-muted-foreground">
+            You&apos;ve reached the end — {tasks.length} tasks loaded.
           </div>
-        </div>
+        )}
+
         <AlertComponent
           open={errorAlertOpen}
           onOpenChange={setErrorAlertOpen}

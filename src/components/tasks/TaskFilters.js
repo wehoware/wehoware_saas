@@ -1,11 +1,10 @@
-// Placeholder for Task Filters Component
+// TaskFilters — filter bar for the tasks list
 import React from "react";
 import { Input } from "@/components/ui/input";
-// Ensure only SelectInput is imported
-import FilterableSelectInput from "@/components/ui/FilterableSelectInput.jsx"; // Changed import
+import FilterableSelectInput from "@/components/ui/FilterableSelectInput.jsx";
 import { Button } from "@/components/ui/button";
+import { Search, X } from "lucide-react";
 
-// Define options arrays within the component
 const statusOptions = [
   { value: "active", label: "Active" },
   { value: "all", label: "All Statuses" },
@@ -22,139 +21,131 @@ const priorityOptions = [
   { value: "Low", label: "Low" },
 ];
 
-// TaskFilters now receives currentFilters and assignableUsers as props
 const TaskFilters = ({ onFilterChange, assignableUsers = [], clients = [], currentFilters, showClientFilter = false }) => {
-  // Internal state is removed. We use currentFilters prop directly.
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    // Construct new filters based on currentFilters prop and the changed value
     const newFilters = { ...currentFilters, [name]: value };
     onFilterChange(newFilters);
   };
 
-  // Updated handler: SelectInput provides { target: { name, value } }
   const handleSelectChange = (e) => {
     const { name, value } = e.target;
-    // If 'all' or an empty string is selected for a dropdown, represent it as an empty string for the filter value.
     const selectedValue = value === "all" || value === "" ? "" : value;
     const newFilters = { ...currentFilters, [name]: selectedValue };
     onFilterChange(newFilters);
   };
 
-  // Old handler - Keep for reference if needed, but use the one above
-  // const handleSelectChangeDirect = (name, value) => {
-  //   const newFilters = { ...filters, [name]: value === "all" ? "" : value }; // Reset if 'all' selected
-  //   setFilters(newFilters);
-  //   onFilterChange(newFilters);
-  // };
-
   const clearFilters = () => {
-    // Call onFilterChange with all filter values reset to empty strings
     onFilterChange({
       search: "",
       status: "",
       priority: "",
-      assignee_id: "", // Ensure this matches the key in TasksPage state
+      assignee_id: "",
       client_id: "",
     });
   };
 
+  const hasActiveFilters =
+    currentFilters.search ||
+    (currentFilters.status && currentFilters.status !== "active") ||
+    currentFilters.priority ||
+    currentFilters.assignee_id ||
+    currentFilters.client_id;
+
   return (
-    <div className="flex flex-wrap gap-4 items-end mb-6">
-      <div className="flex-grow" style={{ minWidth: "150px" }}>
-        <label
-          htmlFor="search"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Search Tasks
-        </label>
-        <Input
-          id="search"
-          name="search"
-          placeholder="Search by title/description..."
-          value={currentFilters.search}
-          onChange={handleInputChange}
-        />
-      </div>
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+        {/* Search */}
+        <div className="lg:col-span-1">
+          <label htmlFor="search" className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Search
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              id="search"
+              name="search"
+              placeholder="Search by title..."
+              value={currentFilters.search}
+              onChange={handleInputChange}
+              className="pl-9"
+            />
+          </div>
+        </div>
 
-      <div>
-        <label
-          htmlFor="status"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Status
-        </label>
-
-        <FilterableSelectInput
-          id="status"
-          name="status"
-          options={statusOptions}
-          value={currentFilters.status || "all"} 
-          onChange={handleSelectChange}
-        />
-      </div>
-
-      <div>
-        <label
-          htmlFor="priority"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Priority
-        </label>
-        {/* Use SelectInput for Priority */}
-        <FilterableSelectInput
-          id="priority"
-          name="priority"
-          options={priorityOptions}
-          value={currentFilters.priority || "all"}
-          onChange={handleSelectChange}
-        />
-
-        {/* TODO: Add Assignee Select - needs dynamic population */}
-        {/* Replace the temporary one below with logic to fetch actual assignees */}
-      </div>
-      {showClientFilter && (
+        {/* Status */}
         <div>
-          <label
-            htmlFor="client_id"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Client
+          <label htmlFor="status" className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Status
           </label>
           <FilterableSelectInput
-            id="client_id"
-            name="client_id"
-            options={[
-              { value: "", label: "All Clients" },
-              ...clients.map((c) => ({ value: c.id, label: c.company_name || c.name || "Unknown" })),
-            ]}
-            value={currentFilters.client_id || ""}
+            id="status"
+            name="status"
+            options={statusOptions}
+            value={currentFilters.status || "all"}
             onChange={handleSelectChange}
           />
         </div>
-      )}
-      <div>
-        <label 
-          htmlFor="assignee_id" 
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Assignee
-        </label>
-        <FilterableSelectInput
-          id="assignee_id" // Changed id
-          name="assignee_id" // Changed name
-          options={[
-            { value: "", label: "All Assignees" }, // Default 'All' option
-            ...assignableUsers.map(user => ({ value: user.id, label: `${user.first_name} ${user.last_name}` }))
-          ]}
-          value={currentFilters.assignee_id || ""} // Use empty string for 'all'
-          onChange={handleSelectChange}
-        />
+
+        {/* Priority */}
+        <div>
+          <label htmlFor="priority" className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Priority
+          </label>
+          <FilterableSelectInput
+            id="priority"
+            name="priority"
+            options={priorityOptions}
+            value={currentFilters.priority || "all"}
+            onChange={handleSelectChange}
+          />
+        </div>
+
+        {/* Client (admin/employee only) */}
+        {showClientFilter && (
+          <div>
+            <label htmlFor="client_id" className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Client
+            </label>
+            <FilterableSelectInput
+              id="client_id"
+              name="client_id"
+              options={[
+                { value: "", label: "All Clients" },
+                ...clients.map((c) => ({ value: c.id, label: c.company_name || c.name || "Unknown" })),
+              ]}
+              value={currentFilters.client_id || ""}
+              onChange={handleSelectChange}
+            />
+          </div>
+        )}
+
+        {/* Assignee */}
+        <div>
+          <label htmlFor="assignee_id" className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Assignee
+          </label>
+          <FilterableSelectInput
+            id="assignee_id"
+            name="assignee_id"
+            options={[
+              { value: "", label: "All Assignees" },
+              ...assignableUsers.map(user => ({ value: user.id, label: `${user.first_name} ${user.last_name}` }))
+            ]}
+            value={currentFilters.assignee_id || ""}
+            onChange={handleSelectChange}
+          />
+        </div>
       </div>
-      <Button variant="outline" onClick={clearFilters}>
-        Clear Filters
-      </Button>
+
+      {hasActiveFilters && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5 mr-1" />
+            Clear Filters
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

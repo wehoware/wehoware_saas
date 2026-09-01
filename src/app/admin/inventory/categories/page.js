@@ -14,13 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, Check, X, ArrowLeft, Search, FolderTree, Tag } from "lucide-react";
 
 import AdminPageHeader from "@/components/AdminPageHeader";
 import AlertComponent from "@/components/ui/alert-component";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/auth-context";
+import { cn } from "@/lib/utils";
 
 export default function InventoryCategoriesPage() {
   const router = useRouter();
@@ -222,23 +223,36 @@ export default function InventoryCategoriesPage() {
         />
 
         {showAddForm && (
-          <Card className="border border-gray-200 shadow-sm">
+          <Card className="border-border/60 shadow-sm">
             <CardHeader>
-              <CardTitle>Add New Category</CardTitle>
+              <CardTitle className="text-base">Add New Category</CardTitle>
               <CardDescription>Create a new inventory category</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleAddCategory} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Category Name *</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={newCategory.name}
-                    onChange={(e) => handleInputChange(e, true)}
-                    placeholder="Enter category name"
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Category Name *</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      value={newCategory.name}
+                      onChange={(e) => handleInputChange(e, true)}
+                      placeholder="Enter category name"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="icon_url">Icon URL</Label>
+                    <Input
+                      id="icon_url"
+                      name="icon_url"
+                      value={newCategory.icon_url}
+                      onChange={(e) => handleInputChange(e, true)}
+                      placeholder="https://example.com/icon.png"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -249,17 +263,7 @@ export default function InventoryCategoriesPage() {
                     value={newCategory.description}
                     onChange={(e) => handleInputChange(e, true)}
                     placeholder="Enter category description"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="icon_url">Icon URL</Label>
-                  <Input
-                    id="icon_url"
-                    name="icon_url"
-                    value={newCategory.icon_url}
-                    onChange={(e) => handleInputChange(e, true)}
-                    placeholder="Enter icon URL"
+                    rows={3}
                   />
                 </div>
 
@@ -273,10 +277,10 @@ export default function InventoryCategoriesPage() {
                   <Label htmlFor="active">Active</Label>
                 </div>
 
-                <div className="flex justify-end space-x-2">
+                <div className="flex justify-end space-x-2 pt-2 border-t border-border/40">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => {
                       setShowAddForm(false);
                       setNewCategory({ name: "", description: "", icon_url: "", active: true });
@@ -291,7 +295,10 @@ export default function InventoryCategoriesPage() {
                         Adding...
                       </>
                     ) : (
-                      "Add Category"
+                      <>
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        Add Category
+                      </>
                     )}
                   </Button>
                 </div>
@@ -300,50 +307,76 @@ export default function InventoryCategoriesPage() {
           </Card>
         )}
 
-        <Card className="border border-gray-200 shadow-sm">
+        <Card className="border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>Categories</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderTree className="h-4 w-4 text-muted-foreground" />
+              Categories
+            </CardTitle>
             <CardDescription>Manage your inventory categories</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center">
-                <Input
-                  type="search"
-                  placeholder="Search categories..."
-                  className="max-w-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <div className="relative max-w-sm w-full">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    type="search"
+                    placeholder="Search categories..."
+                    className="pl-8"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
 
               {isLoading ? (
-                <div className="flex justify-center items-center py-8">
+                <div className="flex justify-center items-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : (
                 <>
-                  <div className="overflow-auto rounded-md border">
+                  <div className="overflow-auto rounded-lg border border-border/40 scrollbar-thin">
                     <table className="w-full">
-                      <thead className="bg-muted/50">
+                      <thead className="bg-muted/30">
                         <tr>
-                          <th className="text-left p-3 font-medium">Name</th>
-                          <th className="text-left p-3 font-medium">Description</th>
-                          <th className="text-left p-3 font-medium">Icon URL</th>
-                          <th className="text-left p-3 font-medium">Active</th>
-                          <th className="text-left p-3 font-medium">Actions</th>
+                          <th className="text-left p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                          <th className="text-left p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Description</th>
+                          <th className="text-left p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Icon URL</th>
+                          <th className="text-left p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                          <th className="text-right p-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-border/60">
                         {filteredCategories.length === 0 ? (
                           <tr>
-                            <td colSpan="5" className="p-4 text-center text-muted-foreground">
-                              No categories found{activeClient ? ` for ${activeClient.name}` : ""}. Try adding one!
+                            <td colSpan="5" className="p-0">
+                              <div className="flex flex-col items-center justify-center py-16 text-center">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted mb-4">
+                                  <FolderTree className="h-7 w-7 text-muted-foreground" />
+                                </div>
+                                <h3 className="text-base font-medium">No categories found</h3>
+                                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                                  {searchTerm
+                                    ? "Try changing your search criteria."
+                                    : `Get started by adding your first inventory category${activeClient ? ` for ${activeClient.name}` : ""}.`}
+                                </p>
+                                {!searchTerm && (
+                                  <Button
+                                    className="mt-4"
+                                    size="sm"
+                                    onClick={() => setShowAddForm(true)}
+                                  >
+                                    <Plus className="h-4 w-4 mr-1.5" />
+                                    Add Category
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ) : (
                           filteredCategories.map((category) => (
-                            <tr key={category.id} className="border-b border-gray-200 last:border-0">
+                            <tr key={category.id} className="hover:bg-muted/40 transition-colors">
                               <td className="p-3">
                                 {editingCategory && editingCategory.id === category.id ? (
                                   <Input
@@ -354,34 +387,42 @@ export default function InventoryCategoriesPage() {
                                     required
                                   />
                                 ) : (
-                                  category.name
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                                      <Tag className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <span className="font-medium text-sm truncate max-w-[200px]" title={category.name}>
+                                      {category.name}
+                                    </span>
+                                  </div>
                                 )}
                               </td>
-                              <td className="p-3">
+                              <td className="p-3 max-w-xs">
                                 {editingCategory && editingCategory.id === category.id ? (
                                   <Textarea
                                     name="description"
                                     value={editingCategory.description}
                                     onChange={handleInputChange}
                                     placeholder="Enter category description"
+                                    rows={2}
                                   />
                                 ) : (
-                                  <div className="text-sm text-muted-foreground truncate max-w-xs">
-                                    {category.description || "-"}
+                                  <div className="text-sm text-muted-foreground truncate" title={category.description || ""}>
+                                    {category.description || <span className="italic">No description</span>}
                                   </div>
                                 )}
                               </td>
-                              <td className="p-3">
+                              <td className="p-3 max-w-xs">
                                 {editingCategory && editingCategory.id === category.id ? (
                                   <Input
                                     name="icon_url"
                                     value={editingCategory.icon_url || ""}
                                     onChange={handleInputChange}
-                                    placeholder="Enter icon URL"
+                                    placeholder="https://example.com/icon.png"
                                   />
                                 ) : (
-                                  <div className="text-sm text-muted-foreground truncate max-w-xs">
-                                    {category.icon_url || "-"}
+                                  <div className="text-sm text-muted-foreground truncate" title={category.icon_url || ""}>
+                                    {category.icon_url || <span className="italic">—</span>}
                                   </div>
                                 )}
                               </td>
@@ -393,31 +434,32 @@ export default function InventoryCategoriesPage() {
                                     onCheckedChange={(checked) => handleSwitchChange(checked, "active")}
                                   />
                                 ) : (
-                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  <span className={cn(
+                                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
                                     category.active
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-gray-100 text-gray-800"
-                                  }`}>
+                                      ? "bg-green-500/10 text-green-600"
+                                      : "bg-muted text-muted-foreground"
+                                  )}>
                                     {category.active ? "Active" : "Inactive"}
                                   </span>
                                 )}
                               </td>
-                              <td className="p-3">
+                              <td className="p-3 text-right">
                                 {editingCategory && editingCategory.id === category.id ? (
-                                  <div className="flex space-x-2">
-                                    <Button variant="outline" size="sm" onClick={handleUpdateCategory} disabled={isSubmitting}>
-                                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                  <div className="flex space-x-1 justify-end">
+                                    <Button variant="outline" size="icon" onClick={handleUpdateCategory} disabled={isSubmitting} title="Save">
+                                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-green-600" />}
                                     </Button>
-                                    <Button variant="outline" size="sm" onClick={() => setEditingCategory(null)}>
+                                    <Button variant="outline" size="icon" onClick={() => setEditingCategory(null)} title="Cancel">
                                       <X className="h-4 w-4" />
                                     </Button>
                                   </div>
                                 ) : (
-                                  <div className="flex space-x-2">
+                                  <div className="flex space-x-1 justify-end">
                                     <Button variant="ghost" size="icon" title="Edit" onClick={() => setEditingCategory(category)}>
                                       <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" title="Delete" onClick={() => openDeleteDialog(category)}>
+                                    <Button variant="ghost" size="icon" title="Delete" onClick={() => openDeleteDialog(category)} className="text-muted-foreground hover:text-destructive">
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </div>
@@ -430,9 +472,11 @@ export default function InventoryCategoriesPage() {
                     </table>
                   </div>
 
-                  <div className="text-sm text-muted-foreground">
-                    Showing {filteredCategories.length} of {categories.length} categories
-                  </div>
+                  {filteredCategories.length > 0 && (
+                    <div className="text-sm text-muted-foreground tabular-nums">
+                      Showing <span className="font-medium text-foreground">{filteredCategories.length}</span> of {categories.length} categories
+                    </div>
+                  )}
                 </>
               )}
             </div>

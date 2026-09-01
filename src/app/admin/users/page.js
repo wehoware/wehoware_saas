@@ -295,20 +295,20 @@ export default function UsersPage() {
                       <tbody>
                         {filteredUsers.map((u) => (
                           <tr key={u.id} className="border-b hover:bg-muted/50">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center space-x-2">
-                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <td className="py-3 px-4 max-w-[200px]">
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                                   <UserCog className="h-4 w-4 text-primary" />
                                 </div>
-                                <div>
+                                <span className="truncate" title={`${u.first_name || ""} ${u.last_name || ""}`.trim()}>
                                   {u.first_name} {u.last_name}
-                                </div>
+                                </span>
                               </div>
                             </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center">
-                                <Mail className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-                                {u.email}
+                            <td className="py-3 px-4 max-w-[220px]">
+                              <div className="flex items-center min-w-0">
+                                <Mail className="h-3.5 w-3.5 mr-1 text-muted-foreground shrink-0" />
+                                <span className="truncate" title={u.email}>{u.email}</span>
                               </div>
                             </td>
                             <td className="py-3 px-4">
@@ -323,13 +323,15 @@ export default function UsersPage() {
                               </Badge>
                             </td>
                             {isAdmin && (
-                              <td className="py-3 px-4">
+                              <td className="py-3 px-4 max-w-[200px]">
                                 {u.client_id ? (
-                                  <div className="flex items-center">
-                                    <Building2 className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-                                    {u.wehoware_user_clients?.[0]?.client_id
-                                      ? u.client_id
-                                      : "—"}
+                                  <div className="flex items-center min-w-0">
+                                    <Building2 className="h-3.5 w-3.5 mr-1 text-muted-foreground shrink-0" />
+                                    <span className="truncate" title={u.wehoware_user_clients?.[0]?.client_id || u.client_id}>
+                                      {u.wehoware_user_clients?.[0]?.client_id
+                                        ? u.client_id
+                                        : "—"}
+                                    </span>
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground">—</span>

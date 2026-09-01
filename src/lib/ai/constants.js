@@ -31,7 +31,7 @@ export async function searchMemories(userId, clientId, query) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, client_id: clientId, query, limit: 5 }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(3000),
     });
     if (!response.ok) return "";
     const data = await response.json();
@@ -63,7 +63,7 @@ export async function storeConversationMemory(userId, clientId, userMessage, ass
           { role: "assistant", content: assistantResponse },
         ],
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
     console.error("[baddy] Memory store failed (non-fatal):", err.message);

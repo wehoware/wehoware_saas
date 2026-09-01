@@ -1459,12 +1459,11 @@ export const TOOL_CATEGORIES = {
 // Keyword -> category mapping for intent-based tool selection
 export const CATEGORY_KEYWORDS = {
   APPOINTMENT: ["appointment", "booking", "schedule", "meeting", "calendar"],
-  BANKING: ["bank", "account", "transaction", "transfer", "deposit", "withdrawal"],
+  BANKING: ["bank", "account", "transaction", "transfer", "deposit", "withdrawal", "expense", "reimburse", "receipt", "spend"],
   BLOG: ["blog", "article", "post", "content", "category"],
   CLIENT: ["client", "company", "setting", "config", "preference"],
   CRM: ["contact", "lead", "customer", "deal", "pipeline", "stage", "activity", "crm", "sales", "opportunity"],
   DAILY_REPORT: ["daily report", "work report", "timesheet", "hours", "daily work"],
-  EXPENSE: ["expense", "reimburse", "receipt", "spend"],
   FORM: ["form", "submission", "field", "survey"],
   GOAL: ["goal", "objective", "key result", "okr", "target"],
   INQUIRY: ["inquiry", "enquiry", "lead form", "contact form"],
@@ -1475,7 +1474,7 @@ export const CATEGORY_KEYWORDS = {
   SEO: ["seo", "keyword", "search engine", "ranking", "analyser", "optimization", "meta tag", "schema"],
   SERVICE: ["service", "offering", "catalog"],
   SOCIAL_MEDIA: ["social", "post", "facebook", "instagram", "twitter", "tiktok", "publish", "schedule", "inbox", "message", "hashtag", "media"],
-  TASK: ["task", "todo", "to-do", "subtask", "comment", "time entry", "assign", "deadline", "due"],
+  TASKS: ["task", "todo", "to-do", "subtask", "comment", "time entry", "assign", "deadline", "due"],
   USER: ["user", "team", "member", "employee", "staff", "profile"],
   VENDOR_CUSTOMER: ["vendor", "supplier", "customer", "client"],
 };

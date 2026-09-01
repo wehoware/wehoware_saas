@@ -161,7 +161,7 @@ async function authenticateWithApiKey(request) {
       where: { keyHash },
       include: {
         user: {
-          select: { id: true, email: true, role: true, clientId: true },
+          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true },
         },
       },
     });
@@ -223,7 +223,7 @@ export function withAuth(handler, options = {}) {
       try {
         profile = await prisma.wehowareProfile.findUnique({
           where: { id: session.user.id },
-          select: { id: true, email: true, role: true, clientId: true },
+          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true },
         });
       } catch (err) {
         return serverError("withAuth] DB error fetching profile", err);
@@ -248,6 +248,8 @@ export function withAuth(handler, options = {}) {
       email: profile.email,
       role: profile.role,
       clientId: profile.clientId ?? null,
+      firstName: profile.firstName ?? null,
+      lastName: profile.lastName ?? null,
     };
 
     // Resolve active client context

@@ -4,22 +4,40 @@
  * Public endpoints for a guest to manage their own appointment
  * using an opaque booking token (not a raw UUID).
  *
- * GET  — retrieve appointment details
- * PUT  — reschedule appointment
+ * GET    — retrieve appointment details
+ * PUT    — reschedule appointment
  * DELETE — cancel appointment (soft delete via status update)
+ *
+ * The token is a 64-char hex string generated at booking time.
+ * No client_slug/domain/clientId required — the token uniquely
+ * identifies the appointment + client.
  */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getFreeSlots } from "@/lib/availability";
 import { corsHeaders } from "../../utils/public-middleware";
 
-const VALID_STATUSES = new Set([
-  "Pending",
-  "Confirmed",
-  "Cancelled",
-  "Completed",
-  "NoShow",
-]);
+// Lightweight rate limiting for token endpoints (per IP)
+const tokenRateStore = new Map();
+const TOKEN_RATE_WINDOW_MS = 60_000;
+const TOKEN_RATE_MAX = 30;
+
+function checkTokenRateLimit(ip) {
+  const now = Date.now();
+  const windowStart = now - TOKEN_RATE_WINDOW_MS;
+  let entries = tokenRateStore.get(ip) || [];
+  entries = entries.filter((ts) => ts > windowStart);
+  if (entries.length >= TOKEN_RATE_MAX) return false;
+  entries.push(now);
+  tokenRateStore.set(ip, entries);
+  return true;
+}
+
+function getClientIp(request) {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  );
+}
 
 function serialize(appointment) {
   return {
@@ -32,11 +50,20 @@ function serialize(appointment) {
     timezone: appointment.timezone,
     notes: appointment.notes,
     meeting_link: appointment.meetingLink,
+    location: appointment.location,
+    address: appointment.address,
     type: appointment.appointmentType
       ? {
           name: appointment.appointmentType.name,
+          slug: appointment.appointmentType.slug,
           duration: appointment.appointmentType.duration,
           color: appointment.appointmentType.color,
+        }
+      : null,
+    client: appointment.client
+      ? {
+          name: appointment.client.companyName,
+          domain: appointment.client.domain ?? null,
         }
       : null,
   };
@@ -49,13 +76,36 @@ function jsonWithCors(body, status = 200) {
   return NextResponse.json(body, { status, headers: corsHeaders() });
 }
 
+/**
+ * Rate limit check wrapper for token endpoints.
+ */
+function checkRateLimit(request) {
+  const ip = getClientIp(request);
+  if (!checkTokenRateLimit(ip)) {
+    return jsonWithCors(
+      { error: "Rate limit exceeded. Please try again later." },
+      429
+    );
+  }
+  return null;
+}
+
 async function loadByToken(token) {
   if (token?.length !== 64) return null;
   return prisma.wehowareAppointment.findFirst({
     where: { bookingToken: token },
     include: {
-      appointmentType: { select: { id: true, name: true, duration: true, color: true } },
-      client: { select: { id: true, companyName: true } },
+      appointmentType: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          duration: true,
+          color: true,
+          requiresConfirmation: true,
+        },
+      },
+      client: { select: { id: true, companyName: true, domain: true } },
     },
   });
 }
@@ -64,6 +114,9 @@ async function loadByToken(token) {
 // GET
 // -------------------------------------------------------------------
 export async function GET(request, { params }) {
+  const rateLimited = checkRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const { token } = await params;
     const appointment = await loadByToken(token);
@@ -81,11 +134,28 @@ export async function GET(request, { params }) {
 // PUT — Reschedule
 // -------------------------------------------------------------------
 export async function PUT(request, { params }) {
+  const rateLimited = checkRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const { token } = await params;
     const appointment = await loadByToken(token);
     if (!appointment) {
       return jsonWithCors({ error: "Appointment not found" }, 404);
+    }
+
+    // Don't allow rescheduling cancelled or completed appointments
+    if (appointment.status === "Cancelled") {
+      return jsonWithCors(
+        { error: "Cannot reschedule a cancelled appointment" },
+        400
+      );
+    }
+    if (appointment.status === "Completed") {
+      return jsonWithCors(
+        { error: "Cannot reschedule a completed appointment" },
+        400
+      );
     }
 
     let body;
@@ -143,7 +213,10 @@ export async function PUT(request, { params }) {
           : "Confirmed",
       },
       include: {
-        appointmentType: { select: { name: true, duration: true, color: true } },
+        appointmentType: {
+          select: { name: true, slug: true, duration: true, color: true },
+        },
+        client: { select: { id: true, companyName: true, domain: true } },
       },
     });
 
@@ -158,14 +231,30 @@ export async function PUT(request, { params }) {
 }
 
 // -------------------------------------------------------------------
-// DELETE — Cancel
+// DELETE — Cancel (soft delete via status update, per data-safety rule)
 // -------------------------------------------------------------------
 export async function DELETE(request, { params }) {
+  const rateLimited = checkRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const { token } = await params;
     const appointment = await loadByToken(token);
     if (!appointment) {
       return jsonWithCors({ error: "Appointment not found" }, 404);
+    }
+
+    if (appointment.status === "Cancelled") {
+      return jsonWithCors(
+        { error: "Appointment is already cancelled" },
+        400
+      );
+    }
+    if (appointment.status === "Completed") {
+      return jsonWithCors(
+        { error: "Cannot cancel a completed appointment" },
+        400
+      );
     }
 
     await prisma.wehowareAppointment.update({

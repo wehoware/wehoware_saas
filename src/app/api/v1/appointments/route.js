@@ -296,10 +296,10 @@ export const POST = withAuth(
       // Trigger notification (non-blocking)
       const client = await prisma.wehowareClient.findUnique({
         where: { id: clientId },
-        select: { name: true },
+        select: { companyName: true },
       });
       if (client) {
-        triggerAppointmentNotification('created', serialize(created), clientId, client.name).catch(err => {
+        triggerAppointmentNotification('created', serialize(created), clientId, client.companyName).catch(err => {
           console.error('[POST /api/v1/appointments] notification error:', err);
         });
       }

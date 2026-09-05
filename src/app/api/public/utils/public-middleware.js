@@ -4,7 +4,12 @@
  * Provides:
  *   - CORS headers for cross-origin booking widgets
  *   - Simple per-client rate limiting (in-memory, per-process)
- *   - Client lookup by publicSlug
+ *   - Client lookup by domain, clientId, or publicSlug
+ *
+ * Client resolution order (same as services/blogs):
+ *   1. ?domain=example.com   — match by WehowareClient.domain
+ *   2. ?clientId=uuid        — match by WehowareClient.id
+ *   3. ?client_slug=acme     — match by WehowareClient.publicSlug (legacy)
  *
  * Usage: wrap public route handlers with withPublic(handler)
  */
@@ -36,7 +41,50 @@ function checkRateLimit(key) {
 }
 
 /**
- * Lookup client by public slug.
+ * Fields selected from WehowareClient for public API responses.
+ * Shared across all public appointment endpoints.
+ */
+const CLIENT_SELECT = {
+  id: true,
+  active: true,
+  companyName: true,
+  publicSlug: true,
+  domain: true,
+  website: true,
+  email: true,
+  contactNumber: true,
+  address: true,
+};
+
+/**
+ * Resolve a client by domain, clientId, or publicSlug.
+ * Returns null if not found, or { inactive: true, id } if inactive.
+ *
+ * @param {string|null} domain
+ * @param {string|null} clientId
+ * @param {string|null} publicSlug
+ * @returns {Promise<object|null>}
+ */
+export async function resolvePublicClient(domain, clientId, publicSlug) {
+  if (!domain && !clientId && !publicSlug) return null;
+
+  const where = {};
+  if (domain) where.domain = domain;
+  else if (clientId) where.id = clientId;
+  else if (publicSlug) where.publicSlug = publicSlug;
+
+  const client = await prisma.wehowareClient.findFirst({
+    where,
+    select: CLIENT_SELECT,
+  });
+
+  if (!client) return null;
+  if (!client.active) return { inactive: true, id: client.id };
+  return client;
+}
+
+/**
+ * Lookup client by public slug (legacy helper — kept for backward compat).
  * Returns null if not found or inactive.
  */
 export async function getClientBySlug(publicSlug) {
@@ -60,10 +108,28 @@ export function corsHeaders(origin = "*") {
 }
 
 /**
+ * Extract client identifier from query params.
+ * Priority: domain > clientId > client_slug
+ * Returns { kind, value } or null.
+ */
+function extractClientParam(searchParams) {
+  const domain = searchParams.get("domain")?.trim();
+  if (domain) return { kind: "domain", value: domain };
+
+  const clientId = searchParams.get("clientId")?.trim();
+  if (clientId) return { kind: "clientId", value: clientId };
+
+  const clientSlug = searchParams.get("client_slug")?.trim();
+  if (clientSlug) return { kind: "client_slug", value: clientSlug };
+
+  return null;
+}
+
+/**
  * withPublic — wraps a public route handler with:
  *   1. CORS preflight support
- *   2. Rate limiting keyed by client slug + IP
- *   3. Client resolution from ?client_slug= query param
+ *   2. Rate limiting keyed by client identifier + IP
+ *   3. Client resolution from ?domain= / ?clientId= / ?client_slug= query param
  *   4. Attaches `request.client` for downstream use
  */
 export function withPublic(handler) {
@@ -77,11 +143,11 @@ export function withPublic(handler) {
     }
 
     const url = new URL(request.url);
-    const clientSlug = url.searchParams.get("client_slug");
+    const clientParam = extractClientParam(url.searchParams);
 
-    if (!clientSlug) {
+    if (!clientParam) {
       return NextResponse.json(
-        { error: "Missing required query parameter: client_slug" },
+        { error: "Missing required query parameter: domain, clientId, or client_slug" },
         { status: 400, headers: corsHeaders() }
       );
     }
@@ -90,7 +156,7 @@ export function withPublic(handler) {
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       "unknown";
-    const rateKey = `${clientSlug}:${ip}`;
+    const rateKey = `${clientParam.kind}:${clientParam.value}:${ip}`;
 
     if (!checkRateLimit(rateKey)) {
       return NextResponse.json(
@@ -100,11 +166,23 @@ export function withPublic(handler) {
     }
 
     // Resolve client
-    const client = await getClientBySlug(clientSlug);
+    const client = await resolvePublicClient(
+      clientParam.kind === "domain" ? clientParam.value : null,
+      clientParam.kind === "clientId" ? clientParam.value : null,
+      clientParam.kind === "client_slug" ? clientParam.value : null,
+    );
+
     if (!client) {
       return NextResponse.json(
-        { error: "Client not found or inactive" },
+        { error: "Client not found" },
         { status: 404, headers: corsHeaders() }
+      );
+    }
+
+    if (client.inactive) {
+      return NextResponse.json(
+        { error: "Client is inactive" },
+        { status: 403, headers: corsHeaders() }
       );
     }
 

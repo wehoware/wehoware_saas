@@ -44,7 +44,7 @@ function mapAppointment(a) {
   };
 }
 
-export function UpcomingAppointments() {
+export function UpcomingAppointments({ refreshKey }) {
   const { activeClient } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +78,7 @@ export function UpcomingAppointments() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClient?.id]);
+  }, [activeClient?.id, refreshKey]);
 
   const handleConfirm = async (id) => {
     try {
@@ -178,7 +178,7 @@ export function UpcomingAppointments() {
         case "today": return isToday(date);
         case "tomorrow": return isTomorrow(date);
         case "pending": return appointment.status === "pending";
-        default: return isFuture(date) || isToday(date);
+        default: return true; // "all" shows everything non-cancelled
       }
     } catch {
       return true;

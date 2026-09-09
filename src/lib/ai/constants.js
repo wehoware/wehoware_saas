@@ -18,6 +18,12 @@ export const VLLM_MODEL = process.env.VLLM_MODEL || "qwen3.8-27b";
 // Mem0 memory bridge endpoint (running on the AI Brain)
 export const MEM0_BRIDGE_URL = process.env.MEM0_BRIDGE_URL || "http://localhost:9097";
 
+// Cognee knowledge graph bridge (running on the AI Brain)
+export const COGNEE_BRIDGE_URL = process.env.COGNEE_BRIDGE_URL || "http://localhost:9100";
+
+// CrewAI specialist agents bridge (running on the AI Brain)
+export const CREWAI_BRIDGE_URL = process.env.CREWAI_BRIDGE_URL || "http://localhost:9101";
+
 // Maximum tool-call iterations per user turn
 export const MAX_TOOL_ITERATIONS = 10;
 
@@ -67,6 +73,51 @@ export async function storeConversationMemory(userId, clientId, userMessage, ass
     });
   } catch (err) {
     console.error("[baddy] Memory store failed (non-fatal):", err.message);
+  }
+}
+
+/**
+ * Search the Cognee knowledge graph for relevant business knowledge.
+ * This complements Mem0 (user memory) with structured business knowledge.
+ * Non-blocking — returns "" on any failure.
+ */
+export async function searchKnowledgeGraph(query) {
+  try {
+    const response = await fetch(`${COGNEE_BRIDGE_URL}/knowledge/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, user_id: "baddy" }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return "";
+    const data = await response.json();
+    const results = data.results || [];
+    if (!results.length) return "";
+    return `\n\n## Relevant Business Knowledge:\n${results.map(r => `- ${r}`).join("\n")}\n`;
+  } catch (err) {
+    console.error("[baddy] Knowledge graph search failed (non-fatal):", err.message);
+    return "";
+  }
+}
+
+/**
+ * Delegate a task to a specialist agent (CTO, CFO, SEO, Developer, Marketing, Support).
+ * Returns the specialist's response or an error message.
+ */
+export async function delegateToSpecialist(specialist, task) {
+  try {
+    const response = await fetch(`${CREWAI_BRIDGE_URL}/agent/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ specialist, task }),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!response.ok) return `Specialist delegation failed: ${response.status}`;
+    const data = await response.json();
+    return data.result || "No result from specialist.";
+  } catch (err) {
+    console.error("[baddy] Specialist delegation failed:", err.message);
+    return `Specialist delegation failed: ${err.message}`;
   }
 }
 

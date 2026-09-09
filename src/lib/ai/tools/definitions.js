@@ -1433,6 +1433,86 @@ export const ALL_TOOLS = [
     }
 ];
 
+// Knowledge graph + specialist delegation tools (AI Brain intelligence layer)
+export const INTELLIGENCE_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_knowledge_graph",
+      description: "Search the WeHowAre knowledge graph for business knowledge, architecture details, and entity relationships. Use this when the user asks about WeHowAre systems, business rules, or how things work.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_knowledge",
+      description: "Add new knowledge to the WeHowAre knowledge graph. Use this to store important decisions, insights, or business rules.",
+      parameters: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "The knowledge to add" },
+        },
+        required: ["text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delegate_to_specialist",
+      description: "Delegate a task to a specialist agent for expert analysis. Specialists: cto (technology/infrastructure), cfo (financial), seo (SEO strategy), developer (code/implementation), marketing (campaigns/growth), support (customer support).",
+      parameters: {
+        type: "object",
+        properties: {
+          specialist: { type: "string", enum: ["cto", "cfo", "seo", "developer", "marketing", "support"], description: "The specialist to delegate to" },
+          task: { type: "string", description: "The task description for the specialist" },
+        },
+        required: ["specialist", "task"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_specialists",
+      description: "List all available specialist agents and their roles.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_automations",
+      description: "List all scheduled automations (daily SEO checks, financial summaries, etc.).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_automation",
+      description: "Run a scheduled automation immediately. Available: daily_seo_check, daily_financial_summary, weekly_crm_review, daily_task_review, daily_system_health.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "The automation name to run" },
+        },
+        required: ["name"],
+      },
+    },
+  },
+];
+
+// Add intelligence tools to ALL_TOOLS
+ALL_TOOLS.push(...INTELLIGENCE_TOOLS);
+
 // Category -> tool names mapping for dynamic selection
 export const TOOL_CATEGORIES = {
   APPOINTMENT: ["get_appointments", "create_appointment", "update_appointment", "get_appointment_types", "create_appointment_type"],
@@ -1447,6 +1527,7 @@ export const TOOL_CATEGORIES = {
   INTEGRATION: ["get_integrations", "get_integration_logs"],
   INVENTORY: ["get_inventory_items", "create_inventory_item", "update_inventory_item", "get_inventory_categories", "get_stock_movements"],
   INVOICE: ["get_invoices", "create_invoice", "update_invoice", "get_invoice_line_items", "get_invoice_settings", "update_invoice_settings"],
+  KNOWLEDGE: ["search_knowledge_graph", "add_knowledge", "list_specialists", "delegate_to_specialist", "list_automations", "run_automation"],
   REPORT: ["get_reports", "get_report_templates", "create_report", "get_dashboard_report"],
   SEO: ["get_seo_keywords", "get_seo_analyser_runs", "get_seo_analyser_issues", "get_seo_analyser_suggestions", "get_seo_settings"],
   SERVICE: ["get_services", "create_service", "update_service", "get_service_categories", "create_service_category"],
@@ -1470,6 +1551,7 @@ export const CATEGORY_KEYWORDS = {
   INTEGRATION: ["integration", "sync", "connect", "api key", "webhook"],
   INVENTORY: ["inventory", "stock", "product", "item", "sku", "warehouse"],
   INVOICE: ["invoice", "bill", "payment", "tax", "billing"],
+  KNOWLEDGE: ["knowledge", "know", "architecture", "how does", "how do", "specialist", "delegate", "expert", "cto", "cfo", "automation", "automate"],
   REPORT: ["report", "analytics", "dashboard", "statistics", "stats", "performance"],
   SEO: ["seo", "keyword", "search engine", "ranking", "analyser", "optimization", "meta tag", "schema"],
   SERVICE: ["service", "offering", "catalog"],

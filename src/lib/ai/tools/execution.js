@@ -1410,6 +1410,73 @@ export async function executeToolCall(toolName, args, clientId, userId) {
         return JSON.stringify({ logs, total: logs.length });
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // AI BRAIN INTELLIGENCE LAYER (Cognee + CrewAI)
+      // ═══════════════════════════════════════════════════════════════
+      case "search_knowledge_graph": {
+        const { COGNEE_BRIDGE_URL } = await import("@/lib/ai/constants");
+        const r = await fetch(`${COGNEE_BRIDGE_URL}/knowledge/search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: args.query, user_id: userId }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) return JSON.stringify({ error: `Knowledge graph error: ${r.status}` });
+        const data = await r.json();
+        return JSON.stringify({ results: data.results || [], query: args.query });
+      }
+
+      case "add_knowledge": {
+        const { COGNEE_BRIDGE_URL } = await import("@/lib/ai/constants");
+        const r = await fetch(`${COGNEE_BRIDGE_URL}/knowledge/add`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: args.text, user_id: userId }),
+          signal: AbortSignal.timeout(30000),
+        });
+        if (!r.ok) return JSON.stringify({ error: `Knowledge add error: ${r.status}` });
+        return JSON.stringify({ status: "ok", message: "Knowledge added to graph" });
+      }
+
+      case "delegate_to_specialist": {
+        const { delegateToSpecialist } = await import("@/lib/ai/constants");
+        const result = await delegateToSpecialist(args.specialist, args.task);
+        return JSON.stringify({ specialist: args.specialist, result });
+      }
+
+      case "list_specialists": {
+        const { CREWAI_BRIDGE_URL } = await import("@/lib/ai/constants");
+        const r = await fetch(`${CREWAI_BRIDGE_URL}/agents`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!r.ok) return JSON.stringify({ error: `CrewAI error: ${r.status}` });
+        const data = await r.json();
+        return JSON.stringify(data);
+      }
+
+      case "list_automations": {
+        const AUTOMATION_URL = process.env.AUTOMATION_URL || "http://localhost:9102";
+        const r = await fetch(`${AUTOMATION_URL}/automations`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!r.ok) return JSON.stringify({ error: `Automation error: ${r.status}` });
+        const data = await r.json();
+        return JSON.stringify(data);
+      }
+
+      case "run_automation": {
+        const AUTOMATION_URL = process.env.AUTOMATION_URL || "http://localhost:9102";
+        const r = await fetch(`${AUTOMATION_URL}/automation/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: args.name }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) return JSON.stringify({ error: `Automation error: ${r.status}` });
+        const data = await r.json();
+        return JSON.stringify(data);
+      }
+
       default:
         return JSON.stringify({ error: `Unknown tool: ${toolName}` });
     }

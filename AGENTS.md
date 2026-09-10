@@ -124,3 +124,15 @@
 ### Total Peers: 7
 ### Total Kanban Tasks: 6 (all running)
 ### Total Cron Jobs: 5 (all with continuity)
+
+### WhatsApp Latency Fix (2026-09-09 Session 3)
+
+**Problem:** 6 concurrent kanban tasks overwhelmed the single RTX 3090 GPU, causing WhatsApp responses to take 25 minutes (1499.8s).
+
+**Fix:**
+- Set `kanban.max_in_progress=1` (was default 8) — only 1 kanban task runs at a time
+- WhatsApp always gets GPU priority (1 kanban task + 1 WhatsApp = 2 vLLM requests max)
+- 3 tasks blocked (will unblock when user wants to run them)
+- 3 tasks ready (will run one at a time when unblocked)
+
+**Result:** WhatsApp response time back to 7.8s (was 1499.8s under kanban load)

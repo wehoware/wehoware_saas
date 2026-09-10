@@ -80,3 +80,47 @@
 ### What user needs to do
 1. Add email app password to ~/.config/himalaya/config.toml (for email integration)
 2. Optionally set up Google OAuth for full Google Workspace integration (Calendar, Gmail, Drive)
+
+## Hermes v0.21.1 Improvements (2026-09-09 Session 2)
+
+### 1. Cron Continuity (all 5 jobs)
+- All cron jobs now have `--continuity` enabled
+- Each run sees the previous run's output (dedupes alerts, learns between runs)
+- Jobs: daily_briefing, system_health_monitor, document_ingest_watcher, crypto-agent-30min, daily-tasks-reminder
+
+### 2. Hermes Peer (bot-to-bot DMs)
+- 7 peers registered: baddy, cto, cfo, seo, developer, marketing, support
+- Specialists can now DM each other directly
+- Results land in each agent's canonical Bot Chat (durable, inspectable)
+- API_SERVER_KEY configured for peer authentication
+
+### 3. DeepWiki MCP
+- Installed: deepwiki (https://mcp.deepwiki.com/mcp)
+- Can ask questions about any public GitHub repo
+- Free, no auth required
+
+### 4. Kanban Autonomous Task Execution
+- 6 tasks created and assigned to specialists:
+  - CTO: Audit SaaS authentication flow
+  - CFO: Review monthly burn rate and runway
+  - SEO: SEO keyword gap analysis for Q3
+  - Developer: Optimize SaaS API response times
+  - Marketing: Create Q3 content marketing calendar
+  - Support: Review support ticket response times
+- Kanban dispatcher runs embedded in gateway (60s interval)
+- Tasks auto-assigned and dispatched to specialist profiles
+
+### 5. MCP Health Checks
+- Built-in automatic health checking (tools/mcp_tool_health.py)
+- Suspect connections auto-detected and health-checked before tool calls
+- No config needed — automatic in v0.21.0+
+
+### Total MCP Servers: 4
+- context7 (documentation)
+- wehoware-saas (28 tools)
+- wehoware-unified (29 tools)
+- deepwiki (GitHub repo Q&A)
+
+### Total Peers: 7
+### Total Kanban Tasks: 6 (all running)
+### Total Cron Jobs: 5 (all with continuity)

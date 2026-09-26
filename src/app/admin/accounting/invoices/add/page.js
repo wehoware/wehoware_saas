@@ -19,7 +19,7 @@ import InvoiceForm from "@/components/invoice/InvoiceForm";
 import InvoiceSettingsSheet from "@/components/invoice/InvoiceSettingsSheet";
 import CloneInvoiceSheet from "@/components/invoice/CloneInvoiceSheet";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Settings, Copy } from "lucide-react";
+import { ArrowLeft, Settings, Copy, Info, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
 export default function AddInvoicePage() {
@@ -28,6 +28,7 @@ export default function AddInvoicePage() {
   const [cloneOpen, setCloneOpen] = useState(false);
   const [defaults, setDefaults] = useState(null);
   const [cloneSource, setCloneSource] = useState(null);
+  const [isLoadingDefaults, setIsLoadingDefaults] = useState(true);
   const { activeClient } = useAuth();
 
   useEffect(() => {
@@ -40,6 +41,8 @@ export default function AddInvoicePage() {
         if (!cancelled) setDefaults(data);
       } catch {
         // Non-fatal: form will use built-in defaults.
+      } finally {
+        if (!cancelled) setIsLoadingDefaults(false);
       }
     })();
     return () => {
@@ -101,34 +104,48 @@ export default function AddInvoicePage() {
         description="Fill in the details below to create a new invoice."
         backLink="/admin/accounting/invoices"
         backIcon={<ArrowLeft className="mr-2 h-4 w-4" />}
+        actionLabel="Clone from invoice"
+        actionIcon={<Copy className="mr-2 h-4 w-4" />}
+        onAction={() => setCloneOpen(true)}
+        secondaryActionLabel="Settings"
+        secondaryActionIcon={<Settings className="mr-2 h-4 w-4" />}
+        onSecondaryAction={() => setSettingsOpen(true)}
       />
 
-      <div className="flex justify-end gap-2 mb-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setCloneOpen(true)}
-        >
-          <Copy className="mr-2 h-4 w-4" /> Clone from invoice
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Invoice settings"
-        >
-          <Settings className="mr-2 h-4 w-4" /> Settings
-        </Button>
-      </div>
+      {/* Info banner: shows the next invoice number + a tip */}
+      {!isLoadingDefaults && defaults?.invoice_format && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 mb-4">
+          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            The next invoice will be numbered automatically based on your
+            settings format. Adjust the format or starting number in{" "}
+            <button
+              type="button"
+              className="font-medium underline hover:text-blue-900"
+              onClick={() => setSettingsOpen(true)}
+            >
+              Invoice Settings
+            </button>
+            .
+          </div>
+        </div>
+      )}
 
-      <div className="mt-2">
-        <InvoiceForm
-          initialData={cloneSource}
-          defaults={defaults}
-          onSubmit={handleSubmit}
-          isEditing={false}
-        />
-      </div>
+      {isLoadingDefaults ? (
+        <div className="flex justify-center items-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+          <span className="text-sm text-muted-foreground">Loading defaults…</span>
+        </div>
+      ) : (
+        <div className="mt-2">
+          <InvoiceForm
+            initialData={cloneSource}
+            defaults={defaults}
+            onSubmit={handleSubmit}
+            isEditing={false}
+          />
+        </div>
+      )}
 
       <InvoiceSettingsSheet
         open={settingsOpen}

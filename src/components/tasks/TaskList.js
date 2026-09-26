@@ -371,7 +371,7 @@ const TaskList = ({
                       </span>
                     </TableCell>
                     <TableCell onClick={stopPropagation} className="whitespace-nowrap">
-                      {task._permissions?.allowed ? (
+                      {task._permissions?.canUpdateStatus ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">

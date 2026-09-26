@@ -1,32 +1,91 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PlusCircleIcon, Trash2Icon } from "lucide-react";
+import {
+  PlusCircle, Trash2, ArrowUp, ArrowDown, Copy,
+  FileText, CheckCircle, AlertTriangle, XCircle, Clock,
+  Percent, Calendar as CalendarIcon, Hash, Info,
+} from "lucide-react";
 import SelectInput from "@/components/ui/select";
 import DatePicker from "@/components/ui/date-picker";
-import { toIsoDateOnly } from "@/lib/invoiceFormat";
+import { toIsoDateOnly, formatCurrency } from "@/lib/invoiceFormat";
+import { formatInvoiceNumber } from "@/lib/invoiceNumber";
 import CustomerPicker from "./CustomerPicker";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_CURRENCY = "CAD";
 const DEFAULT_TAX_RATE = 0;
 const DEFAULT_STATUS = "Draft";
 
+const CURRENCY_OPTIONS = [
+  { value: "CAD", label: "CAD — Canadian Dollar" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "AUD", label: "AUD — Australian Dollar" },
+  { value: "INR", label: "INR — Indian Rupee" },
+  { value: "JPY", label: "JPY — Japanese Yen" },
+  { value: "CNY", label: "CNY — Chinese Yuan" },
+  { value: "AED", label: "AED — UAE Dirham" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "Draft", label: "Draft" },
+  { value: "Pending", label: "Pending" },
+  { value: "Paid", label: "Paid" },
+  { value: "Overdue", label: "Overdue" },
+  { value: "Cancelled", label: "Cancelled" },
+];
+
+const STATUS_META = {
+  Draft: { icon: FileText, color: "text-gray-500" },
+  Pending: { icon: Clock, color: "text-yellow-500" },
+  Paid: { icon: CheckCircle, color: "text-green-500" },
+  Overdue: { icon: AlertTriangle, color: "text-red-500" },
+  Cancelled: { icon: XCircle, color: "text-gray-400" },
+};
+
+// Due-date presets: relative to the current invoice date.
+const DUE_DATE_PRESETS = [
+  { label: "7 days", days: 7 },
+  { label: "14 days", days: 14 },
+  { label: "30 days", days: 30 },
+  { label: "45 days", days: 45 },
+  { label: "60 days", days: 60 },
+  { label: "90 days", days: 90 },
+];
+
 const todayIso = () => new Date().toISOString().split("T")[0];
 
-const createEmptyItem = () => ({ description: "", quantity: 1, unitPrice: 0 });
+const createEmptyItem = () => ({
+  description: "",
+  quantity: 1,
+  unitPrice: 0,
+});
+
+function addDaysToIso(isoDate, days) {
+  if (!isoDate) return "";
+  const d = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 /**
  * Reusable invoice form (create + edit).
  *
  * Props
  *   initialData : invoice payload from /api/v1/invoices/[id] (snake_case)
- *   defaults    : invoice settings defaults (currency, tax rate, notes) for new invoices
+ *   defaults    : invoice settings defaults (currency, tax rate, notes, format, next number) for new invoices
  *   onSubmit    : (formData) => Promise<void>
  *   isEditing   : boolean — switches submit label and skips defaults application
  */
@@ -96,6 +155,19 @@ const InvoiceForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaults?.default_currency, defaults?.default_tax_rate, defaults?.default_notes]);
 
+  // Live preview of the next invoice number (create mode only).
+  const invoiceNumberPreview = useMemo(() => {
+    if (isEditing || !defaults) return null;
+    const format = defaults.invoice_format;
+    const next = Number(defaults.next_invoice_number) || 1;
+    if (!format) return null;
+    try {
+      return formatInvoiceNumber(format, next, invoiceDate ? new Date(`${invoiceDate}T00:00:00`) : new Date());
+    } catch {
+      return null;
+    }
+  }, [isEditing, defaults, invoiceDate]);
+
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     if (field === "quantity" || field === "unitPrice") {
@@ -107,7 +179,7 @@ const InvoiceForm = ({
   };
 
   const addItem = () => {
-    setItems([...items, { description: "", quantity: 1, unitPrice: 0 }]);
+    setItems([...items, createEmptyItem()]);
   };
 
   const removeItem = (index) => {
@@ -115,37 +187,56 @@ const InvoiceForm = ({
     setItems(newItems);
   };
 
-  const calculateSubtotal = () => {
-    return items
-      .reduce((total, item) => total + item.quantity * item.unitPrice, 0)
-      .toFixed(2);
+  const duplicateItem = (index) => {
+    const newItems = [...items];
+    newItems.splice(index + 1, 0, { ...newItems[index] });
+    setItems(newItems);
   };
 
-  const calculateTaxAmount = () => {
-    const subtotal = parseFloat(calculateSubtotal());
-    const tax = subtotal * (taxRate / 100);
-    return tax.toFixed(2);
+  const moveItem = (index, direction) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= items.length) return;
+    const newItems = [...items];
+    [newItems[index], newItems[newIndex]] = [newItems[newIndex], newItems[index]];
+    setItems(newItems);
   };
 
-  const calculateTotal = () => {
-    const subtotal = parseFloat(calculateSubtotal());
-    const tax = parseFloat(calculateTaxAmount());
-    return (subtotal + tax).toFixed(2);
+  const subtotal = useMemo(
+    () => items.reduce((total, item) => total + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0),
+    [items]
+  );
+  const taxAmount = useMemo(() => subtotal * (Number(taxRate) || 0) / 100, [subtotal, taxRate]);
+  const total = useMemo(() => subtotal + taxAmount, [subtotal, taxAmount]);
+
+  const fmt = (n) => formatCurrency(n, currency);
+
+  // Validation
+  const errors = useMemo(() => {
+    const e = {};
+    if (!clientName?.trim()) e.clientName = "Client name is required";
+    if (!invoiceDate) e.invoiceDate = "Invoice date is required";
+    if (!dueDate) e.dueDate = "Due date is required";
+    if (dueDate && invoiceDate && new Date(`${dueDate}T00:00:00`) < new Date(`${invoiceDate}T00:00:00`)) {
+      e.dueDate = "Due date cannot be before invoice date";
+    }
+    if (Number(taxRate) < 0 || Number(taxRate) > 100) e.taxRate = "Tax rate must be 0–100";
+    // Line items: require at least one with a description
+    const validItems = items.filter((it) => it.description?.trim());
+    if (validItems.length === 0) e.items = "At least one line item with a description is required";
+    return e;
+  }, [clientName, invoiceDate, dueDate, taxRate, items]);
+
+  const isValid = Object.keys(errors).length === 0;
+
+  const applyDuePreset = (days) => {
+    setDueDate(addDaysToIso(invoiceDate, days));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (!clientName?.trim()) {
-      toast.error("Client name is required");
-      return;
-    }
-    if (!invoiceDate) {
-      toast.error("Invoice date is required");
-      return;
-    }
-    if (!dueDate) {
-      toast.error("Due date is required");
+    if (!isValid) {
+      toast.error(Object.values(errors)[0]);
       return;
     }
     const formData = {
@@ -165,9 +256,9 @@ const InvoiceForm = ({
       notes,
       billing_start_date: billingStartDate || null,
       billing_end_date: billingEndDate || null,
-      subtotal: Number.parseFloat(calculateSubtotal()),
-      tax_amount: Number.parseFloat(calculateTaxAmount()),
-      total_amount: Number.parseFloat(calculateTotal()),
+      subtotal: Number(subtotal.toFixed(2)),
+      tax_amount: Number(taxAmount.toFixed(2)),
+      total_amount: Number(total.toFixed(2)),
       id: initialData?.id,
     };
     try {
@@ -178,14 +269,25 @@ const InvoiceForm = ({
     }
   };
 
+  const StatusIcon = STATUS_META[status]?.icon || FileText;
+
   return (
     <form
       onSubmit={handleSubmit}
       className="space-y-6 bg-white p-6 md:p-8 rounded-lg shadow-lg"
     >
-      <h2 className="text-xl md:text-2xl font-semibold text-gray-800 mb-6">
-        {isEditing ? "Edit Invoice" : "Create New Invoice"}
-      </h2>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-800">
+          {isEditing ? "Edit Invoice" : "Create New Invoice"}
+        </h2>
+        {!isEditing && invoiceNumberPreview && (
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-sm">
+            <Hash className="h-3.5 w-3.5 text-primary" />
+            <span className="text-muted-foreground">Next #:</span>
+            <code className="font-mono font-semibold text-primary">{invoiceNumberPreview}</code>
+          </div>
+        )}
+      </div>
 
       {/* Customer Picker */}
       <div className="mb-4">
@@ -217,7 +319,7 @@ const InvoiceForm = ({
             htmlFor="clientName"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Client Name
+            Client Name <span className="text-red-500">*</span>
           </Label>
           <Input
             id="clientName"
@@ -226,8 +328,11 @@ const InvoiceForm = ({
             onChange={(e) => setClientName(e.target.value)}
             placeholder="Enter client's full name"
             required
-            className="w-full"
+            className={cn("w-full", errors.clientName && "border-red-400 focus-visible:ring-red-400")}
           />
+          {errors.clientName && (
+            <p className="text-xs text-red-600 mt-1">{errors.clientName}</p>
+          )}
         </div>
         <div>
           <Label
@@ -242,7 +347,6 @@ const InvoiceForm = ({
             value={clientEmail}
             onChange={(e) => setClientEmail(e.target.value)}
             placeholder="client@example.com"
-            required
             className="w-full"
           />
         </div>
@@ -255,7 +359,7 @@ const InvoiceForm = ({
             htmlFor="invoiceDate"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Invoice Date
+            Invoice Date <span className="text-red-500">*</span>
           </Label>
           <DatePicker
             id="invoiceDate"
@@ -264,13 +368,16 @@ const InvoiceForm = ({
             onChange={(e) => setInvoiceDate(e.target.value)}
             placeholder="Pick invoice date"
           />
+          {errors.invoiceDate && (
+            <p className="text-xs text-red-600 mt-1">{errors.invoiceDate}</p>
+          )}
         </div>
         <div>
           <Label
             htmlFor="dueDate"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Due Date
+            Due Date <span className="text-red-500">*</span>
           </Label>
           <DatePicker
             id="dueDate"
@@ -279,6 +386,22 @@ const InvoiceForm = ({
             onChange={(e) => setDueDate(e.target.value)}
             placeholder="Pick due date"
           />
+          {/* Quick due-date presets */}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {DUE_DATE_PRESETS.map((p) => (
+              <button
+                key={p.days}
+                type="button"
+                onClick={() => applyDuePreset(p.days)}
+                className="text-xs px-2 py-1 rounded-md border border-gray-200 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-colors text-gray-600"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {errors.dueDate && (
+            <p className="text-xs text-red-600 mt-1">{errors.dueDate}</p>
+          )}
         </div>
       </div>
 
@@ -329,14 +452,16 @@ const InvoiceForm = ({
             id="status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            options={[
-              { value: "Pending", label: "Pending" },
-              { value: "Paid", label: "Paid" },
-              { value: "Overdue", label: "Overdue" },
-              { value: "Draft", label: "Draft" },
-              { value: "Cancelled", label: "Cancelled" },
-            ]}
+            options={STATUS_OPTIONS}
           />
+          <p className="text-xs text-gray-500 mt-1 inline-flex items-center gap-1">
+            <StatusIcon className={cn("h-3 w-3", STATUS_META[status]?.color)} />
+            {status === "Draft" && "Saved as draft — not yet sent to client."}
+            {status === "Pending" && "Awaiting payment from client."}
+            {status === "Paid" && "Mark as paid once payment is received."}
+            {status === "Overdue" && "Invoice is past its due date."}
+            {status === "Cancelled" && "Invoice is voided and won't appear in totals."}
+          </p>
         </div>
         <div>
           <Label
@@ -349,114 +474,140 @@ const InvoiceForm = ({
             id="currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            options={[
-              { value: "CAD", label: "CAD (Canadian Dollar)" },
-              { value: "USD", label: "USD (US Dollar)" },
-              { value: "EUR", label: "EUR (Euro)" },
-              { value: "GBP", label: "GBP (British Pound)" },
-            ]}
+            options={CURRENCY_OPTIONS}
           />
         </div>
       </div>
 
       {/* Invoice Items */}
       <div>
-        <Label className="block text-lg font-medium text-gray-800 mb-3">
-          Invoice Items
-        </Label>
-        {items.map((item, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-12 gap-3 mb-3 p-3 border rounded-md items-end"
-          >
-            <div className="col-span-12 md:col-span-5">
-              <Label
-                htmlFor={`item-description-${index}`}
-                className="text-xs text-gray-600"
-              >
-                Description
-              </Label>
-              <Input
-                id={`item-description-${index}`}
-                type="text"
-                placeholder="Service or product description"
-                value={item.description}
-                onChange={(e) =>
-                  handleItemChange(index, "description", e.target.value)
-                }
-                required
-                className="w-full mt-1"
-              />
-            </div>
-            <div className="col-span-6 md:col-span-2">
-              <Label
-                htmlFor={`item-quantity-${index}`}
-                className="text-xs text-gray-600"
-              >
-                Quantity
-              </Label>
-              <Input
-                id={`item-quantity-${index}`}
-                type="number"
-                placeholder="1"
-                value={item.quantity}
-                onChange={(e) =>
-                  handleItemChange(index, "quantity", e.target.value)
-                }
-                required
-                min="0.01"
-                step="0.01"
-                className="w-full mt-1"
-              />
-            </div>
-            <div className="col-span-6 md:col-span-2">
-              <Label
-                htmlFor={`item-unitPrice-${index}`}
-                className="text-xs text-gray-600"
-              >
-                Unit Price
-              </Label>
-              <Input
-                id={`item-unitPrice-${index}`}
-                type="number"
-                placeholder="0.00"
-                value={item.unitPrice}
-                onChange={(e) =>
-                  handleItemChange(index, "unitPrice", e.target.value)
-                }
-                required
-                min="0.00"
-                step="0.01"
-                className="w-full mt-1"
-              />
-            </div>
-            <div className="col-span-12 md:col-span-2 flex items-center">
-              <p className="text-sm text-gray-700 w-full mt-1 md:mt-7 text-right pr-2">
-                Subtotal: ${(item.quantity * item.unitPrice).toFixed(2)}
-              </p>
-            </div>
-            <div className="col-span-12 md:col-span-1 flex justify-end items-center md:mt-6">
-              {items.length > 1 && (
+        <div className="flex items-center justify-between mb-3">
+          <Label className="block text-lg font-medium text-gray-800">
+            Invoice Items
+          </Label>
+          {errors.items && (
+            <span className="text-xs text-red-600">{errors.items}</span>
+          )}
+        </div>
+        {/* Header row (desktop only) */}
+        <div className="hidden md:grid grid-cols-12 gap-3 mb-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wide">
+          <div className="col-span-5">Description</div>
+          <div className="col-span-2">Quantity</div>
+          <div className="col-span-2">Unit Price</div>
+          <div className="col-span-2 text-right">Amount</div>
+          <div className="col-span-1" />
+        </div>
+        {items.map((item, index) => {
+          const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+          return (
+            <div
+              key={index}
+              className="grid grid-cols-12 gap-3 mb-3 p-3 border rounded-md items-center hover:border-gray-300 transition-colors"
+            >
+              <div className="col-span-12 md:col-span-5">
+                <Label htmlFor={`item-description-${index}`} className="text-xs text-gray-600 md:hidden">
+                  Description
+                </Label>
+                <Input
+                  id={`item-description-${index}`}
+                  type="text"
+                  placeholder="Service or product description"
+                  value={item.description}
+                  onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                  className="w-full mt-1 md:mt-0"
+                />
+              </div>
+              <div className="col-span-6 md:col-span-2">
+                <Label htmlFor={`item-quantity-${index}`} className="text-xs text-gray-600 md:hidden">
+                  Quantity
+                </Label>
+                <Input
+                  id={`item-quantity-${index}`}
+                  type="number"
+                  placeholder="1"
+                  value={item.quantity}
+                  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className="w-full mt-1 md:mt-0 tabular-nums"
+                />
+              </div>
+              <div className="col-span-6 md:col-span-2">
+                <Label htmlFor={`item-unitPrice-${index}`} className="text-xs text-gray-600 md:hidden">
+                  Unit Price
+                </Label>
+                <Input
+                  id={`item-unitPrice-${index}`}
+                  type="number"
+                  placeholder="0.00"
+                  value={item.unitPrice}
+                  onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className="w-full mt-1 md:mt-0 tabular-nums"
+                />
+              </div>
+              <div className="col-span-10 md:col-span-2 flex items-center justify-end">
+                <p className="text-sm font-medium text-gray-700 w-full text-right pr-2 tabular-nums">
+                  {fmt(lineTotal)}
+                </p>
+              </div>
+              <div className="col-span-2 md:col-span-1 flex justify-end items-center gap-0.5">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => removeItem(index)}
-                  className="text-red-500 hover:text-red-700"
+                  className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                  onClick={() => moveItem(index, -1)}
+                  disabled={index === 0}
+                  title="Move up"
                 >
-                  <Trash2Icon className="w-5 h-5" />
+                  <ArrowUp className="w-3.5 h-3.5" />
                 </Button>
-              )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                  onClick={() => moveItem(index, 1)}
+                  disabled={index === items.length - 1}
+                  title="Move down"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-gray-400 hover:text-gray-700"
+                  onClick={() => duplicateItem(index)}
+                  title="Duplicate line"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                {items.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-red-500 hover:text-red-700"
+                    onClick={() => removeItem(index)}
+                    title="Remove line"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <Button
           type="button"
           variant="outline"
           onClick={addItem}
           className="mt-2 text-blue-600 border-blue-600 hover:bg-blue-50"
         >
-          <PlusCircleIcon className="w-5 h-5 mr-2" /> Add Item
+          <PlusCircle className="w-4 h-4 mr-2" /> Add Item
         </Button>
       </div>
 
@@ -468,18 +619,25 @@ const InvoiceForm = ({
         >
           Tax Rate (%)
         </Label>
-        <Input
-          id="taxRate"
-          type="number"
-          value={taxRate}
-          onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-          placeholder="13"
-          min="0"
-          max="100"
-          step="0.1"
-          className="w-full"
-        />
-        <p className="text-xs text-gray-500 mt-1">Enter tax rate as percentage (e.g., 13 for 13%)</p>
+        <div className="relative max-w-xs">
+          <Input
+            id="taxRate"
+            type="number"
+            value={taxRate}
+            onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+            placeholder="13"
+            min="0"
+            max="100"
+            step="0.1"
+            className={cn("w-full pr-9 tabular-nums", errors.taxRate && "border-red-400 focus-visible:ring-red-400")}
+          />
+          <Percent className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+        </div>
+        {errors.taxRate ? (
+          <p className="text-xs text-red-600 mt-1">{errors.taxRate}</p>
+        ) : (
+          <p className="text-xs text-gray-500 mt-1">Enter tax rate as percentage (e.g., 13 for 13%)</p>
+        )}
       </div>
 
       {/* Notes */}
@@ -504,15 +662,15 @@ const InvoiceForm = ({
       <div className="bg-gray-50 p-4 rounded-lg mt-6">
         <div className="flex justify-between mb-2">
           <span className="text-gray-600">Subtotal:</span>
-          <span className="font-medium">{currency} {calculateSubtotal()}</span>
+          <span className="font-medium tabular-nums">{fmt(subtotal)}</span>
         </div>
         <div className="flex justify-between mb-2">
-          <span className="text-gray-600">Tax ({taxRate}%):</span>
-          <span className="font-medium">{currency} {calculateTaxAmount()}</span>
+          <span className="text-gray-600">Tax ({Number(taxRate) || 0}%):</span>
+          <span className="font-medium tabular-nums">{fmt(taxAmount)}</span>
         </div>
         <div className="flex justify-between pt-2 border-t border-gray-300">
           <span className="text-lg font-semibold text-gray-800">Total:</span>
-          <span className="text-lg font-bold text-gray-900">{currency} {calculateTotal()}</span>
+          <span className="text-lg font-bold text-gray-900 tabular-nums">{fmt(total)}</span>
         </div>
       </div>
 
@@ -523,12 +681,13 @@ const InvoiceForm = ({
           variant="outline"
           onClick={() => router.back()}
           className="text-gray-700 border-gray-300 hover:bg-gray-100"
+          disabled={isSubmitting}
         >
           Cancel
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !isValid}
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           {isSubmitting

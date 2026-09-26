@@ -5,7 +5,6 @@ import {
   ChevronDown,
   LogOut,
   Menu,
-  Search,
   Settings,
   User,
   Users,
@@ -24,13 +23,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/auth-context";
+import { NotificationBell } from "@/components/notification-bell";
 
-const AdminHeader = ({ className }) => {
+const AdminHeader = ({ className, onMenuClick }) => {
   const {
     user,
     activeClient,
@@ -63,11 +62,16 @@ const AdminHeader = ({ className }) => {
         <div className="flex items-center justify-between py-2">
           {/* Left Section: Search and Client Switcher */}
           <div className="flex items-center gap-4">
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search..." className="pl-8" />
-            </div>
+            {/* Mobile sidebar Toggle */}
+            <Button
+            variant='ghost'
+            size='icon'
+            className='lg:hidden'
+            onClick={onMenuClick}
+            aria-label='Toggle navigation'
+            >
+            <Menu className='h-6 w-6'/>
+            </Button>
             {/* Client Switcher: Visible for employees or admins with accessible clients */}
             {user?.accessibleClients?.length > 0 && (
               <div className="hidden md:block ">
@@ -154,6 +158,7 @@ const AdminHeader = ({ className }) => {
 
           {/* Right Section: Desktop Profile Dropdown */}
           <div className="hidden items-center gap-4 md:flex">
+            <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -234,8 +239,11 @@ const AdminHeader = ({ className }) => {
           <div className="md:hidden">
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-6 w-6" />
+                <Button variant="ghost" size="icon" className='rounded-full' aria-label='Account menu'>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user?.avatarUrl} alt={user?.firstName}/>
+                    <AvatarFallback>{userInitials}</AvatarFallback>
+                  </Avatar>
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-80 p-0">
@@ -244,11 +252,8 @@ const AdminHeader = ({ className }) => {
                 </SheetHeader>
                 <div className="flex h-full flex-col p-6">
                   <div className="mb-4 flex flex-col gap-6">
-                    {/* Mobile Search */}
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Search..." className="pl-8" />
-                    </div>
+                    {/* Mobile Notifications */}
+                    <NotificationBell />
 
                     {/* Mobile Profile Summary */}
                     <div className="flex items-center gap-3">
@@ -262,8 +267,7 @@ const AdminHeader = ({ className }) => {
                       <div>
                         <div className="font-medium">
                           {user?.firstName || user?.lastName
-                            ? `${user?.firstName || ""} ${
-                                user?.lastName || ""
+                            ? `${user?.firstName || ""} ${user?.lastName || ""
                               }`.trim()
                             : user?.email || "User"}
                         </div>

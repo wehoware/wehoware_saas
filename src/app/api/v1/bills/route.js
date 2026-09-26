@@ -106,6 +106,9 @@ export const GET = withAuth(
       );
       const statusLabel = url.searchParams.get("status") || "";
       const vendorId = url.searchParams.get("vendor_id") || "";
+      const search = (url.searchParams.get("search") || "").trim();
+      const from = url.searchParams.get("from") || "";
+      const to = url.searchParams.get("to") || "";
       const rawSortBy = url.searchParams.get("sortBy") || "billDate";
       const sortBy = VALID_SORT_FIELDS[rawSortBy] ?? "billDate";
       const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -115,8 +118,27 @@ export const GET = withAuth(
         where.status = BILL_STATUS_LABEL_TO_DB[statusLabel];
       }
       if (vendorId) where.vendorId = vendorId;
+      if (search) {
+        where.OR = [
+          { billNumber: { contains: search } },
+          { reference: { contains: search } },
+          { vendor: { name: { contains: search } } },
+          { vendor: { email: { contains: search } } },
+        ];
+      }
+      if (from || to) {
+        where.billDate = {};
+        if (from) {
+          const fromDate = new Date(`${from}T00:00:00`);
+          if (!Number.isNaN(fromDate.getTime())) where.billDate.gte = fromDate;
+        }
+        if (to) {
+          const toDate = new Date(`${to}T23:59:59.999`);
+          if (!Number.isNaN(toDate.getTime())) where.billDate.lte = toDate;
+        }
+      }
 
-      const [items, totalItems] = await Promise.all([
+      const [items, totalItems, statusGroups] = await Promise.all([
         prisma.wehowareBill.findMany({
           where,
           include: {
@@ -129,7 +151,39 @@ export const GET = withAuth(
           take: limit,
         }),
         prisma.wehowareBill.count({ where }),
+        prisma.wehowareBill.groupBy({
+          by: ["status"],
+          where,
+          _count: { _all: true },
+          _sum: { total: true, amountPaid: true },
+        }),
       ]);
+
+      // Build summary object keyed by status label.
+      const summary = {
+        total: totalItems,
+        totalDue: 0,
+        totalPaid: 0,
+        overdue: 0,
+        paid: 0,
+        open: 0,
+        draft: 0,
+        byStatus: {},
+      };
+      for (const g of statusGroups) {
+        const label = BILL_STATUS_DB_TO_LABEL[g.status] ?? g.status;
+        const count = g._count._all;
+        const totalSum = Number(g._sum.total || 0);
+        const paidSum = Number(g._sum.amountPaid || 0);
+        const due = Math.max(0, totalSum - paidSum);
+        summary.byStatus[label] = { count, total: totalSum, paid: paidSum, due };
+        summary.totalDue += due;
+        summary.totalPaid += paidSum;
+        if (label === "Overdue") summary.overdue = count;
+        if (label === "Paid") summary.paid = count;
+        if (label === "Open") summary.open = count;
+        if (label === "Draft") summary.draft = count;
+      }
 
       return NextResponse.json({
         data: items.map(serializeBill),
@@ -139,6 +193,7 @@ export const GET = withAuth(
           limit,
           totalPages: Math.max(1, Math.ceil(totalItems / limit)),
         },
+        summary,
       });
     } catch (err) {
       console.error("[GET /api/v1/bills] error:", err);

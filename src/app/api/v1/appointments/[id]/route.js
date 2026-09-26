@@ -16,6 +16,7 @@ import { withAuth } from "../../../utils/auth-middleware";
 import { triggerAppointmentNotification } from "@/lib/notification-service";
 import { syncAppointmentToCalendars, removeAppointmentFromCalendars } from "@/lib/calendar-sync";
 import { generateMeetingLink } from "@/lib/video-meeting-service";
+import { notifyAppointmentEvent } from "@/lib/appointment-notifications";
 
 function resolveClientId(user) {
   if (user.role === "client") return user.clientId;
@@ -231,31 +232,71 @@ export const PUT = withAuth(
       // Trigger notifications based on changes
       const client = await prisma.wehowareClient.findUnique({
         where: { id: existing.clientId },
-        select: { name: true },
+        select: { companyName: true },
       });
 
       if (client) {
         const serialized = serialize(updated);
 
-        // Status change notifications
+        // Status change notifications (guest email + in-app to owner)
         if (newStatus && newStatus !== oldStatus) {
           if (newStatus === "Confirmed") {
-            triggerAppointmentNotification('confirmed', serialized, existing.clientId, client.name).catch(err => {
+            triggerAppointmentNotification('confirmed', serialized, existing.clientId, client.companyName).catch(err => {
               console.error('[PUT /api/v1/appointments/[id]] notification error:', err);
             });
           } else if (newStatus === "Cancelled") {
-            triggerAppointmentNotification('cancelled', serialized, existing.clientId, client.name).catch(err => {
+            triggerAppointmentNotification('cancelled', serialized, existing.clientId, client.companyName).catch(err => {
               console.error('[PUT /api/v1/appointments/[id]] notification error:', err);
+            });
+          }
+
+          // In-app + email notification to SaaS owner/admins
+          const statusEventMap = {
+            Confirmed: "confirmed",
+            Cancelled: "cancelled",
+            Completed: "completed",
+            NoShow: "noshow",
+          };
+          const eventType = statusEventMap[newStatus];
+          if (eventType) {
+            notifyAppointmentEvent(existing.clientId, {
+              event: eventType,
+              id: updated.id,
+              guest_name: updated.guestName,
+              guest_email: updated.guestEmail,
+              guest_phone: updated.guestPhone,
+              appointment_type: updated.appointmentType?.name,
+              scheduled_at: updated.scheduledAt,
+              status: updated.status,
+              actor: "admin",
+            }, client.companyName).catch(err => {
+              console.error('[PUT /api/v1/appointments/[id]] owner notification error:', err);
             });
           }
         }
 
-        // Reschedule notification
+        // Reschedule notification (guest email + in-app to owner)
         if (newScheduledAt && newScheduledAt.getTime() !== oldScheduledAt.getTime()) {
-          triggerAppointmentNotification('rescheduled', serialized, existing.clientId, client.name, {
+          triggerAppointmentNotification('rescheduled', serialized, existing.clientId, client.companyName, {
             oldDate: oldScheduledAt.toISOString(),
           }).catch(err => {
             console.error('[PUT /api/v1/appointments/[id]] notification error:', err);
+          });
+
+          // In-app + email notification to SaaS owner/admins
+          notifyAppointmentEvent(existing.clientId, {
+            event: "rescheduled",
+            id: updated.id,
+            guest_name: updated.guestName,
+            guest_email: updated.guestEmail,
+            guest_phone: updated.guestPhone,
+            appointment_type: updated.appointmentType?.name,
+            scheduled_at: updated.scheduledAt,
+            old_scheduled_at: oldScheduledAt,
+            status: updated.status,
+            actor: "admin",
+          }, client.companyName).catch(err => {
+            console.error('[PUT /api/v1/appointments/[id]] owner reschedule notification error:', err);
           });
         }
       }
@@ -313,7 +354,7 @@ export const DELETE = withAuth(
       });
 
       if (client) {
-        triggerAppointmentNotification('cancelled', serialize(existing), existing.clientId, client.name).catch(err => {
+        triggerAppointmentNotification('cancelled', serialize(existing), existing.clientId, client.companyName).catch(err => {
           console.error('[DELETE /api/v1/appointments/[id]] notification error:', err);
         });
       }

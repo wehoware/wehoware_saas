@@ -181,6 +181,29 @@ function canMutateTask(user, task) {
 }
 
 /**
+ * Check whether the user may update a task's status.
+ *
+ * Full editors (canMutateTask) may always update status. Additionally, the
+ * assignee may update status on tasks they didn't create — status is the
+ * assignee's workflow signal, unlike title/priority/assignment which stay
+ * creator-gated. Client viewers remain strictly read-only.
+ */
+function canUpdateTaskStatus(user, task) {
+  if (canMutateTask(user, task).allowed) return { allowed: true };
+
+  if (user.role === "client" && user.activeClientRole === "viewer") {
+    return { allowed: false, reason: "Viewers cannot update tasks" };
+  }
+
+  if (task.assigneeId === user.id) return { allowed: true };
+
+  return {
+    allowed: false,
+    reason: "You can only update status on tasks assigned to you",
+  };
+}
+
+/**
  * Check if the user can create tasks.
  */
 function canCreateTask(user) {
@@ -195,5 +218,6 @@ export {
   validateAssignee,
   getAssignableUsers,
   canMutateTask,
+  canUpdateTaskStatus,
   canCreateTask,
 };

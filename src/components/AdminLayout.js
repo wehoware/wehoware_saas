@@ -44,6 +44,7 @@ import {
   Inbox,
   Package,
   Archive,
+  Bell,
 } from "lucide-react";
 
 // Sidebar configuration. Each entry is either a flat link or a group with children.
@@ -303,6 +304,13 @@ const sidebarSections = [
     title: "Appointments",
     href: "/admin/appointments",
     icon: <Calendar className="h-5 w-5" />,
+    roles: ["admin", "client"],
+  },
+  {
+    type: "link",
+    title: "Notifications",
+    href: "/admin/notifications",
+    icon: <Bell className="h-5 w-5" />,
     roles: ["admin", "client"],
   },
   {
@@ -614,7 +622,7 @@ const AdminLayout = ({ children }) => {
           <div
             className={`${
               isSidebarOpen ? "w-64" : "w-0 lg:w-16"
-            } fixed inset-y-0 z-50 flex flex-col transition-all duration-300 bg-muted/40 backdrop-blur-xl border-r border-gray-200 shadow-md`}
+            } fixed inset-y-0 z-50 flex flex-col overflow-hidden transition-all duration-300 bg-muted/40 backdrop-blur-xl border-r border-gray-200 shadow-md`}
           >
             <div className="flex h-16 items-center justify-between px-4">
               {isSidebarOpen && (
@@ -643,6 +651,7 @@ const AdminLayout = ({ children }) => {
                 )}
               </Button>
             </div>
+
             <ScrollArea className="flex-1 overflow-auto py-2">
               <nav className="grid gap-1 px-2">
                 {allowedSections.map((section) => {
@@ -822,7 +831,7 @@ const AdminLayout = ({ children }) => {
               isSidebarOpen ? "lg:ml-64" : "lg:ml-16"
             }`}
           >
-            <AdminHeader />
+            <AdminHeader onMenuClick={toggleSidebar}/>
             <main className="grid flex-1 items-start gap-4 p-4 sm:p-6 md:gap-8">
               <div className="w-full rounded-xl border border-gray-200 bg-card shadow-md p-6">
                 {children}

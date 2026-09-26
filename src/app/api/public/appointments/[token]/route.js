@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getFreeSlots } from "@/lib/availability";
 import { corsHeaders } from "../../utils/public-middleware";
+import { notifyAppointmentEvent } from "@/lib/appointment-notifications";
 
 // Lightweight rate limiting for token endpoints (per IP)
 const tokenRateStore = new Map();
@@ -220,6 +221,22 @@ export async function PUT(request, { params }) {
       },
     });
 
+    // Notify the SaaS owner/admins about the reschedule (non-blocking)
+    notifyAppointmentEvent(appointment.clientId, {
+      event: "rescheduled",
+      id: updated.id,
+      guest_name: updated.guestName,
+      guest_email: updated.guestEmail,
+      guest_phone: updated.guestPhone,
+      appointment_type: updated.appointmentType?.name,
+      scheduled_at: updated.scheduledAt,
+      old_scheduled_at: appointment.scheduledAt,
+      status: updated.status,
+      actor: "guest",
+    }, appointment.client?.companyName).catch(err => {
+      console.error('[PUT /api/public/appointments/[token]] owner notification error:', err);
+    });
+
     return jsonWithCors({
       appointment: serialize(updated),
       message: "Appointment rescheduled successfully",
@@ -260,6 +277,21 @@ export async function DELETE(request, { params }) {
     await prisma.wehowareAppointment.update({
       where: { id: appointment.id },
       data: { status: "Cancelled" },
+    });
+
+    // Notify the SaaS owner/admins about the cancellation (non-blocking)
+    notifyAppointmentEvent(appointment.clientId, {
+      event: "cancelled",
+      id: appointment.id,
+      guest_name: appointment.guestName,
+      guest_email: appointment.guestEmail,
+      guest_phone: appointment.guestPhone,
+      appointment_type: appointment.appointmentType?.name,
+      scheduled_at: appointment.scheduledAt,
+      status: "Cancelled",
+      actor: "guest",
+    }, appointment.client?.companyName).catch(err => {
+      console.error('[DELETE /api/public/appointments/[token]] owner notification error:', err);
     });
 
     return jsonWithCors({

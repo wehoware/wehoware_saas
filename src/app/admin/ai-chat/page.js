@@ -85,6 +85,60 @@ const QUICK_ACTION_CATEGORIES = [
   },
 ];
 
+// Shared session list — rendered inline on desktop, inside a slide-over drawer on mobile.
+function SessionList({ sessions, sessionId, onSelectSession, onNewChat }) {
+  return (
+    <>
+      <div className="p-3 border-b border-border">
+        <Button onClick={onNewChat} className="w-full" size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          New Chat
+        </Button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
+        {sessions.length === 0 ? (
+          <div className="text-center py-8 px-3">
+            <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-xs text-muted-foreground">No conversations yet</p>
+          </div>
+        ) : (
+          sessions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onSelectSession(s.id)}
+              className={cn(
+                "w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors group",
+                s.id === sessionId
+                  ? "bg-primary/10 text-foreground border border-primary/20"
+                  : "hover:bg-accent text-muted-foreground hover:text-foreground border border-transparent"
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <MessageSquare className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-xs leading-tight">
+                    {s.title || "Untitled"}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatSessionDate(s.updatedAt)}
+                    </span>
+                    {s._count?.messages > 0 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        · {s._count.messages} msgs
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function AIChatPage() {
   const { user, activeClient, loading } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -101,6 +155,11 @@ export default function AIChatPage() {
   const inputRef = useRef(null);
   const textareaRef = useRef(null);
   const scrollContainerRef = useRef(null);
+
+  // On mobile the sidebar is a slide-over drawer — start closed there
+  useEffect(() => {
+    if (window.innerWidth < 1024) setShowSidebar(false);
+  }, []);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -237,7 +296,7 @@ export default function AIChatPage() {
     const el = textareaRef.current;
     if (el) {
       el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 128) + "px";
+      el.style.height = Math.min(el.scrollHeight, 160) + "px";
     }
   };
 
@@ -369,59 +428,39 @@ export default function AIChatPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-0">
-      {/* ─── Session Sidebar ─── */}
+    <div className="flex h-[calc(100dvh-8rem)] gap-0">
+      {/* ─── Session Sidebar (desktop — inline) ─── */}
       {showSidebar && (
-        <div className="w-64 shrink-0 border-r border-border flex flex-col bg-muted/30">
-          <div className="p-3 border-b border-border">
-            <Button
-              onClick={handleNewChat}
-              className="w-full"
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Chat
-            </Button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
-            {sessions.length === 0 ? (
-              <div className="text-center py-8 px-3">
-                <MessageSquare className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">No conversations yet</p>
-              </div>
-            ) : (
-              sessions.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => handleSelectSession(s.id)}
-                  className={cn(
-                    "w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors group",
-                    s.id === sessionId
-                      ? "bg-primary/10 text-foreground border border-primary/20"
-                      : "hover:bg-accent text-muted-foreground hover:text-foreground border border-transparent"
-                  )}
-                >
-                  <div className="flex items-start gap-2">
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-xs leading-tight">
-                        {s.title || "Untitled"}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatSessionDate(s.updatedAt)}
-                        </span>
-                        {s._count?.messages > 0 && (
-                          <span className="text-[10px] text-muted-foreground">
-                            · {s._count.messages} msgs
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
+        <div className="hidden lg:flex w-64 shrink-0 border-r border-border flex-col bg-muted/30">
+          <SessionList
+            sessions={sessions}
+            sessionId={sessionId}
+            onSelectSession={handleSelectSession}
+            onNewChat={handleNewChat}
+          />
+        </div>
+      )}
+
+      {/* ─── Session Sidebar (mobile — slide-over drawer) ─── */}
+      {showSidebar && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowSidebar(false)}
+          />
+          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-border bg-background shadow-xl">
+            <SessionList
+              sessions={sessions}
+              sessionId={sessionId}
+              onSelectSession={(id) => {
+                handleSelectSession(id);
+                setShowSidebar(false);
+              }}
+              onNewChat={() => {
+                handleNewChat();
+                setShowSidebar(false);
+              }}
+            />
           </div>
         </div>
       )}
@@ -429,29 +468,31 @@ export default function AIChatPage() {
       {/* ─── Main Chat Area ─── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border pb-3 mb-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full overflow-hidden ring-2 ring-blue-500/30">
+        <div className="flex items-center justify-between gap-2 border-b border-border pb-3 mb-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full overflow-hidden ring-2 ring-blue-500/30">
               <img src={BADDY_AVATAR} alt="Baddy" className="h-full w-full object-cover" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold flex items-center gap-2">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-bold flex items-center gap-2">
                 Baddy AI
-                <Sparkles className="h-4 w-4 text-yellow-500" />
+                <Sparkles className="h-4 w-4 shrink-0 text-yellow-500" />
               </h1>
-              <p className="text-xs text-muted-foreground">
-                Connected to {activeClient?.name} — data scoped to this client
+              <p className="text-xs text-muted-foreground truncate">
+                Connected to {activeClient?.name}
+                <span className="hidden sm:inline"> — data scoped to this client</span>
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {messages.length > 0 && (
               <button
                 onClick={handleClearChat}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex items-center gap-1.5 rounded-lg border border-border px-2 sm:px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                aria-label="Clear chat"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Clear
+                <span className="hidden sm:inline">Clear</span>
               </button>
             )}
             <button
@@ -481,18 +522,18 @@ export default function AIChatPage() {
             </div>
           ) : messages.length === 0 ? (
             /* ─── Empty State ─── */
-            <div className="flex flex-col items-center justify-center h-full space-y-6 px-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full overflow-hidden ring-2 ring-blue-500/30 shadow-lg">
+            <div className="flex flex-col items-center justify-center min-h-full space-y-4 sm:space-y-6 px-2 sm:px-4 py-6">
+              <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full overflow-hidden ring-2 ring-blue-500/30 shadow-lg">
                 <img src={BADDY_AVATAR} alt="Baddy" className="h-full w-full object-cover" />
               </div>
               <div className="text-center">
-                <h2 className="text-xl font-bold">Hi, I&apos;m Baddy</h2>
+                <h2 className="text-lg sm:text-xl font-bold">Hi, I&apos;m Baddy</h2>
                 <p className="text-sm text-muted-foreground mt-1.5 max-w-md">
                   Your AI assistant for {activeClient?.name}. I can help with CRM, tasks,
                   invoices, social media, SEO, and more.
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-2xl w-full">
                 {QUICK_ACTION_CATEGORIES.map((cat) => (
                   <div key={cat.label} className="rounded-xl border border-border/60 p-3 space-y-2 bg-card/50">
                     <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -524,19 +565,19 @@ export default function AIChatPage() {
                 <div
                   key={idx}
                   className={cn(
-                    "flex gap-3",
+                    "flex gap-2 sm:gap-3",
                     msg.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
                   {msg.role === "assistant" && (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full overflow-hidden ring-1 ring-blue-500/30">
+                    <div className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full overflow-hidden ring-1 ring-blue-500/30">
                       <img src={BADDY_AVATAR} alt="Baddy" className="h-full w-full object-cover" />
                     </div>
                   )}
-                  <div className={cn("flex flex-col", msg.role === "user" ? "items-end" : "items-start", "max-w-[75%] sm:max-w-prose")}>
+                  <div className={cn("flex flex-col", msg.role === "user" ? "items-end" : "items-start", "max-w-[85%] sm:max-w-prose")}>
                     <div
                       className={cn(
-                        "group relative rounded-2xl px-4 py-3 text-sm",
+                        "group relative rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm",
                         msg.role === "user"
                           ? "bg-primary text-primary-foreground rounded-br-md"
                           : "bg-muted text-foreground rounded-bl-md"
@@ -555,7 +596,7 @@ export default function AIChatPage() {
                           {msg.content && !isStreaming && (
                             <button
                               onClick={() => handleCopy(msg.content, idx)}
-                              className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background opacity-0 transition-opacity group-hover:opacity-100"
+                              className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                               aria-label="Copy response"
                             >
                               {copiedIdx === idx ? (
@@ -577,7 +618,7 @@ export default function AIChatPage() {
                     )}
                   </div>
                   {msg.role === "user" && (
-                    <Avatar className="h-9 w-9 shrink-0 border border-border">
+                    <Avatar className="h-7 w-7 sm:h-9 sm:w-9 shrink-0 border border-border">
                       {user?.avatarUrl ? (
                         <AvatarImage src={user.avatarUrl} alt={user.firstName || "You"} />
                       ) : null}
@@ -624,23 +665,23 @@ export default function AIChatPage() {
 
         {/* Input */}
         <div className="border-t border-border pt-3">
-          <div className="flex items-center gap-2 mx-auto max-w-3xl">
-            <div className="flex-1 relative">
+          <div className="flex items-end gap-2 mx-auto max-w-3xl">
+            <div className="flex-1 min-w-0 relative">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={handleTextareaChange}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask Baddy anything about your business..."
-                rows={1}
-                className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3.5 text-sm leading-5 focus:outline-none focus:ring-2 focus:ring-primary max-h-32 scrollbar-thin"
+                rows={2}
+                className="w-full resize-none rounded-xl border border-border bg-background px-3.5 sm:px-4 py-3 sm:py-3.5 text-base leading-6 focus:outline-none focus:ring-2 focus:ring-primary max-h-40 overflow-y-auto scrollbar-thin"
                 disabled={isStreaming}
               />
             </div>
             {isStreaming ? (
               <button
                 onClick={handleStopStreaming}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-destructive text-destructive-foreground transition-colors hover:bg-destructive/90"
+                className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-destructive text-destructive-foreground transition-colors hover:bg-destructive/90"
                 aria-label="Stop generating"
                 title="Stop"
               >
@@ -650,15 +691,16 @@ export default function AIChatPage() {
               <button
                 onClick={() => sendMessage()}
                 disabled={!input.trim()}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                 aria-label="Send message"
               >
                 <Send className="h-5 w-5" />
               </button>
             )}
           </div>
-          <p className="mt-2 text-xs text-muted-foreground text-center">
-            Baddy can see data for {activeClient?.name} only — press Enter to send, Shift+Enter for new line
+          <p className="mt-2 text-xs text-muted-foreground text-center truncate">
+            Baddy can see data for {activeClient?.name} only
+            <span className="hidden sm:inline"> — press Enter to send, Shift+Enter for new line</span>
           </p>
         </div>
       </div>

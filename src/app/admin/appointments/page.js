@@ -63,6 +63,33 @@ export default function AppointmentsPage() {
     status: 'Pending',
   });
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [editingAppointmentId, setEditingAppointmentId] = useState(null);
+
+  // Refetch appointments only (lighter — used by polling)
+  const refetchAppointments = async (silent = true) => {
+    try {
+      const apptRes = await fetch('/api/v1/appointments');
+      if (apptRes.ok) {
+        const apptJson = await apptRes.json();
+        const mapped = (apptJson.appointments || apptJson.data || []).map((a) => ({
+          id: a.id,
+          name: a.guest_name,
+          email: a.guest_email,
+          phone: a.guest_phone ?? '',
+          type: a.appointment_type?.name ?? null,
+          appointment_type_id: a.appointment_type_id ?? '',
+          date: a.scheduled_at,
+          status: a.status,
+          location: a.location ?? '',
+          notes: a.notes ?? '',
+          timezone: a.timezone ?? 'UTC',
+        }));
+        setAppointments(mapped);
+      }
+    } catch (err) {
+      if (!silent) console.error('Failed to refetch appointments:', err);
+    }
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -79,9 +106,14 @@ export default function AppointmentsPage() {
             id: a.id,
             name: a.guest_name,
             email: a.guest_email,
+            phone: a.guest_phone ?? '',
             type: a.appointment_type?.name ?? null,
+            appointment_type_id: a.appointment_type_id ?? '',
             date: a.scheduled_at,
             status: a.status,
+            location: a.location ?? '',
+            notes: a.notes ?? '',
+            timezone: a.timezone ?? 'UTC',
           }));
           setAppointments(mapped);
         } else {
@@ -108,6 +140,15 @@ export default function AppointmentsPage() {
     }
 
     fetchData();
+  }, [activeClient?.id]);
+
+  // Poll for new appointments every 30s (picks up public bookings)
+  useEffect(() => {
+    if (!activeClient?.id) return;
+    const interval = setInterval(() => {
+      refetchAppointments(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [activeClient?.id]);
 
   // Fetch appointment types for the booking dialog
@@ -142,8 +183,29 @@ export default function AppointmentsPage() {
     setBookingDialogOpen(true);
   };
 
+  const handleAppointmentClick = (appointment) => {
+    if (!appointment) return;
+    const apptDate = new Date(appointment.date);
+    const localValue = format(apptDate, "yyyy-MM-dd'T'HH:mm");
+    setEditingAppointmentId(appointment.id);
+    setBookingSlot(apptDate);
+    setBookingForm({
+      guest_name: appointment.name ?? '',
+      guest_email: appointment.email ?? '',
+      guest_phone: appointment.phone ?? '',
+      appointment_type_id: appointment.appointment_type_id ?? '',
+      scheduled_at: localValue,
+      location: appointment.location ?? '',
+      notes: appointment.notes ?? '',
+      timezone: appointment.timezone ?? 'UTC',
+      status: appointment.status ?? 'Pending',
+    });
+    setBookingDialogOpen(true);
+  };
+
   const resetBookingForm = () => {
     setBookingSlot(null);
+    setEditingAppointmentId(null);
     setBookingForm({
       guest_name: '',
       guest_email: '',
@@ -192,10 +254,16 @@ export default function AppointmentsPage() {
       return;
     }
 
+    const isEditing = !!editingAppointmentId;
+
     try {
       setBookingLoading(true);
-      const res = await fetch('/api/v1/appointments', {
-        method: 'POST',
+      const url = isEditing
+        ? `/api/v1/appointments/${editingAppointmentId}`
+        : '/api/v1/appointments';
+      const method = isEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guest_name: bookingForm.guest_name.trim(),
@@ -212,25 +280,36 @@ export default function AppointmentsPage() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create appointment');
+        throw new Error(err.error || `Failed to ${isEditing ? 'update' : 'create'} appointment`);
       }
 
-      const created = await res.json();
-      // Add to the calendar appointments list
-      const newAppt = {
-        id: created.id,
-        name: created.guest_name,
-        email: created.guest_email,
-        type: created.appointment_type?.name ?? null,
-        date: created.scheduled_at,
-        status: created.status,
+      const saved = await res.json();
+      const savedAppt = {
+        id: saved.id,
+        name: saved.guest_name,
+        email: saved.guest_email,
+        phone: saved.guest_phone ?? '',
+        type: saved.appointment_type?.name ?? null,
+        appointment_type_id: saved.appointment_type_id ?? '',
+        date: saved.scheduled_at,
+        status: saved.status,
+        location: saved.location ?? '',
+        notes: saved.notes ?? '',
+        timezone: saved.timezone ?? 'UTC',
       };
-      setAppointments((prev) => [...prev, newAppt]);
+      if (isEditing) {
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === savedAppt.id ? savedAppt : a))
+        );
+        toast.success('Appointment updated successfully');
+      } else {
+        setAppointments((prev) => [...prev, savedAppt]);
+        toast.success('Appointment created successfully');
+      }
       setBookingDialogOpen(false);
       resetBookingForm();
-      toast.success('Appointment created successfully');
     } catch (err) {
-      toast.error(err.message || 'Failed to create appointment');
+      toast.error(err.message || `Failed to ${isEditing ? 'update' : 'create'} appointment`);
     } finally {
       setBookingLoading(false);
     }
@@ -293,6 +372,7 @@ export default function AppointmentsPage() {
             <AppointmentCalendarView
               appointments={appointments}
               onSlotSelect={handleSlotSelect}
+              onAppointmentClick={handleAppointmentClick}
               availabilitySettings={appointmentSettings?.defaultAvailability}
             />
           </TabsContent>
@@ -772,16 +852,18 @@ await fetch(\`\${API_BASE}/appointments/\${booking_token}\`, { method: "DELETE" 
         </DialogContent>
       </Dialog>
 
-      {/* Create Appointment Dialog */}
+      {/* Create / Edit Appointment Dialog */}
       <Dialog open={bookingDialogOpen} onOpenChange={handleBookingDialogChange}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              New Appointment
+              {editingAppointmentId ? 'Edit Appointment' : 'New Appointment'}
             </DialogTitle>
             <DialogDescription>
-              {bookingSlot
+              {editingAppointmentId
+                ? `Editing: ${bookingForm.guest_name || 'Guest'} — ${bookingSlot ? format(bookingSlot, "EEEE, MMM d 'at' h:mm a") : ''}`
+                : bookingSlot
                 ? `Selected slot: ${format(bookingSlot, "EEEE, MMM d 'at' h:mm a")}`
                 : "Create a new appointment booking for a guest."}
             </DialogDescription>
@@ -876,7 +958,13 @@ await fetch(\`\${API_BASE}/appointments/\${booking_token}\`, { method: "DELETE" 
                 id="status"
                 value={bookingForm.status}
                 onChange={(e) => handleBookingFormChange("status", e.target.value)}
-                options={[
+                options={editingAppointmentId ? [
+                  { value: "Pending", label: "Pending (awaiting confirmation)" },
+                  { value: "Confirmed", label: "Confirmed" },
+                  { value: "Completed", label: "Completed" },
+                  { value: "NoShow", label: "No Show" },
+                  { value: "Cancelled", label: "Cancelled" },
+                ] : [
                   { value: "Pending", label: "Pending (awaiting confirmation)" },
                   { value: "Confirmed", label: "Confirmed" },
                 ]}
@@ -912,12 +1000,21 @@ await fetch(\`\${API_BASE}/appointments/\${booking_token}\`, { method: "DELETE" 
               {bookingLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
+                  {editingAppointmentId ? 'Saving...' : 'Creating...'}
                 </>
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Appointment
+                  {editingAppointmentId ? (
+                    <>
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Appointment
+                    </>
+                  )}
                 </>
               )}
             </Button>

@@ -83,6 +83,7 @@ function serializeInvoice(inv) {
     tax_rate: inv.taxRate,
     tax_amount: inv.taxAmount,
     total: inv.total,
+    amount_paid: inv.amountPaid,
     currency: inv.currency,
     notes: inv.notes,
     paid_at: inv.paidAt,

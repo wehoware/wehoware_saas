@@ -5,6 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
 import { OAUTH_STATE_MAX_AGE_MS } from "@/lib/social-clients/constants.js";
 
@@ -342,6 +343,14 @@ export async function GET(request, { params }) {
     return NextResponse.redirect(`${accountsUrl}?success=connected&platform=${platformCode}&count=${profiles.length}`);
   } catch (err) {
     console.error(`[OAuth Callback ${platformCode}]`, err);
+    try {
+      appendFileSync(
+        "oauth-errors.log",
+        `${new Date().toISOString()} [${platformCode}] ${err?.stack || err}\n\n`
+      );
+    } catch {
+      // logging is best-effort
+    }
     return NextResponse.redirect(`${accountsUrl}?error=${encodeURIComponent("Authentication failed. Please try connecting again.")}`);
   }
 }

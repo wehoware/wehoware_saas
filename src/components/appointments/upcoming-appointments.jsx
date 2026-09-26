@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -245,8 +244,7 @@ export function UpcomingAppointments({ refreshKey }) {
           </p>
         </Card>
       ) : (
-        <ScrollArea className="max-h-[550px]">
-          <div className="space-y-3">
+        <div className="space-y-3">
             {filteredAppointments.map((appointment) => {
               let date;
               try { date = parseISO(appointment.date); } catch { date = new Date(); }
@@ -325,7 +323,6 @@ export function UpcomingAppointments({ refreshKey }) {
               );
             })}
           </div>
-        </ScrollArea>
       )}
 
       {/* Detail Modal */}

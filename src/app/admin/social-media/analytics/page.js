@@ -177,8 +177,9 @@ export default function SocialAnalyticsPage() {
                 className="w-48"
               />
             </div>
-            {/* Arrow connector */}
-            <div className="hidden sm:flex items-center -mt-1">
+            {/* Arrow connector — h-10 matches the DatePicker input height so the
+                icon centers against the input box, not the whole column (label + input) */}
+            <div className="hidden sm:flex items-center h-10">
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="flex flex-col">

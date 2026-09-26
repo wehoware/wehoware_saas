@@ -32,6 +32,7 @@ import { withPublic } from "../utils/public-middleware";
 import { getFreeSlots } from "@/lib/availability";
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "node:crypto";
+import { notifyAppointmentBooked } from "@/lib/appointment-notifications";
 
 function generateBookingToken() {
   return randomBytes(32).toString("hex");
@@ -175,6 +176,19 @@ export const POST = withPublic(async (request) => {
           select: { name: true, duration: true, color: true, slug: true },
         },
       },
+    });
+
+    // Notify the SaaS owner/admins (non-blocking)
+    notifyAppointmentBooked(client.id, {
+      id: created.id,
+      guest_name: created.guestName,
+      guest_email: created.guestEmail,
+      guest_phone: created.guestPhone,
+      scheduled_at: created.scheduledAt,
+      appointment_type: { name: created.appointmentType?.name },
+      notes: created.notes,
+    }, client.companyName).catch(err => {
+      console.error('[POST /api/public/appointments] notification error:', err);
     });
 
     return NextResponse.json(

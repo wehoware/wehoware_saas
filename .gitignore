@@ -36,3 +36,9 @@ storybook-static/
 
 # Local HTTPS certificates (mkcert)
 certs/
+
+# Dev TLS certs (mkcert) — never commit private keys
+certificates/
+
+# OAuth debug log (created at repo root by callback error logging)
+oauth-errors.log

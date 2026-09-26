@@ -12,6 +12,7 @@ import { triggerAppointmentNotification } from "@/lib/notification-service";
 import { syncAppointmentToCalendars } from "@/lib/calendar-sync";
 import { generateMeetingLink } from "@/lib/video-meeting-service";
 import { bridgeAppointmentToCrm } from "@/lib/crm-bridge.js";
+import { notifyAppointmentBooked } from "@/lib/appointment-notifications";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -301,6 +302,19 @@ export const POST = withAuth(
       if (client) {
         triggerAppointmentNotification('created', serialize(created), clientId, client.companyName).catch(err => {
           console.error('[POST /api/v1/appointments] notification error:', err);
+        });
+
+        // Create in-app notification + send email to SaaS owner/admins
+        notifyAppointmentBooked(clientId, {
+          id: created.id,
+          guest_name: created.guestName,
+          guest_email: created.guestEmail,
+          guest_phone: created.guestPhone,
+          scheduled_at: created.scheduledAt,
+          appointment_type: { name: created.appointmentType?.name },
+          notes: created.notes,
+        }, client.companyName).catch(err => {
+          console.error('[POST /api/v1/appointments] owner notification error:', err);
         });
       }
 

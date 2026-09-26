@@ -12,6 +12,7 @@ import {
   buildTaskWhere,
   validateAssignee,
   canMutateTask,
+  canUpdateTaskStatus,
 } from "../../utils/task-access";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -178,7 +179,10 @@ export const GET = withAuth(async (request) => {
     return NextResponse.json({
       tasks: items.map((task) => {
         const shaped = shapeTask(task);
-        shaped._permissions = canMutateTask(user, task);
+        shaped._permissions = {
+          ...canMutateTask(user, task),
+          canUpdateStatus: canUpdateTaskStatus(user, task).allowed,
+        };
         return shaped;
       }),
       total,

@@ -40,52 +40,68 @@ const DAY_KEYS = [
   "saturday",
 ];
 
-function parseHour(timeStr) {
+const SLOT_STEP_MINUTES = 30;
+
+function parseTimeMinutes(timeStr) {
   if (!timeStr) return 0;
-  const [h] = timeStr.split(":").map(Number);
-  return h;
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function formatTimeLabel(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function timeToMinutes(timeStr) {
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + (m || 0);
 }
 
 function getAvailabilityForDay(date, settings) {
+  if (!date || typeof date.getDay !== "function") {
+    return { enabled: false, startMin: 0, endMin: 0 };
+  }
   const dayKey = DAY_KEYS[date.getDay()] || "monday";
   const cfg = settings?.[dayKey] || DEFAULT_AVAILABILITY[dayKey];
-  if (!cfg?.enabled) return { enabled: false, startHour: 0, endHour: 0 };
+  if (!cfg?.enabled) return { enabled: false, startMin: 0, endMin: 0 };
   return {
     enabled: true,
-    startHour: parseHour(cfg.start),
-    endHour: parseHour(cfg.end),
+    startMin: parseTimeMinutes(cfg.start),
+    endMin: parseTimeMinutes(cfg.end),
   };
 }
 
 function generateTimeSlots(date, settings) {
-  const { enabled, startHour, endHour } = getAvailabilityForDay(date, settings);
-  if (!enabled || endHour <= startHour) return [];
+  const { enabled, startMin, endMin } = getAvailabilityForDay(date, settings);
+  if (!enabled || endMin <= startMin) return [];
   const slots = [];
-  for (let h = startHour; h < endHour; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
+  for (let t = startMin; t < endMin; t += SLOT_STEP_MINUTES) {
+    slots.push(formatTimeLabel(t));
   }
   return slots;
 }
 
 function getGlobalTimeRange(days, settings) {
-  let minStart = 24;
+  let minStart = 24 * 60;
   let maxEnd = 0;
   for (const day of days) {
-    const { enabled, startHour, endHour } = getAvailabilityForDay(day, settings);
+    const { enabled, startMin, endMin } = getAvailabilityForDay(day, settings);
     if (enabled) {
-      minStart = Math.min(minStart, startHour);
-      maxEnd = Math.max(maxEnd, endHour);
+      minStart = Math.min(minStart, startMin);
+      maxEnd = Math.max(maxEnd, endMin);
     }
   }
-  if (maxEnd <= minStart) { minStart = 9; maxEnd = 17; }
+  if (maxEnd <= minStart) { minStart = 9 * 60; maxEnd = 17 * 60; }
   const slots = [];
-  for (let h = minStart; h < maxEnd; h++) {
-    slots.push(`${String(h).padStart(2, "0")}:00`);
+  for (let t = minStart; t < maxEnd; t += SLOT_STEP_MINUTES) {
+    slots.push(formatTimeLabel(t));
   }
   return slots;
 }
 
-export function AppointmentCalendarView({ appointments = [], onSlotSelect, availabilitySettings }) {
+export function AppointmentCalendarView({ appointments = [], onSlotSelect, onAppointmentClick, availabilitySettings }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState('week');
   const [selectedDay, setSelectedDay] = useState(null);
@@ -114,34 +130,34 @@ export function AppointmentCalendarView({ appointments = [], onSlotSelect, avail
   eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const isAppointmentAtSlot = (day, time) => {
+    const slotMin = timeToMinutes(time);
     return appointments.some(appointment => {
       const appointmentDate = parseISO(appointment.date);
-      const appointmentHour = appointmentDate.getHours();
-      const slotHour = parseInt(time.split(':')[0]);
-      return isSameDay(appointmentDate, day) && appointmentHour === slotHour;
+      const appointmentMin = appointmentDate.getHours() * 60 + appointmentDate.getMinutes();
+      return isSameDay(appointmentDate, day) && appointmentMin === slotMin;
     });
   };
 
   const getAppointmentAtSlot = (day, time) => {
+    const slotMin = timeToMinutes(time);
     return appointments.find(appointment => {
       const appointmentDate = parseISO(appointment.date);
-      const appointmentHour = appointmentDate.getHours();
-      const slotHour = parseInt(time.split(':')[0]);
-      return isSameDay(appointmentDate, day) && appointmentHour === slotHour;
+      const appointmentMin = appointmentDate.getHours() * 60 + appointmentDate.getMinutes();
+      return isSameDay(appointmentDate, day) && appointmentMin === slotMin;
     });
   };
 
   const isSlotAvailable = (day, time) => {
-    const { enabled, startHour, endHour } = getAvailabilityForDay(day, availabilitySettings);
+    const { enabled, startMin, endMin } = getAvailabilityForDay(day, availabilitySettings);
     if (!enabled) return false;
-    const hour = parseInt(time.split(':')[0]);
-    return hour >= startHour && hour < endHour;
+    const t = timeToMinutes(time);
+    return t >= startMin && t < endMin;
   };
 
   const handleSlotClick = (day, time) => {
-    const hour = parseInt(time.split(':')[0]);
+    const [hour, minute] = time.split(":").map(Number);
     const selectedDateTime = new Date(day);
-    selectedDateTime.setHours(hour, 0, 0, 0);
+    selectedDateTime.setHours(hour, minute || 0, 0, 0);
     if (onSlotSelect && isSlotAvailable(day, time)) {
       onSlotSelect(selectedDateTime);
     }
@@ -193,7 +209,7 @@ export function AppointmentCalendarView({ appointments = [], onSlotSelect, avail
           <div className="border-r">
             <div className="h-12 flex items-center justify-center font-semibold">Time</div>
             {weekTimeSlots.map((time) => (
-              <div key={time} className="h-16 flex items-center justify-center text-sm border-t">
+              <div key={time} className="h-10 flex items-center justify-center text-sm border-t">
                 <div className="flex items-center">
                   <Clock className="h-3 w-3 mr-1" />
                   {time}
@@ -220,8 +236,14 @@ export function AppointmentCalendarView({ appointments = [], onSlotSelect, avail
                   return (
                     <div
                       key={`${day}-${time}`}
-                      className={`h-16 border-t p-1 ${available ? 'cursor-pointer hover:bg-gray-50' : 'bg-gray-100 opacity-50'}`}
-                      onClick={() => available && handleSlotClick(day, time)}
+                      className={`h-10 border-t p-1 ${hasAppointment ? 'cursor-pointer hover:bg-blue-50' : available ? 'cursor-pointer hover:bg-gray-50' : 'bg-gray-100 opacity-50'}`}
+                      onClick={() => {
+                        if (hasAppointment && appointment && onAppointmentClick) {
+                          onAppointmentClick(appointment);
+                        } else if (available) {
+                          handleSlotClick(day, time);
+                        }
+                      }}
                     >
                       {hasAppointment && appointment && (
                         <div className="bg-blue-100 text-blue-800 p-1 rounded h-full flex flex-col text-xs overflow-hidden">
@@ -256,23 +278,31 @@ export function AppointmentCalendarView({ appointments = [], onSlotSelect, avail
                     const available = isSlotAvailable(selectedDay, time);
                     const appts = appointmentsForDay(selectedDay).filter((a) => {
                       const d = parseISO(a.date);
-                      return d.getHours() === Number.parseInt(time.split(':')[0]);
+                      const apptMin = d.getHours() * 60 + d.getMinutes();
+                      return apptMin === timeToMinutes(time);
                     });
+                    const hasAppts = appts.length > 0;
                     return (
                       <div
                         key={time}
-                        className={`flex items-center justify-between p-3 border rounded ${available ? 'cursor-pointer hover:bg-gray-50' : 'bg-gray-100 opacity-50'}`}
-                        onClick={() => available && handleSlotClick(selectedDay, time)}
+                        className={`flex items-center justify-between p-3 border rounded ${hasAppts ? 'cursor-pointer hover:bg-blue-50' : available ? 'cursor-pointer hover:bg-gray-50' : 'bg-gray-100 opacity-50'}`}
+                        onClick={() => {
+                          if (hasAppts && onAppointmentClick) {
+                            onAppointmentClick(appts[0]);
+                          } else if (available) {
+                            handleSlotClick(selectedDay, time);
+                          }
+                        }}
                       >
                         <div className="flex items-center space-x-2">
                           <Clock className="h-4 w-4 text-gray-500" />
                           <span className="font-medium">{time}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          {appts.length > 0 ? (
+                          {hasAppts ? (
                             <div className="flex items-center space-x-1 text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded">
                               <Users className="h-3 w-3" />
-                              <span>{appts.length} appointment{appts.length > 1 ? 's' : ''}</span>
+                              <span>{appts[0].name}{appts.length > 1 ? ` +${appts.length - 1} more` : ''}</span>
                             </div>
                           ) : (
                             <span className="text-sm text-gray-400">Available</span>
@@ -292,29 +322,38 @@ export function AppointmentCalendarView({ appointments = [], onSlotSelect, avail
                 onMonthChange={setCurrentDate}
                 className="mx-auto"
                 components={{
-                  Day: ({ date, ...props }) => {
+                  Day: ({ date: dateProp, day, ...props }) => {
+                    const date = dateProp ?? day?.date;
+                    if (!date) return <td {...props} />;
                     const appts = appointmentsForDay(date);
                     const dayAvail = getAvailabilityForDay(date, availabilitySettings);
                     return (
-                      <button
+                      <td
                         {...props}
-                        onClick={() => setSelectedDay(date)}
-                        className={`relative w-full h-full p-2 text-center rounded-md transition-colors hover:bg-gray-100 ${
-                          isToday(date) ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
-                        } ${!dayAvail.enabled ? 'opacity-40' : ''}`}
+                        className={`relative p-0 text-center ${
+                          !dayAvail.enabled ? 'opacity-40' : ''
+                        }`}
                       >
-                        <span>{format(date, 'd')}</span>
-                        {appts.length > 0 && (
-                          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex space-x-0.5">
-                            {appts.slice(0, 3).map((_, i) => (
-                              <div key={i} className="w-1 h-1 rounded-full bg-blue-500" />
-                            ))}
-                            {appts.length > 3 && (
-                              <div className="w-1 h-1 rounded-full bg-blue-300" />
-                            )}
-                          </div>
-                        )}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDay(date)}
+                          className={`relative w-full h-full p-2 rounded-md transition-colors hover:bg-gray-100 ${
+                            isToday(date) ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''
+                          }`}
+                        >
+                          <span>{format(date, 'd')}</span>
+                          {appts.length > 0 && (
+                            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex space-x-0.5">
+                              {appts.slice(0, 3).map((_, i) => (
+                                <div key={i} className="w-1 h-1 rounded-full bg-blue-500" />
+                              ))}
+                              {appts.length > 3 && (
+                                <div className="w-1 h-1 rounded-full bg-blue-300" />
+                              )}
+                            </div>
+                          )}
+                        </button>
+                      </td>
                     );
                   },
                 }}

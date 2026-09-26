@@ -31,7 +31,7 @@ const DEFAULT_AVAILABILITY = {
 const DEFAULT_BUFFER = 0;
 const DEFAULT_MIN_NOTICE = 0;
 const DEFAULT_FUTURE_LIMIT = 60;
-const SLOT_STEP = 15; // minutes
+const SLOT_STEP = 30; // minutes
 
 /**
  * Fetch appointment settings for a client from the generic settings API.

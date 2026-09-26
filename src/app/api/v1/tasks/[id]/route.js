@@ -13,6 +13,7 @@ import { withAuth } from "../../../utils/auth-middleware";
 import {
   buildTaskWhere,
   canMutateTask,
+  canUpdateTaskStatus,
   validateAssignee,
 } from "../../../utils/task-access";
 
@@ -101,9 +102,12 @@ export const GET = withAuth(
         return NextResponse.json({ error: "Task not found" }, { status: 404 });
       }
 
-      // Attach mutation permission flag for the UI
+      // Attach mutation permission flags for the UI
       const out = shapeTask(task);
-      out._permissions = canMutateTask(user, task);
+      out._permissions = {
+        ...canMutateTask(user, task),
+        canUpdateStatus: canUpdateTaskStatus(user, task).allowed,
+      };
       return NextResponse.json(out);
     } catch (err) {
       console.error("[GET /api/v1/tasks/[id]] error:", err);
@@ -136,7 +140,25 @@ export const PUT = withAuth(
       // Check edit permission
       const mutationCheck = canMutateTask(user, existing);
       if (!mutationCheck.allowed) {
-        return NextResponse.json({ error: mutationCheck.reason }, { status: 403 });
+        // Assignees may update status only — every other field stays
+        // creator/editor-gated (see canUpdateTaskStatus in task-access.js).
+        const touchesOtherFields =
+          body.title !== undefined ||
+          body.description !== undefined ||
+          body.priority !== undefined ||
+          body.due_date !== undefined ||
+          body.dueDate !== undefined ||
+          body.assignee_id !== undefined ||
+          body.assigneeId !== undefined ||
+          body.client_id !== undefined ||
+          body.clientId !== undefined;
+        if (
+          touchesOtherFields ||
+          body.status === undefined ||
+          !canUpdateTaskStatus(user, existing).allowed
+        ) {
+          return NextResponse.json({ error: mutationCheck.reason }, { status: 403 });
+        }
       }
 
       // Validate assignee change if present

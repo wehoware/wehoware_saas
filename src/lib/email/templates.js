@@ -207,6 +207,63 @@ const TEMPLATES = {
     });
     return { subject, html, text };
   },
+
+  "appointment.booked.owner": (ctx) => {
+    const { guest_name, guest_email, guest_phone, appointment_type, scheduled_at, client_name, notes, admin_url } = ctx;
+    const subject = `New appointment booked — ${guest_name}`;
+    const html = shell({
+      title: subject,
+      bodyHtml: `
+        <h2 style="margin-top:0;">New Appointment Booked</h2>
+        <p>A new appointment has been booked${client_name ? ` for <strong>${escapeHtml(client_name)}</strong>` : ""}.</p>
+        <table style="width:100%;font-size:14px;border-collapse:collapse;margin:16px 0;">
+          <tr><td style="padding:6px 0;color:#6b7280;width:120px;">Guest</td><td style="padding:6px 0;"><strong>${escapeHtml(guest_name)}</strong></td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">Email</td><td style="padding:6px 0;">${escapeHtml(guest_email)}</td></tr>
+          ${guest_phone ? `<tr><td style="padding:6px 0;color:#6b7280;">Phone</td><td style="padding:6px 0;">${escapeHtml(guest_phone)}</td></tr>` : ""}
+          ${appointment_type ? `<tr><td style="padding:6px 0;color:#6b7280;">Type</td><td style="padding:6px 0;">${escapeHtml(appointment_type)}</td></tr>` : ""}
+          <tr><td style="padding:6px 0;color:#6b7280;">Scheduled</td><td style="padding:6px 0;"><strong>${escapeHtml(scheduled_at)}</strong></td></tr>
+          ${notes ? `<tr><td style="padding:6px 0;color:#6b7280;">Notes</td><td style="padding:6px 0;">${escapeHtml(notes)}</td></tr>` : ""}
+        </table>
+        ${admin_url ? `<p><a href="${escapeHtml(admin_url)}" style="background:#111;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">View in Dashboard</a></p>` : ""}
+      `,
+    });
+    const text = `New appointment booked${client_name ? ` for ${client_name}` : ""}\n\nGuest: ${guest_name}\nEmail: ${guest_email}${guest_phone ? `\nPhone: ${guest_phone}` : ""}${appointment_type ? `\nType: ${appointment_type}` : ""}\nScheduled: ${scheduled_at}${notes ? `\nNotes: ${notes}` : ""}${admin_url ? `\n\nView in dashboard: ${admin_url}` : ""}`;
+    return { subject, html, text };
+  },
+
+  "appointment.updated.owner": (ctx) => {
+    const { event, guest_name, guest_email, guest_phone, appointment_type, scheduled_at, old_scheduled_at, status, client_name, actor, notes, admin_url } = ctx;
+    const eventLabels = {
+      rescheduled: "Rescheduled",
+      cancelled: "Cancelled",
+      confirmed: "Confirmed",
+      completed: "Completed",
+      noshow: "Marked as No-Show",
+    };
+    const label = eventLabels[event] || "Updated";
+    const actorLabel = actor === "guest" ? "by the guest" : actor === "admin" ? "by an admin" : "";
+    const subject = `Appointment ${label.toLowerCase()} — ${guest_name}`;
+    const html = shell({
+      title: subject,
+      bodyHtml: `
+        <h2 style="margin-top:0;">Appointment ${label}</h2>
+        <p>An appointment${client_name ? ` for <strong>${escapeHtml(client_name)}</strong>` : ""} has been ${label.toLowerCase()}${actorLabel ? ` ${escapeHtml(actorLabel)}` : ""}.</p>
+        <table style="width:100%;font-size:14px;border-collapse:collapse;margin:16px 0;">
+          <tr><td style="padding:6px 0;color:#6b7280;width:120px;">Guest</td><td style="padding:6px 0;"><strong>${escapeHtml(guest_name)}</strong></td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">Email</td><td style="padding:6px 0;">${escapeHtml(guest_email)}</td></tr>
+          ${guest_phone ? `<tr><td style="padding:6px 0;color:#6b7280;">Phone</td><td style="padding:6px 0;">${escapeHtml(guest_phone)}</td></tr>` : ""}
+          ${appointment_type ? `<tr><td style="padding:6px 0;color:#6b7280;">Type</td><td style="padding:6px 0;">${escapeHtml(appointment_type)}</td></tr>` : ""}
+          ${old_scheduled_at && event === "rescheduled" ? `<tr><td style="padding:6px 0;color:#6b7280;">Old Time</td><td style="padding:6px 0;color:#dc2626;text-decoration:line-through;">${escapeHtml(old_scheduled_at)}</td></tr>` : ""}
+          ${scheduled_at ? `<tr><td style="padding:6px 0;color:#6b7280;">${event === "rescheduled" ? "New Time" : "Scheduled"}</td><td style="padding:6px 0;"><strong>${escapeHtml(scheduled_at)}</strong></td></tr>` : ""}
+          ${status ? `<tr><td style="padding:6px 0;color:#6b7280;">Status</td><td style="padding:6px 0;"><strong>${escapeHtml(status)}</strong></td></tr>` : ""}
+          ${notes ? `<tr><td style="padding:6px 0;color:#6b7280;">Notes</td><td style="padding:6px 0;">${escapeHtml(notes)}</td></tr>` : ""}
+        </table>
+        ${admin_url ? `<p><a href="${escapeHtml(admin_url)}" style="background:#111;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">View in Dashboard</a></p>` : ""}
+      `,
+    });
+    const text = `Appointment ${label}${actorLabel ? ` ${actorLabel}` : ""}${client_name ? ` for ${client_name}` : ""}\n\nGuest: ${guest_name}\nEmail: ${guest_email}${guest_phone ? `\nPhone: ${guest_phone}` : ""}${appointment_type ? `\nType: ${appointment_type}` : ""}${old_scheduled_at && event === "rescheduled" ? `\nOld time: ${old_scheduled_at}` : ""}${scheduled_at ? `\n${event === "rescheduled" ? "New time" : "Scheduled"}: ${scheduled_at}` : ""}${status ? `\nStatus: ${status}` : ""}${notes ? `\nNotes: ${notes}` : ""}${admin_url ? `\n\nView in dashboard: ${admin_url}` : ""}`;
+    return { subject, html, text };
+  },
 };
 
 export function listTemplates() {

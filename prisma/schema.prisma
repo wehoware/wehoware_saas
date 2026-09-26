@@ -94,6 +94,7 @@ model WehowareClient {
   agentFeedback      WehowareAgentFeedback[]
   agentToolSettings  WehowareAgentToolSetting[]
   agentUserPreferences WehowareAgentUserPreference[]
+  notifications         WehowareNotification[]
 
   @@map("wehoware_clients")
 }
@@ -194,6 +195,7 @@ model WehowareProfile {
   agentMessages              WehowareAgentMessage[]           @relation("AgentMessageUser")
   agentFeedback              WehowareAgentFeedback[]          @relation("AgentFeedbackUser")
   agentUserPreferences       WehowareAgentUserPreference[]    @relation("AgentUserPrefUser")
+  notifications              WehowareNotification[]
 
   @@index([role])
   @@index([clientId])
@@ -471,6 +473,27 @@ model WehowareNotificationPreference {
 
   @@index([clientId], map: "wehoware_notification_preferences_client_id_fkey")
   @@map("wehoware_notification_preferences")
+}
+
+model WehowareNotification {
+  id           String           @id @default(uuid()) @db.VarChar(36)
+  clientId     String           @map("client_id") @db.VarChar(36)
+  userId       String?          @map("user_id") @db.VarChar(36)
+  type         String           @db.VarChar(100)
+  title        String           @db.VarChar(500)
+  message      String?          @db.Text
+  link         String?          @db.VarChar(500)
+  metadata     Json?
+  read         Boolean          @default(false)
+  readAt       DateTime?        @map("read_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  client       WehowareClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         WehowareProfile? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([userId])
+  @@index([read])
+  @@map("wehoware_notifications")
 }
 
 model WehowareFormTemplate {
@@ -851,14 +874,14 @@ model WehowareTaskTimeEntry {
   id          String           @id @default(uuid()) @db.VarChar(36)
   taskId      String           @map("task_id") @db.VarChar(36)
   subtaskId   String?          @map("subtask_id") @db.VarChar(36)
-  userId      String           @map("user_id") @db.VarChar(36)
+  userId      String?          @map("user_id") @db.VarChar(36)
   hoursSpent  Decimal          @map("hours_spent") @db.Decimal(5, 2)
   notes       String?          @db.Text
   trackedDate DateTime         @map("tracked_date") @db.Date
   createdAt   DateTime         @default(now()) @map("created_at")
   task        WehowareTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   subtask     WehowareSubtask? @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
-  user        WehowareProfile  @relation(fields: [userId], references: [id])
+  user        WehowareProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([taskId])
   @@index([userId])
@@ -1269,7 +1292,7 @@ model WehowareBillPayment {
 model WehowareExpense {
   id             String           @id @default(uuid()) @db.VarChar(36)
   clientId       String           @map("client_id") @db.VarChar(36)
-  submittedBy    String           @map("submitted_by") @db.VarChar(36)
+  submittedBy    String?          @map("submitted_by") @db.VarChar(36)
   description    String           @db.VarChar(500)
   category       ExpenseCategory  @default(Other)
   amount         Decimal          @db.Decimal(12, 2)
@@ -1289,7 +1312,7 @@ model WehowareExpense {
   approver       WehowareProfile? @relation("ExpenseApprover", fields: [approvedBy], references: [id])
   bill           WehowareBill?    @relation(fields: [billId], references: [id])
   client         WehowareClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  submitter      WehowareProfile  @relation("ExpenseSubmitter", fields: [submittedBy], references: [id])
+  submitter      WehowareProfile? @relation("ExpenseSubmitter", fields: [submittedBy], references: [id], onDelete: SetNull)
   attachments   WehowareAttachment[]
 
   @@index([clientId])
@@ -2108,7 +2131,7 @@ model WehowareBlogFaq {
 
 model WehowareDailyWorkReport {
   id          String   @id @default(uuid()) @db.VarChar(36)
-  userId      String   @map("user_id") @db.VarChar(36)
+  userId      String?  @map("user_id") @db.VarChar(36)
   clientId    String   @map("client_id") @db.VarChar(36)
   creatorRole String   @map("creator_role") @db.VarChar(50)
   reportDate  DateTime @map("report_date") @db.Date
@@ -2122,8 +2145,8 @@ model WehowareDailyWorkReport {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user        WehowareProfile @relation(fields: [userId], references: [id])
-  client      WehowareClient  @relation(fields: [clientId], references: [id])
+  user        WehowareProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  client      WehowareClient   @relation(fields: [clientId], references: [id])
   items       WehowareDailyWorkReportItem[]
 
   @@index([userId])

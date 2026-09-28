@@ -20,6 +20,7 @@ const USER_SELECT = {
   avatarUrl: true,
   role: true,
   clientId: true,
+  isActive: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -34,6 +35,7 @@ function serializeUser(profile) {
     last_name: profile.lastName,
     avatar_url: profile.avatarUrl,
     role: profile.role,
+    is_active: profile.isActive,
     client_role: primaryClient?.role ?? null,
     client_id: profile.clientId,
     created_at: profile.createdAt,

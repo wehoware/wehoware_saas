@@ -141,13 +141,14 @@ const TaskList = ({
   const router = useRouter();
 
   const [errorAlertOpen, setErrorAlertOpen] = useState(false);
+  const [prevError, setPrevError] = useState(error);
   const sentinelRef = useRef(null);
 
-  useEffect(() => {
-    if (error) {
-      setErrorAlertOpen(true);
-    }
-  }, [error]);
+  // Open the error alert when a new error arrives (render-time sync)
+  if (prevError !== error) {
+    setPrevError(error);
+    if (error) setErrorAlertOpen(true);
+  }
 
   // Infinite scroll — observe sentinel element
   useEffect(() => {
@@ -402,7 +403,7 @@ const TaskList = ({
                       )}
                     </TableCell>
                     <TableCell onClick={stopPropagation} className="whitespace-nowrap">
-                      {task._permissions?.allowed ? (
+                      {task._permissions?.canEdit ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
@@ -436,33 +437,39 @@ const TaskList = ({
                       className="text-right"
                       onClick={stopPropagation}
                     >
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              router.push(`/admin/tasks/edit/${task.id}`)
-                            }
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {task._permissions?.allowed && (
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => onTaskDelete(task.id)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {(task._permissions?.canEdit || task._permissions?.canDelete) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {task._permissions?.canEdit && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  router.push(`/admin/tasks/edit/${task.id}`)
+                                }
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {task._permissions?.canEdit && task._permissions?.canDelete && (
+                              <DropdownMenuSeparator />
+                            )}
+                            {task._permissions?.canDelete && (
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => onTaskDelete(task.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

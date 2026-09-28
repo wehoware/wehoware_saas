@@ -161,7 +161,7 @@ async function authenticateWithApiKey(request) {
       where: { keyHash },
       include: {
         user: {
-          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true },
+          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true, isActive: true },
         },
       },
     });
@@ -172,6 +172,8 @@ async function authenticateWithApiKey(request) {
 
   if (!apiKey || !apiKey.active) return null;
   if (apiKey.expiresAt && apiKey.expiresAt < new Date()) return null;
+  // Deactivated users cannot authenticate via API key either
+  if (apiKey.user?.isActive === false) return null;
 
   // Update lastUsedAt (fire-and-forget)
   prisma.wehowareApiKey
@@ -223,7 +225,7 @@ export function withAuth(handler, options = {}) {
       try {
         profile = await prisma.wehowareProfile.findUnique({
           where: { id: session.user.id },
-          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true },
+          select: { id: true, email: true, role: true, clientId: true, firstName: true, lastName: true, isActive: true },
         });
       } catch (err) {
         return serverError("withAuth] DB error fetching profile", err);
@@ -231,6 +233,11 @@ export function withAuth(handler, options = {}) {
 
       if (!profile) {
         return unauthorized("Unauthorized - User profile not found");
+      }
+
+      // Deactivated account — kill the session on next API call
+      if (profile.isActive === false) {
+        return unauthorized("Unauthorized - Account deactivated");
       }
     }
 

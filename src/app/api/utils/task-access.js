@@ -109,6 +109,7 @@ async function getAssignableUsers(prisma, user, clientId) {
   if (user.role === "admin" || user.role === "employee") {
     return prisma.wehowareProfile.findMany({
       where: {
+        isActive: true,
         role: { in: ["admin", "employee"] },
         userClients: { some: { clientId, active: true } },
       },
@@ -127,6 +128,7 @@ async function getAssignableUsers(prisma, user, clientId) {
   if (user.role === "client") {
     return prisma.wehowareProfile.findMany({
       where: {
+        isActive: true,
         role: "client",
         userClients: { some: { clientId, active: true } },
       },
@@ -146,34 +148,74 @@ async function getAssignableUsers(prisma, user, clientId) {
 }
 
 /**
- * Enforce edit/delete permission on a single task.
+ * Check whether the user may EDIT a task (title, description, priority,
+ * due date, status). Assignees can edit tasks assigned to them — the
+ * person doing the work manages the task. Reassignment and client moves
+ * remain creator-gated (enforced in the PUT route).
  * Returns `{ allowed: true }` or `{ allowed: false, reason: string }`.
  */
-function canMutateTask(user, task) {
-  // Admin can edit/delete any visible task
+function canEditTask(user, task) {
+  // Admin can edit any visible task
   if (user.role === "admin") return { allowed: true };
 
-  // Employee can edit/delete only tasks they created
+  // Employee can edit tasks they created or are assigned to
   if (user.role === "employee") {
-    if (task.createdBy === user.id) return { allowed: true };
-    return { allowed: false, reason: "You can only edit/delete tasks you created" };
+    if (task.createdBy === user.id || task.assigneeId === user.id) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: "You can only edit tasks you created or are assigned to",
+    };
   }
 
   if (user.role === "client") {
     const role = user.activeClientRole;
 
-    // Viewer cannot edit/delete
     if (role === "viewer") {
-      return { allowed: false, reason: "Viewers cannot edit or delete tasks" };
+      return { allowed: false, reason: "Viewers cannot edit tasks" };
     }
 
-    // Owner can edit/delete any visible task
+    // Owner can edit any visible task
     if (role === "client") return { allowed: true };
 
-    // Manager/Editor can edit/delete only tasks they created
+    // Manager/Editor can edit tasks they created or are assigned to
+    if (role === "manager" || role === "editor") {
+      if (task.createdBy === user.id || task.assigneeId === user.id) {
+        return { allowed: true };
+      }
+      return {
+        allowed: false,
+        reason: "You can only edit tasks you created or are assigned to",
+      };
+    }
+  }
+
+  return { allowed: false, reason: "Insufficient permissions" };
+}
+
+/**
+ * Check whether the user may DELETE a task. Deletion stays creator-gated
+ * (plus admin / client owner) — assignees can edit but not delete.
+ */
+function canDeleteTask(user, task) {
+  if (user.role === "admin") return { allowed: true };
+
+  if (user.role === "employee") {
+    if (task.createdBy === user.id) return { allowed: true };
+    return { allowed: false, reason: "You can only delete tasks you created" };
+  }
+
+  if (user.role === "client") {
+    const role = user.activeClientRole;
+
+    if (role === "viewer") {
+      return { allowed: false, reason: "Viewers cannot delete tasks" };
+    }
+    if (role === "client") return { allowed: true };
     if (role === "manager" || role === "editor") {
       if (task.createdBy === user.id) return { allowed: true };
-      return { allowed: false, reason: "You can only edit/delete tasks you created" };
+      return { allowed: false, reason: "You can only delete tasks you created" };
     }
   }
 
@@ -183,13 +225,11 @@ function canMutateTask(user, task) {
 /**
  * Check whether the user may update a task's status.
  *
- * Full editors (canMutateTask) may always update status. Additionally, the
- * assignee may update status on tasks they didn't create — status is the
- * assignee's workflow signal, unlike title/priority/assignment which stay
- * creator-gated. Client viewers remain strictly read-only.
+ * Full editors (canEditTask — creator or assignee) may always update
+ * status. Client viewers remain strictly read-only.
  */
 function canUpdateTaskStatus(user, task) {
-  if (canMutateTask(user, task).allowed) return { allowed: true };
+  if (canEditTask(user, task).allowed) return { allowed: true };
 
   if (user.role === "client" && user.activeClientRole === "viewer") {
     return { allowed: false, reason: "Viewers cannot update tasks" };
@@ -217,7 +257,8 @@ export {
   canAccessTask,
   validateAssignee,
   getAssignableUsers,
-  canMutateTask,
+  canEditTask,
+  canDeleteTask,
   canUpdateTaskStatus,
   canCreateTask,
 };

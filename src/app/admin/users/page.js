@@ -16,7 +16,8 @@ import {
   Search,
   Plus,
   Edit,
-  Trash2,
+  UserX,
+  UserCheck,
   Users,
   ArrowUpDown,
   Loader2,
@@ -128,7 +129,7 @@ export default function UsersPage() {
     setDeleteDialogOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     if (!userToDelete) return;
     try {
       setDeleteLoading(true);
@@ -138,18 +139,47 @@ export default function UsersPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(errorData?.error || `Failed to delete user (${response.status})`);
+        throw new Error(errorData?.error || `Failed to deactivate user (${response.status})`);
       }
 
-      toast.success(`User "${userToDelete.email}" deleted successfully`);
-      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+      toast.success(`User "${userToDelete.email}" deactivated`);
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === userToDelete.id ? { ...u, is_active: false } : u
+        )
+      );
       setDeleteDialogOpen(false);
       setUserToDelete(null);
     } catch (error) {
-      console.error("Error deleting user:", error);
-      toast.error(error.message || "Failed to delete user");
+      console.error("Error deactivating user:", error);
+      toast.error(error.message || "Failed to deactivate user");
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleReactivate = async (targetUser) => {
+    try {
+      const response = await fetch(`/api/v1/users/${targetUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: true }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(errorData?.error || `Failed to reactivate user (${response.status})`);
+      }
+
+      toast.success(`User "${targetUser.email}" reactivated`);
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === targetUser.id ? { ...u, is_active: true } : u
+        )
+      );
+    } catch (error) {
+      console.error("Error reactivating user:", error);
+      toast.error(error.message || "Failed to reactivate user");
     }
   };
 
@@ -300,9 +330,17 @@ export default function UsersPage() {
                                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                                   <UserCog className="h-4 w-4 text-primary" />
                                 </div>
-                                <span className="truncate" title={`${u.first_name || ""} ${u.last_name || ""}`.trim()}>
+                                <span
+                                  className={`truncate ${u.is_active === false ? "text-muted-foreground line-through" : ""}`}
+                                  title={`${u.first_name || ""} ${u.last_name || ""}`.trim()}
+                                >
                                   {u.first_name} {u.last_name}
                                 </span>
+                                {u.is_active === false && (
+                                  <Badge variant="secondary" className="shrink-0 text-[10px]">
+                                    Inactive
+                                  </Badge>
+                                )}
                               </div>
                             </td>
                             <td className="py-3 px-4 max-w-[220px]">
@@ -354,14 +392,29 @@ export default function UsersPage() {
                                     <Edit className="h-3.5 w-3.5 mr-1" />
                                     Edit
                                   </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openDeleteDialog(u)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 mr-1" />
-                                    Delete
-                                  </Button>
+                                  {u.is_active === false ? (
+                                    isAdmin && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleReactivate(u)}
+                                      >
+                                        <UserCheck className="h-3.5 w-3.5 mr-1" />
+                                        Reactivate
+                                      </Button>
+                                    )
+                                  ) : (
+                                    u.id !== user.id && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => openDeleteDialog(u)}
+                                      >
+                                        <UserX className="h-3.5 w-3.5 mr-1" />
+                                        Deactivate
+                                      </Button>
+                                    )
+                                  )}
                                 </div>
                               </td>
                             )}
@@ -390,13 +443,13 @@ export default function UsersPage() {
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title="Are you sure?"
-        message={`This will permanently delete the user "${userToDelete?.email}" and all associated data. This action cannot be undone.`}
-        confirmLabel="Delete"
+        title="Deactivate user?"
+        message={`"${userToDelete?.email}" will immediately lose access — login, API keys, and active sessions stop working. Their data (tasks, reports, expenses) is preserved and the account can be reactivated anytime.`}
+        confirmLabel="Deactivate"
         cancelLabel="Cancel"
-        onConfirm={handleDelete}
+        onConfirm={handleDeactivate}
         isLoading={deleteLoading}
-        loadingLabel="Deleting..."
+        loadingLabel="Deactivating..."
         variant="destructive"
       />
     </div>

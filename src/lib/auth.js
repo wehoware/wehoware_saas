@@ -121,6 +121,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               avatarUrl: true,
               role: true,
               clientId: true,
+              isActive: true,
             },
           });
         } catch (err) {
@@ -130,6 +131,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         if (!profile?.passwordHash) {
+          return null;
+        }
+
+        // Deactivated accounts cannot sign in
+        if (profile.isActive === false) {
           return null;
         }
 

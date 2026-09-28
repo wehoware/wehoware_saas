@@ -2,8 +2,8 @@
  * /api/v1/users/[userId]
  *
  * GET    — fetch user (admin/employee/client-manager scoped to their client)
- * PUT    — update user (admin: full; client-manager: name + client_role only)
- * DELETE — delete user (admin: any; client-manager: client users in their client only)
+ * PUT    — update user (admin: full incl. is_active reactivation; client-manager: name + client_role only)
+ * DELETE — deactivate user (admin: any; client-manager: client users in their client only)
  */
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
@@ -20,6 +20,7 @@ const USER_SELECT = {
   avatarUrl: true,
   role: true,
   clientId: true,
+  isActive: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -34,6 +35,7 @@ function serializeUser(profile) {
     last_name: profile.lastName,
     avatar_url: profile.avatarUrl,
     role: profile.role,
+    is_active: profile.isActive,
     client_role: primaryClient?.role ?? null,
     client_id: profile.clientId,
     created_at: profile.createdAt,
@@ -113,6 +115,7 @@ async function buildProfileUpdateData(body, existing) {
     avatar_url,
     role,
     password,
+    is_active,
     client_ids: clientIdsRaw,
     primary_client_id: primaryClientIdRaw,
   } = body ?? {};
@@ -125,6 +128,7 @@ async function buildProfileUpdateData(body, existing) {
   if (last_name !== undefined) profileData.lastName = String(last_name).trim() || null;
   if (avatar_url !== undefined) profileData.avatarUrl = avatar_url || null;
   if (role !== undefined) profileData.role = role;
+  if (is_active !== undefined) profileData.isActive = Boolean(is_active);
   if (password !== undefined && String(password).length >= 6) {
     profileData.passwordHash = await bcrypt.hash(String(password), 10);
     updates.push("password");
@@ -223,6 +227,14 @@ export const PUT = withAuth(
       });
       if (!existing) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      // Nobody can deactivate their own account through the API
+      if (body?.is_active === false && userId === user.id) {
+        return NextResponse.json(
+          { error: "Cannot deactivate your own account" },
+          { status: 403 }
+        );
       }
 
       // --- Client manager path ---
@@ -360,19 +372,20 @@ export const DELETE = withAuth(
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
 
+      if (userId === user.id) {
+        return NextResponse.json(
+          { error: "Cannot deactivate your own account" },
+          { status: 403 }
+        );
+      }
+
       if (user.role === "client") {
         if (user.activeClientRole !== "manager") {
           return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
         }
-        if (userId === user.id) {
-          return NextResponse.json(
-            { error: "Cannot delete your own account" },
-            { status: 403 }
-          );
-        }
         if (existing.role !== "client") {
           return NextResponse.json(
-            { error: "You can only delete client users" },
+            { error: "You can only deactivate client users" },
             { status: 403 }
           );
         }
@@ -389,8 +402,17 @@ export const DELETE = withAuth(
         }
       }
 
-      await prisma.wehowareProfile.delete({ where: { id: userId } });
-      return new NextResponse(null, { status: 204 });
+      // Soft-delete: mark inactive. All data (tasks, reports, expenses)
+      // stays intact; withAuth + login reject inactive profiles, so the
+      // user loses access immediately. Reactivate via PUT { is_active: true }.
+      await prisma.wehowareProfile.update({
+        where: { id: userId },
+        data: { isActive: false },
+      });
+      return NextResponse.json(
+        { success: true, deactivated: true },
+        { status: 200 }
+      );
     } catch (err) {
       console.error("[DELETE /api/v1/users/[userId]] error:", err);
       return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });

@@ -12,7 +12,8 @@ import { NextResponse } from "next/server";
 import { withAuth } from "../../../utils/auth-middleware";
 import {
   buildTaskWhere,
-  canMutateTask,
+  canEditTask,
+  canDeleteTask,
   canUpdateTaskStatus,
   validateAssignee,
 } from "../../../utils/task-access";
@@ -103,9 +104,14 @@ export const GET = withAuth(
       }
 
       // Attach mutation permission flags for the UI
+      const editCheck = canEditTask(user, task);
+      const deleteCheck = canDeleteTask(user, task);
       const out = shapeTask(task);
       out._permissions = {
-        ...canMutateTask(user, task),
+        allowed: editCheck.allowed,
+        reason: editCheck.reason,
+        canEdit: editCheck.allowed,
+        canDelete: deleteCheck.allowed,
         canUpdateStatus: canUpdateTaskStatus(user, task).allowed,
       };
       return NextResponse.json(out);
@@ -137,10 +143,10 @@ export const PUT = withAuth(
         return NextResponse.json({ error: "Task not found" }, { status: 404 });
       }
 
-      // Check edit permission
-      const mutationCheck = canMutateTask(user, existing);
+      // Check edit permission (creator or assignee — see task-access.js)
+      const mutationCheck = canEditTask(user, existing);
       if (!mutationCheck.allowed) {
-        // Assignees may update status only — every other field stays
+        // Non-editors may update status only — every other field stays
         // creator/editor-gated (see canUpdateTaskStatus in task-access.js).
         const touchesOtherFields =
           body.title !== undefined ||
@@ -159,6 +165,24 @@ export const PUT = withAuth(
         ) {
           return NextResponse.json({ error: mutationCheck.reason }, { status: 403 });
         }
+      }
+
+      // Assignee edits cover task content only — reassignment and client
+      // moves stay with the creator, admin, or client owner.
+      const isCreatorOrPrivileged =
+        existing.createdBy === user.id ||
+        user.role === "admin" ||
+        (user.role === "client" && user.activeClientRole === "client");
+      const touchesAssignment =
+        body.assignee_id !== undefined ||
+        body.assigneeId !== undefined ||
+        body.client_id !== undefined ||
+        body.clientId !== undefined;
+      if (mutationCheck.allowed && !isCreatorOrPrivileged && touchesAssignment) {
+        return NextResponse.json(
+          { error: "Only the task creator can change assignment" },
+          { status: 403 }
+        );
       }
 
       // Validate assignee change if present
@@ -298,8 +322,8 @@ export const DELETE = withAuth(
         return NextResponse.json({ error: "Task not found" }, { status: 404 });
       }
 
-      // Check delete permission
-      const mutationCheck = canMutateTask(user, existing);
+      // Check delete permission (creator/admin/owner only — not assignees)
+      const mutationCheck = canDeleteTask(user, existing);
       if (!mutationCheck.allowed) {
         return NextResponse.json({ error: mutationCheck.reason }, { status: 403 });
       }

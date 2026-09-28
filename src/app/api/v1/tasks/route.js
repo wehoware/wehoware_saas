@@ -11,7 +11,8 @@ import { withAuth } from "../../utils/auth-middleware";
 import {
   buildTaskWhere,
   validateAssignee,
-  canMutateTask,
+  canEditTask,
+  canDeleteTask,
   canUpdateTaskStatus,
 } from "../../utils/task-access";
 
@@ -178,9 +179,13 @@ export const GET = withAuth(async (request) => {
 
     return NextResponse.json({
       tasks: items.map((task) => {
+        const editCheck = canEditTask(user, task);
         const shaped = shapeTask(task);
         shaped._permissions = {
-          ...canMutateTask(user, task),
+          allowed: editCheck.allowed,
+          reason: editCheck.reason,
+          canEdit: editCheck.allowed,
+          canDelete: canDeleteTask(user, task).allowed,
           canUpdateStatus: canUpdateTaskStatus(user, task).allowed,
         };
         return shaped;

@@ -29,9 +29,15 @@ function toDateOnly(dateStr) {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-function startOfTodayUTC() {
+/**
+ * Max allowed report_date. Users' local "today" can be up to ~14h ahead of
+ * UTC's date (UTC+14), so a report dated tomorrow-UTC is still legitimate.
+ * Anything further out is genuinely in the future for every timezone.
+ */
+function maxAllowedReportDateUTC() {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 1);
   return d;
 }
 
@@ -149,9 +155,8 @@ export const POST = withAuth(
         return NextResponse.json({ error: "Invalid report_date" }, { status: 400 });
       }
 
-      // No future dates
-      const today = startOfTodayUTC();
-      if (reportDate > today) {
+      // No future dates (measured leniently — client timezones run ahead of UTC)
+      if (reportDate > maxAllowedReportDateUTC()) {
         return NextResponse.json({ error: "Future dates are not allowed" }, { status: 400 });
       }
 
@@ -171,14 +176,26 @@ export const POST = withAuth(
 
       // Build item data with auto-computed hours
       const itemData = items.map((item, idx) => {
-        const start = new Date(item.start_time ?? item.startTime);
-        const end = new Date(item.end_time ?? item.endTime);
-        const diffMs = end.getTime() - start.getTime();
-        const computedHours = Math.max(0, diffMs / (1000 * 60 * 60));
-        const hoursWorked =
-          item.hours_worked !== undefined && item.hours_worked !== null
-            ? Number(item.hours_worked)
-            : computedHours;
+        const rawStart = item.start_time ?? item.startTime;
+        const rawEnd = item.end_time ?? item.endTime;
+        const start = rawStart ? new Date(rawStart) : null;
+        const end = rawEnd ? new Date(rawEnd) : null;
+        if ((rawStart && Number.isNaN(start.getTime())) || (rawEnd && Number.isNaN(end.getTime()))) {
+          return { error: `Item ${idx + 1} has an invalid start/end time` };
+        }
+        if (start && end && end < start) {
+          return { error: `Item ${idx + 1}: end_time must be after start_time` };
+        }
+
+        let hoursWorked = 0;
+        if (start && end) {
+          const diffMs = end.getTime() - start.getTime();
+          hoursWorked = Math.max(0, diffMs / (1000 * 60 * 60));
+        }
+        if (item.hours_worked !== undefined && item.hours_worked !== null) {
+          const parsed = Number(item.hours_worked);
+          hoursWorked = Number.isNaN(parsed) ? hoursWorked : parsed;
+        }
 
         return {
           taskId: item.task_id ?? item.taskId,
@@ -190,6 +207,11 @@ export const POST = withAuth(
           sequence: idx,
         };
       });
+
+      const itemError = itemData.find((it) => it?.error);
+      if (itemError) {
+        return NextResponse.json({ error: itemError.error }, { status: 400 });
+      }
 
       // Compute total hours: prefer item sum, fall back to report-level time diff
       let totalHours = itemData.reduce((sum, item) => sum + item.hoursWorked, 0);

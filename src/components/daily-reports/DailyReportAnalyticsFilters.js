@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/ui/date-picker";
 import {
   Select,
   SelectContent,
@@ -23,10 +23,13 @@ export default function DailyReportAnalyticsFilters({
   exporting,
 }) {
   const [local, setLocal] = useState(filters);
+  const [prevFilters, setPrevFilters] = useState(filters);
 
-  useEffect(() => {
+  // Sync local state when parent filters change (e.g., on clear)
+  if (prevFilters !== filters) {
+    setPrevFilters(filters);
     setLocal(filters);
-  }, [filters]);
+  }
 
   const update = (key, value) => {
     const next = { ...local, [key]: value };
@@ -46,10 +49,10 @@ export default function DailyReportAnalyticsFilters({
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
               From
             </label>
-            <Input
-              type="date"
+            <DatePicker
               value={local.date_from || ""}
               onChange={(e) => update("date_from", e.target.value)}
+              placeholder="From date"
             />
           </div>
 
@@ -58,10 +61,10 @@ export default function DailyReportAnalyticsFilters({
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
               To
             </label>
-            <Input
-              type="date"
+            <DatePicker
               value={local.date_to || ""}
               onChange={(e) => update("date_to", e.target.value)}
+              placeholder="To date"
             />
           </div>
 

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react"
 import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
@@ -11,21 +11,23 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3 bg-white text-gray-900", className)}
+      className={cn("p-3 bg-white text-gray-900 relative", className)}
       classNames={{
         // v9 class names — see https://daypicker.dev/v9/upgrading
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        month_caption: "flex justify-center pt-1 relative items-center",
+        month_caption: "flex justify-center pt-1 relative items-center h-7",
         caption_label: "text-sm font-medium text-gray-900",
-        nav: "space-x-1 flex items-center",
+        // v9 renders nav as a separate container; anchor it to the calendar
+        // root so the arrows sit on the caption row and stay clickable.
+        nav: "absolute top-3 inset-x-3 z-10 flex items-center justify-between",
         button_previous: cn(
           buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute left-1 border-gray-200 text-gray-700"
+          "h-7 w-7 bg-transparent p-0 opacity-60 hover:opacity-100 border-gray-200 text-gray-700"
         ),
         button_next: cn(
           buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute right-1 border-gray-200 text-gray-700"
+          "h-7 w-7 bg-transparent p-0 opacity-60 hover:opacity-100 border-gray-200 text-gray-700"
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",

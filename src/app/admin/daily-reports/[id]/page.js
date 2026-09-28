@@ -9,11 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import DailyReportForm from "@/components/daily-reports/DailyReportForm";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Send, Undo2 } from "lucide-react";
+import { ArrowLeft, Send, Undo2, Clock, LogIn, LogOut, ListTodo } from "lucide-react";
+import { formatDateOnly, formatTime12h, formatDuration } from "@/lib/date-utils";
+import { cn } from "@/lib/utils";
 
-function formatDate(dateStr) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
+const formatDate = formatDateOnly;
+
+function formatTimestamp(tsStr) {
+  if (!tsStr) return "—";
+  const d = new Date(tsStr);
+  if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -182,7 +187,28 @@ export default function DailyReportDetailPage() {
         </div>
       </div>
 
-      <Card>
+      {/* Time summary tiles */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[
+          { label: "Start Time", value: formatTime12h(report.start_time), icon: LogIn, accent: "text-green-500 bg-green-500/10" },
+          { label: "End Time", value: formatTime12h(report.end_time), icon: LogOut, accent: "text-red-500 bg-red-500/10" },
+          { label: "Total Hours", value: `${Number(report.totalHours || 0).toFixed(2)} hrs`, icon: Clock, accent: "text-orange-500 bg-orange-500/10" },
+        ].map(({ label, value, icon: Icon, accent }) => (
+          <Card key={label} className="border-border/60 shadow-sm">
+            <CardContent className="flex items-center gap-3 py-4">
+              <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", accent)}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                <p className="text-sm font-semibold tabular-nums truncate">{value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle>Summary</CardTitle>
         </CardHeader>
@@ -190,48 +216,49 @@ export default function DailyReportDetailPage() {
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">
             {report.summary || "No summary provided."}
           </p>
-          <div className="mt-4 grid gap-2 text-sm">
-            <div className="flex gap-4">
-              <div>
-                <span className="font-medium">Start Time:</span>{" "}
-                {report.start_time ? report.start_time.slice(11, 16) : "—"}
-              </div>
-              <div>
-                <span className="font-medium">End Time:</span>{" "}
-                {report.end_time ? report.end_time.slice(11, 16) : "—"}
-              </div>
-            </div>
-            <div>
-              <span className="font-medium">Total Hours:</span>{" "}
-              {Number(report.totalHours || 0).toFixed(2)}
-            </div>
-            {report.submittedAt && (
-              <div>
-                <span className="font-medium">Submitted:</span>{" "}
-                {formatDate(report.submittedAt)}
-              </div>
-            )}
-          </div>
+          {report.submittedAt && (
+            <p className="mt-4 text-xs text-muted-foreground">
+              Submitted on {formatTimestamp(report.submittedAt)}
+            </p>
+          )}
         </CardContent>
       </Card>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">Work Items</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-medium">Work Items</h3>
+          {(report.items?.length ?? 0) > 0 && (
+            <Badge variant="secondary">{report.items.length}</Badge>
+          )}
+        </div>
         {(!report.items || report.items.length === 0) ? (
-          <div className="text-sm text-muted-foreground">No work items.</div>
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 py-10 text-center">
+            <ListTodo className="h-7 w-7 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">No work items.</p>
+          </div>
         ) : (
           report.items.map((item, idx) => (
-            <Card key={item.id || idx}>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm font-medium">Item {idx + 1}</CardTitle>
+            <Card key={item.id || idx} className="border-border/60 shadow-sm">
+              <CardHeader className="py-3 border-b border-border/40 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {idx + 1}
+                    </span>
+                    <CardTitle className="text-sm font-medium">
+                      {item.task?.title || item.task_id || "Work Item"}
+                    </CardTitle>
+                  </div>
+                  <Badge variant="secondary" className="tabular-nums">
+                    {formatDuration(item.hours_worked)}
+                  </Badge>
+                </div>
               </CardHeader>
-              <CardContent className="grid gap-2 py-0 pb-4 text-sm">
-                <div><span className="font-medium">Task:</span> {item.task?.title || item.task_id || "—"}</div>
+              <CardContent className="grid gap-2 pt-4 pb-4 text-sm">
                 {item.subtask_id && <div><span className="font-medium">Subtask:</span> {item.subtask_id}</div>}
-                <div className="flex gap-4">
-                  <div><span className="font-medium">Start:</span> {item.start_time ? item.start_time.slice(11, 16) : "—"}</div>
-                  <div><span className="font-medium">End:</span> {item.end_time ? item.end_time.slice(11, 16) : "—"}</div>
-                  <div><span className="font-medium">Hours:</span> {Number(item.hours_worked || 0).toFixed(2)}</div>
+                <div className="flex gap-6 text-muted-foreground">
+                  <div><span className="font-medium text-foreground">Start:</span> {formatTime12h(item.start_time)}</div>
+                  <div><span className="font-medium text-foreground">End:</span> {formatTime12h(item.end_time)}</div>
                 </div>
                 {item.description && <div><span className="font-medium">Description:</span> {item.description}</div>}
               </CardContent>

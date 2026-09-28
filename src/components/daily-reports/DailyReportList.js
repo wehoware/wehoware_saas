@@ -14,16 +14,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pencil, Trash2, Send, Undo2, FileText, Clock, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateOnly, formatTime12h } from "@/lib/date-utils";
 
-function formatDate(dateStr) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+const formatDate = formatDateOnly;
+const formatTime = formatTime12h;
 
 function getInitials(first, last) {
   const f = first?.charAt(0) || "";
@@ -149,11 +143,11 @@ export default function DailyReportList({
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {report.start_time ? report.start_time.slice(11, 16) : "—"}
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
+                  {formatTime(report.start_time)}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                  {report.end_time ? report.end_time.slice(11, 16) : "—"}
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
+                  {formatTime(report.end_time)}
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   <StatusBadge status={report.status} />
@@ -174,7 +168,7 @@ export default function DailyReportList({
                   <div className="flex items-center justify-end gap-1">
                     {perms.canEdit && (
                       <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                        <Link href={`/admin/daily-reports/${report.id}?edit=1`}>
+                        <Link href={`/admin/daily-reports/${report.id}?edit=1`} title="Edit">
                           <Pencil className="h-3.5 w-3.5" />
                         </Link>
                       </Button>

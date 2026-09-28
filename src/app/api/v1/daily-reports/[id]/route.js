@@ -21,9 +21,15 @@ function toDateOnly(dateStr) {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-function startOfTodayUTC() {
+/**
+ * Max allowed report_date. Users' local "today" can be up to ~14h ahead of
+ * UTC's date (UTC+14), so a report dated tomorrow-UTC is still legitimate.
+ * Anything further out is genuinely in the future for every timezone.
+ */
+function maxAllowedReportDateUTC() {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 1);
   return d;
 }
 
@@ -44,8 +50,8 @@ function _validateReportDate(reportDateRaw) {
   if (!reportDate) {
     return { ok: false, error: "Invalid report_date" };
   }
-  const today = startOfTodayUTC();
-  if (reportDate > today) {
+  // Measured leniently — client timezones run ahead of UTC
+  if (reportDate > maxAllowedReportDateUTC()) {
     return { ok: false, error: "Future dates are not allowed" };
   }
   return { ok: true, data: { reportDate } };

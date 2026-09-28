@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import DailyReportForm from "@/components/daily-reports/DailyReportForm";
 import { toast } from "react-hot-toast";
 
@@ -33,7 +36,18 @@ export default function NewDailyReportPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">New Daily Work Report</h1>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/admin/daily-reports">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">New Daily Work Report</h1>
+          <p className="text-sm text-muted-foreground">Log today&apos;s work items and hours.</p>
+        </div>
+      </div>
       <DailyReportForm tasks={tasks} onSave={handleSave} />
     </div>
   );

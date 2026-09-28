@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import TimePicker from "@/components/ui/time-picker";
 import DatePicker from "@/components/ui/date-picker";
+import SearchableSelect from "@/components/ui/searchable-select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, CalendarDays, Clock, FileText, ListTodo, Save, ChevronDown } from "lucide-react";
+import { Plus, Trash2, CalendarDays, Clock, FileText, ListTodo, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { toLocalISODate, formatDuration } from "@/lib/date-utils";
 
@@ -58,6 +59,15 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
   const removeItem = useCallback((index) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   }, []);
+
+  const taskOptions = useMemo(
+    () =>
+      (tasks || []).map((t) => ({
+        value: t.id,
+        label: `${t.title}${t.client?.companyName ? ` — ${t.client.companyName}` : ""}`,
+      })),
+    [tasks]
+  );
 
   const updateItem = useCallback((index, field, value) => {
     setItems((prev) => {
@@ -210,10 +220,11 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
         <CardContent>
           <Textarea
             id="summary"
-            rows={3}
+            rows={8}
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             placeholder="Describe your overall progress today..."
+            className="min-h-40 resize-y"
           />
         </CardContent>
       </Card>
@@ -280,22 +291,16 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <Label>Task</Label>
-                    <div className="relative">
-                      <select
-                        className="h-10 w-full appearance-none rounded-md border border-input bg-background pl-3 pr-9 text-sm ring-offset-background transition-colors hover:border-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                        value={item.taskId}
-                        onChange={(e) => updateItem(idx, "taskId", e.target.value)}
-                      >
-                        <option value="">Select task</option>
-                        {(tasks || []).map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.title}
-                            {t.client?.companyName ? ` — ${t.client.companyName}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    </div>
+                    <SearchableSelect
+                      options={taskOptions}
+                      value={item.taskId}
+                      onChange={(v) => updateItem(idx, "taskId", v)}
+                      placeholder="Select task"
+                      searchPlaceholder="Search tasks…"
+                      emptyText="No tasks found."
+                      clearable
+                      clearLabel="No task"
+                    />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label>Subtask</Label>

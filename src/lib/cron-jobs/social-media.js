@@ -17,6 +17,17 @@ import {
   buildContent,
   buildPlatformUrl,
 } from "@/lib/social-clients/constants.js";
+import { isVideoUrl, assertMediaUrlsFetchable, resolveMediaUrl } from "@/lib/social-clients/media-validation.js";
+
+// Base URL used to resolve relative "/uploads/..." media paths to absolute
+// URLs that platforms can fetch — there is no request context in cron.
+const MEDIA_BASE_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || null;
+
+function resolvePostMediaUrls(post) {
+  const urls = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
+  return urls.map((u) => resolveMediaUrl(u, MEDIA_BASE_ORIGIN));
+}
 
 export async function publishScheduledPosts() {
   const now = new Date();
@@ -60,10 +71,13 @@ async function _publishPost(post) {
 
     try {
       const client = getSocialClient(account);
-      const mediaUrls = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
+      const mediaUrls = resolvePostMediaUrls(post);
+      // Verify the URLs actually serve media — platforms fetch them
+      // server-side and fail opaquely on webpage/relative/blocked URLs.
+      await assertMediaUrlsFetchable(mediaUrls);
       const mediaIds = [];
       for (const url of mediaUrls) {
-        const mimeType = url.endsWith(".mp4") || url.endsWith(".mov") ? "video/mp4" : "image/jpeg";
+        const mimeType = isVideoUrl(url) ? "video/mp4" : "image/jpeg";
         const mediaId = await client.uploadMedia(url, mimeType);
         if (mediaId) mediaIds.push(mediaId);
       }
@@ -187,10 +201,10 @@ export async function retryFailedPosts() {
     try {
       const client = getSocialClient(ap.account);
       const post = ap.post;
-      const mediaUrls = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
+      const mediaUrls = resolvePostMediaUrls(post);
       const mediaIds = [];
       for (const url of mediaUrls) {
-        const mimeType = url.endsWith(".mp4") || url.endsWith(".mov") ? "video/mp4" : "image/jpeg";
+        const mimeType = isVideoUrl(url) ? "video/mp4" : "image/jpeg";
         const mid = await client.uploadMedia(url, mimeType).catch(() => null);
         if (mid) mediaIds.push(mid);
       }

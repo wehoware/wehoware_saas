@@ -36,6 +36,7 @@ const VALID_ENTITY_TYPES = new Set([
   "inventory",
   "bills",
   "expenses",
+  "social",
 ]);
 
 // ----------------------------------------------------------------

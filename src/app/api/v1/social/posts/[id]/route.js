@@ -13,6 +13,7 @@ import {
   POST_TYPES,
   PLATFORMS_REQUIRING_MEDIA,
 } from "@/lib/social-clients/constants.js";
+import { validateMediaUrlShape } from "@/lib/social-clients/media-validation.js";
 
 const ALLOWED_TYPES = new Set(POST_TYPES);
 
@@ -104,6 +105,16 @@ export const PUT = withAuth(async (request, { params }) => {
       const needsMedia = selectedPlatformCodes.some((code) => PLATFORMS_REQUIRING_MEDIA.has(code));
       if (needsMedia && mediaUrlList.length === 0) {
         return NextResponse.json({ error: "Instagram and TikTok require at least one media URL" }, { status: 400 });
+      }
+    }
+
+    // Reject obviously unusable media URLs up front — platforms fetch the
+    // URL themselves at publish time and fail with opaque errors on
+    // relative/local/page URLs (e.g. a Google Images results link).
+    for (const url of Array.isArray(media_urls) ? media_urls : []) {
+      const err = validateMediaUrlShape(url, { allowRelative: true });
+      if (err) {
+        return NextResponse.json({ error: `${err}. Use a direct link to an image/video file.` }, { status: 400 });
       }
     }
 

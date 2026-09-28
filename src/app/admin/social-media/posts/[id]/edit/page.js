@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Calendar, Hash, Image, Share2 } from "lucide-react";
+import { ArrowLeft, Save, Calendar, Hash, Share2, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -21,6 +21,7 @@ import {
   toLocalDatetimeInputValue,
 } from "@/lib/social-clients/constants.js";
 import DateTimePicker from "@/components/ui/date-time-picker";
+import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
 
 export default function EditPostPage() {
   const { user } = useAuth();
@@ -34,7 +35,9 @@ export default function EditPostPage() {
     scheduledFor: "", postType: "Text", targetAccounts: [],
   });
   const [hashtagInput, setHashtagInput] = useState("");
-  const [mediaUrlInput, setMediaUrlInput] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
 
   const loadData = useCallback(async () => {
     if (!params?.id) return;
@@ -90,19 +93,40 @@ export default function EditPostPage() {
     setHashtagInput("");
   }
 
-  function addMediaUrl() {
-    const url = mediaUrlInput.trim();
-    if (!url || formData.mediaUrls.includes(url)) return;
-    setFormData((p) => ({ ...p, mediaUrls: [...p.mediaUrls, url] }));
-    setMediaUrlInput("");
-  }
-
   function removeHashtag(tag) {
     setFormData((p) => ({ ...p, hashtags: p.hashtags.filter((t) => t !== tag) }));
   }
 
   function removeMediaUrl(url) {
     setFormData((p) => ({ ...p, mediaUrls: p.mediaUrls.filter((u) => u !== url) }));
+  }
+
+  async function handleMediaUpload(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("entityType", "social");
+        const res = await fetch("/api/v1/uploads", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) {
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+        setFormData((p) =>
+          p.mediaUrls.includes(data.url)
+            ? p
+            : { ...p, mediaUrls: [...p.mediaUrls, data.url] }
+        );
+      }
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSave(schedule = false) {
@@ -222,20 +246,44 @@ export default function EditPostPage() {
               </div>
               <div>
                 <Label>Media URLs</Label>
-                <div className="flex gap-2 mt-1">
-                  <div className="relative flex-1">
-                    <Image className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input value={mediaUrlInput}
-                      onChange={(e) => setMediaUrlInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMediaUrl(); } }}
-                      placeholder="https://..." className="pl-9" />
-                  </div>
-                  <Button type="button" variant="outline" onClick={addMediaUrl}>Add</Button>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleMediaUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-1"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-1.5" />
+                  )}
+                  {uploading ? "Uploading..." : "Upload images or videos"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Select image or video files from your device.
+                </p>
                 {formData.mediaUrls.length > 0 && (
                   <div className="space-y-1 mt-2">
                     {formData.mediaUrls.map((url) => (
                       <div key={url} className="flex items-center gap-2 text-xs bg-muted p-2 rounded">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewUrl(url)}
+                          title="Preview"
+                          className="flex-shrink-0 cursor-zoom-in"
+                        >
+                          <MediaThumbnail url={url} className="h-7 w-7" />
+                        </button>
                         <span className="truncate flex-1">{url}</span>
                         <button onClick={() => removeMediaUrl(url)} className="text-destructive">×</button>
                       </div>
@@ -308,6 +356,12 @@ export default function EditPostPage() {
           </div>
         </div>
       </div>
+
+      <MediaPreviewModal
+        url={previewUrl}
+        open={!!previewUrl}
+        onOpenChange={(open) => !open && setPreviewUrl(null)}
+      />
     </div>
   );
 }

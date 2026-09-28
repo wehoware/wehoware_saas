@@ -7,14 +7,14 @@ import { withAuth } from "../../../../../utils/auth-middleware";
 import { getSocialClient } from "@/lib/social-clients/index.js";
 import { shapePost, POST_INCLUDE } from "@/lib/social-clients/post-utils.js";
 import { PUBLISHABLE_STATUSES, buildContent, buildPlatformUrl } from "@/lib/social-clients/constants.js";
+import { isVideoUrl, assertMediaUrlsFetchable, resolveMediaUrl } from "@/lib/social-clients/media-validation.js";
 
-async function publishToAccount(prisma, postId, account, post) {
+async function publishToAccount(prisma, postId, account, post, mediaUrls) {
   const client = getSocialClient(account);
-  const mediaUrls = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
 
   const mediaIds = [];
   for (const url of mediaUrls) {
-    const mimeType = url.endsWith(".mp4") || url.endsWith(".mov") ? "video/mp4" : "image/jpeg";
+    const mimeType = isVideoUrl(url) ? "video/mp4" : "image/jpeg";
     // Allow upload errors to propagate — a missing image is a publish failure, not a partial success
     const mid = await client.uploadMedia(url, mimeType);
     if (mid) mediaIds.push(mid);
@@ -70,6 +70,19 @@ export const POST = withAuth(
         return NextResponse.json({ error: "No target accounts selected" }, { status: 400 });
       }
 
+      // Resolve stored relative "/uploads/..." paths to absolute URLs using
+      // the request origin, then probe — platforms fetch media server-side,
+      // so a webpage/relative/blocked URL would fail deep inside the
+      // platform API (e.g. IG error 36001) instead of with a clear error.
+      const origin = request.nextUrl?.origin ?? new URL(request.url).origin;
+      const mediaUrls = (Array.isArray(post.mediaUrls) ? post.mediaUrls : [])
+        .map((u) => resolveMediaUrl(u, origin));
+      try {
+        await assertMediaUrlsFetchable(mediaUrls);
+      } catch (err) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+
       // Atomic lock: transition from a publishable status to Publishing in a single statement.
       // If another request already claimed the post, count === 0 and we bail.
       const lock = await prisma.wehowareSocialPost.updateMany({
@@ -96,7 +109,7 @@ export const POST = withAuth(
       const results = [];
       for (const account of accounts) {
         try {
-          const result = await publishToAccount(prisma, id, account, post);
+          const result = await publishToAccount(prisma, id, account, post, mediaUrls);
           results.push(result);
         } catch (err) {
           const result = await handleAccountError(prisma, id, account.id, err);

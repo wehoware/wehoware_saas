@@ -1,4 +1,5 @@
 import { BaseSocialClient } from "./base-client.js";
+import { isVideoUrl } from "./media-validation.js";
 
 // Instagram API with Instagram Login uses graph.instagram.com (NOT graph.facebook.com).
 // See: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/migration-guide/
@@ -101,7 +102,7 @@ export class InstagramClient extends BaseSocialClient {
 
     if (!isCarousel) {
       const url = mediaUrls[0];
-      const isVideo = url.endsWith(".mp4") || url.endsWith(".mov");
+      const isVideo = isVideoUrl(url);
       const body = { caption: content, access_token: this.accessToken };
       if (isVideo) { body.media_type = "REELS"; body.video_url = url; }
       else { body.image_url = url; }
@@ -114,7 +115,7 @@ export class InstagramClient extends BaseSocialClient {
     } else {
       const itemIds = [];
       for (const url of mediaUrls) {
-        const isVideo = url.endsWith(".mp4") || url.endsWith(".mov");
+        const isVideo = isVideoUrl(url);
         const itemBody = { is_carousel_item: true, access_token: this.accessToken };
         if (isVideo) { itemBody.media_type = "VIDEO"; itemBody.video_url = url; }
         else { itemBody.image_url = url; }

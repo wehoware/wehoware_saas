@@ -33,7 +33,7 @@ export default function SocialPostsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [publishing, setPublishing] = useState(null);
+  const [publishing, setPublishing] = useState(() => new Set());
   const [cancelTarget, setCancelTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -69,17 +69,21 @@ export default function SocialPostsPage() {
   }, [posts, loadPosts]);
 
   async function publishPost(postId) {
-    setPublishing(postId);
+    setPublishing((prev) => new Set(prev).add(postId));
     try {
       const res = await fetch(`/api/v1/social/posts/${postId}/publish`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Publish failed");
       toast.success("Post published successfully!");
-      await loadPosts();
+      await loadPosts(true);
     } catch (err) {
       toast.error(err.message);
     } finally {
-      setPublishing(null);
+      setPublishing((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
     }
   }
 
@@ -225,8 +229,8 @@ export default function SocialPostsPage() {
                       </Link>
                     )}
                     {(post.status === "Draft" || post.status === "Failed") && (
-                      <Button variant="ghost" size="sm" disabled={publishing === post.id} onClick={() => publishPost(post.id)}>
-                        <Send className={`h-4 w-4 ${publishing === post.id ? "animate-pulse" : ""}`} />
+                      <Button variant="ghost" size="sm" disabled={publishing.has(post.id)} onClick={() => publishPost(post.id)}>
+                        <Send className={`h-4 w-4 ${publishing.has(post.id) ? "animate-pulse" : ""}`} />
                       </Button>
                     )}
                     {post.status === "Scheduled" && (
@@ -280,7 +284,10 @@ export default function SocialPostsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the post and remove it from all connected platforms. This action cannot be undone.
+              This permanently deletes the post record and its history here — it cannot be undone.
+              <span className="block mt-2 font-medium">
+                Note: already-published posts on Instagram/TikTok cannot be removed via API — delete them in the app itself.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { STATUS_COLORS, AP_STATUS_COLORS, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
+import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
 
 export default function PostDetailPage() {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export default function PostDetailPage() {
   const [cancelTarget, setCancelTarget] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   const loadPost = useCallback(async (skipLoadingState = false) => {
     if (!params?.id) return;
@@ -212,13 +214,19 @@ export default function PostDetailPage() {
           {post.media_urls?.length > 0 && (
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                <ImageIcon className="h-3 w-3" /> Media
+                <ImageIcon className="h-3 w-3" /> Media ({post.media_urls.length})
               </p>
-              <div className="space-y-1">
+              <div className="flex flex-wrap gap-3">
                 {post.media_urls.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline truncate block">
-                    {url}
-                  </a>
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => setPreviewUrl(url)}
+                    title="Preview"
+                    className="block cursor-zoom-in"
+                  >
+                    <MediaThumbnail url={url} className="h-24 w-24" />
+                  </button>
                 ))}
               </div>
             </div>
@@ -292,7 +300,10 @@ export default function PostDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the post and attempt to remove it from all connected platforms. This action cannot be undone.
+              This permanently deletes the post record and its history here — it cannot be undone.
+              <span className="block mt-2 font-medium">
+                Note: already-published posts on Instagram/TikTok cannot be removed via API — delete them in the app itself.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -307,6 +318,12 @@ export default function PostDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <MediaPreviewModal
+        url={previewUrl}
+        open={!!previewUrl}
+        onOpenChange={(open) => !open && setPreviewUrl(null)}
+      />
     </div>
   );
 }

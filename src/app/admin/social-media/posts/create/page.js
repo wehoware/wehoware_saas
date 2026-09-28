@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   FileText,
   Loader2,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ import {
 } from "@/lib/social-clients/constants.js";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import DateTimePicker from "@/components/ui/date-time-picker";
+import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
 
 export default function CreatePostPage() {
   const { user } = useAuth();
@@ -55,7 +57,9 @@ export default function CreatePostPage() {
     targetAccounts: [],
   });
   const [hashtagInput, setHashtagInput] = useState("");
-  const [mediaUrlInput, setMediaUrlInput] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
 
   const loadAccounts = useCallback(async () => {
     setLoadingAccounts(true);
@@ -96,15 +100,36 @@ export default function CreatePostPage() {
     setFormData((prev) => ({ ...prev, hashtags: prev.hashtags.filter((t) => t !== tag) }));
   }
 
-  function addMediaUrl() {
-    const url = mediaUrlInput.trim();
-    if (!url || formData.mediaUrls.includes(url)) return;
-    setFormData((prev) => ({ ...prev, mediaUrls: [...prev.mediaUrls, url] }));
-    setMediaUrlInput("");
-  }
-
   function removeMediaUrl(url) {
     setFormData((prev) => ({ ...prev, mediaUrls: prev.mediaUrls.filter((u) => u !== url) }));
+  }
+
+  async function handleMediaUpload(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("entityType", "social");
+        const res = await fetch("/api/v1/uploads", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) {
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+        setFormData((prev) =>
+          prev.mediaUrls.includes(data.url)
+            ? prev
+            : { ...prev, mediaUrls: [...prev.mediaUrls, data.url] }
+        );
+      }
+    } finally {
+      setUploading(false);
+    }
   }
 
   function validatePost() {
@@ -154,7 +179,6 @@ export default function CreatePostPage() {
     if (!validatePost()) return;
 
     setLoading(true);
-    let created = null;
     try {
       const createRes = await fetch("/api/v1/social/posts", {
         method: "POST",
@@ -168,23 +192,24 @@ export default function CreatePostPage() {
           target_accounts: formData.targetAccounts,
         }),
       });
-      created = await createRes.json();
+      const created = await createRes.json();
       if (!createRes.ok) throw new Error(created.error || "Failed to create post");
 
-      const publishRes = await fetch(`/api/v1/social/posts/${created.id}/publish`, { method: "POST" });
-      const published = await publishRes.json();
-      if (!publishRes.ok) throw new Error(published.error || "Failed to publish");
+      // Fire-and-forget: publishing probes media + calls each platform API
+      // and can take a while — don't keep the user on this form. The request
+      // continues server-side and toasts surface on the posts page when done.
+      fetch(`/api/v1/social/posts/${created.id}/publish`, { method: "POST" })
+        .then(async (r) => {
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) toast.error(d.error || "Publish failed — post is saved, open it to retry");
+          else toast.success("Post published!");
+        })
+        .catch(() => toast.error("Publish request failed — post is saved, open it to retry"));
 
-      toast.success("Post published successfully!");
-      router.push(`/admin/social-media/posts/${created.id}`);
+      toast.success("Post created — publishing in background…");
+      router.push("/admin/social-media/posts");
     } catch (err) {
-      if (created?.id) {
-        toast.error(err.message + " — redirecting to post details");
-        router.push(`/admin/social-media/posts/${created.id}`);
-      } else {
-        toast.error(err.message);
-      }
-    } finally {
+      toast.error(err.message);
       setLoading(false);
     }
   }
@@ -405,26 +430,44 @@ export default function CreatePostPage() {
                     </span>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="https://... (image or video URL)"
-                      value={mediaUrlInput}
-                      onChange={(e) => setMediaUrlInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMediaUrl(); } }}
-                      className="pl-9"
-                    />
-                  </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addMediaUrl}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </Button>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleMediaUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-1.5" />
+                  )}
+                  {uploading ? "Uploading..." : "Upload images or videos"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground mt-1.5">
+                  Select image or video files from your device.
+                </p>
                 {formData.mediaUrls.length > 0 && (
                   <div className="flex flex-col gap-2 mt-2.5">
                     {formData.mediaUrls.map((url) => (
                       <div key={url} className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/30">
-                        <ImageIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <button
+                          type="button"
+                          onClick={() => setPreviewUrl(url)}
+                          title="Preview"
+                          className="flex-shrink-0 cursor-zoom-in"
+                        >
+                          <MediaThumbnail url={url} className="h-9 w-9" />
+                        </button>
                         <span className="text-xs truncate flex-1">{url}</span>
                         <button
                           onClick={() => removeMediaUrl(url)}
@@ -552,6 +595,12 @@ export default function CreatePostPage() {
           </div>
         </div>
       </div>
+
+      <MediaPreviewModal
+        url={previewUrl}
+        open={!!previewUrl}
+        onOpenChange={(open) => !open && setPreviewUrl(null)}
+      />
     </div>
   );
 }

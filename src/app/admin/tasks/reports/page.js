@@ -66,12 +66,13 @@ import {
 } from "recharts";
 
 const PRIORITY_COLORS = { High: "#ef4444", Medium: "#f59e0b", Low: "#22c55e" };
-const STATUS_COLORS = { "To Do": "#94a3b8", "In Progress": "#3b82f6", Done: "#22c55e", Backlog: "#8b5cf6" };
+const STATUS_COLORS = { "To Do": "#94a3b8", "In Progress": "#3b82f6", "On Hold": "#a855f7", Done: "#22c55e", Backlog: "#8b5cf6" };
 
 // Status pill styles (borderless)
 const STATUS_PILL_STYLES = {
   "To Do": "bg-orange-500/10 text-orange-600",
   "In Progress": "bg-yellow-500/10 text-yellow-600",
+  "On Hold": "bg-purple-500/10 text-purple-600",
   "Done": "bg-green-500/10 text-green-600",
   "Backlog": "bg-muted text-muted-foreground",
 };
@@ -403,6 +404,7 @@ export default function TaskReportsPage() {
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="To_Do">To Do</SelectItem>
                   <SelectItem value="In_Progress">In Progress</SelectItem>
+                  <SelectItem value="On_Hold">On Hold</SelectItem>
                   <SelectItem value="Done">Done</SelectItem>
                   <SelectItem value="Backlog">Backlog</SelectItem>
                 </SelectContent>

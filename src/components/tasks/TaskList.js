@@ -39,6 +39,7 @@ import {
   Clock,
   Loader2,
   ListTodo,
+  Pause,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -78,6 +79,7 @@ const getInitials = (firstName, lastName) => {
 const STATUS_STYLES = {
   "To Do": { className: "bg-orange-500/10 text-orange-600", icon: Clock },
   "In Progress": { className: "bg-yellow-500/10 text-yellow-600", icon: Loader2 },
+  "On Hold": { className: "bg-purple-500/10 text-purple-600", icon: Pause },
   "Done": { className: "bg-green-500/10 text-green-600", icon: CheckCircle2 },
   "Backlog": { className: "bg-muted text-muted-foreground", icon: ListTodo },
 };
@@ -391,6 +393,9 @@ const TaskList = ({
                               </DropdownMenuRadioItem>
                               <DropdownMenuRadioItem value="In Progress">
                                 In Progress
+                              </DropdownMenuRadioItem>
+                              <DropdownMenuRadioItem value="On Hold">
+                                On Hold
                               </DropdownMenuRadioItem>
                               <DropdownMenuRadioItem value="Done">
                                 Done

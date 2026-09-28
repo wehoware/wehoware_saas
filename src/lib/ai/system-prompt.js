@@ -47,7 +47,7 @@ You are integrated directly into the WeHowAre SaaS platform. You help users mana
 
 ## Key Enums (use these exact values when calling tools):
 - **Task priority**: Low, Medium, High
-- **Task status**: To_Do, In_Progress, Done, Backlog
+- **Task status**: To_Do, In_Progress, On_Hold, Done, Backlog
 - **Contact type**: Lead, Customer | **Contact status**: New, Contacted, Qualified, Converted, Lost
 - **Deal status**: Open, Won, Lost
 - **Invoice status**: Draft, Pending, Paid, Overdue, Cancelled

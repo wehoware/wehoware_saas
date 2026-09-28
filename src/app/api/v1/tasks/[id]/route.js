@@ -34,12 +34,14 @@ const TRACKED_FIELDS = [
 const STATUS_TO_PRISMA = {
   "To Do": "To_Do",
   "In Progress": "In_Progress",
+  "On Hold": "On_Hold",
   Done: "Done",
   Backlog: "Backlog",
 };
 const STATUS_FROM_PRISMA = {
   To_Do: "To Do",
   In_Progress: "In Progress",
+  On_Hold: "On Hold",
   Done: "Done",
   Backlog: "Backlog",
 };
@@ -173,12 +175,16 @@ export const PUT = withAuth(
         existing.createdBy === user.id ||
         user.role === "admin" ||
         (user.role === "client" && user.activeClientRole === "client");
-      const touchesAssignment =
-        body.assignee_id !== undefined ||
-        body.assigneeId !== undefined ||
-        body.client_id !== undefined ||
-        body.clientId !== undefined;
-      if (mutationCheck.allowed && !isCreatorOrPrivileged && touchesAssignment) {
+      // Only flag an assignment change when the value actually differs —
+      // forms resubmit the current client/assignee ids on every save.
+      const assigneeValRaw = body.assignee_id ?? body.assigneeId ?? undefined;
+      const clientValRaw = body.client_id ?? body.clientId ?? undefined;
+      const assignmentChanged =
+        (assigneeValRaw !== undefined &&
+          String(assigneeValRaw ?? "") !== String(existing.assigneeId ?? "")) ||
+        (clientValRaw !== undefined &&
+          String(clientValRaw ?? "") !== String(existing.clientId ?? ""));
+      if (mutationCheck.allowed && !isCreatorOrPrivileged && assignmentChanged) {
         return NextResponse.json(
           { error: "Only the task creator can change assignment" },
           { status: 403 }

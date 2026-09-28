@@ -468,7 +468,7 @@ CREATE TABLE IF NOT EXISTS public.wehoware_tasks (
     description text NULL,
     due_date timestamp with time zone NULL,
     priority text NULL CHECK (priority IN ('Low', 'Medium', 'High')),
-    status text NULL CHECK (status IN ('To Do', 'In Progress', 'Done', 'Backlog')),
+    status text NULL CHECK (status IN ('To Do', 'In Progress', 'On Hold', 'Done', 'Backlog')),
     client_id uuid NULL,
     assignee_id uuid NULL,
     created_by uuid NULL,
@@ -483,7 +483,7 @@ ALTER TABLE public.wehoware_tasks DISABLE ROW LEVEL SECURITY;
 
 -- Add comments on columns for clarity
 COMMENT ON COLUMN public.wehoware_tasks.priority IS 'Task priority: Low, Medium, High';
-COMMENT ON COLUMN public.wehoware_tasks.status IS 'Task status: To Do, In Progress, Done, Backlog';
+COMMENT ON COLUMN public.wehoware_tasks.status IS 'Task status: To Do, In Progress, On Hold, Done, Backlog';
 
 
 -- =============================================

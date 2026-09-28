@@ -31,11 +31,24 @@ const TaskForm = ({
 
   const clientOptions = useMemo(() => {
     if (!Array.isArray(clients)) return [];
-    return clients.map((client) => ({
+    const options = clients.map((client) => ({
       value: String(client.id),
       label: client.company_name || client.name || `Client ID: ${client.id}`,
     }));
-  }, [clients]);
+    // Keep the task's current client selectable even when it's outside the
+    // assignable set (e.g. the task was created by another user/role) —
+    // otherwise the select renders empty and saving would null it out.
+    const currentClientId = initialData?.clientId ? String(initialData.clientId) : null;
+    if (currentClientId && !options.some((o) => o.value === currentClientId)) {
+      options.push({
+        value: currentClientId,
+        label:
+          initialData?.client?.company_name ||
+          `Client ID: ${currentClientId}`,
+      });
+    }
+    return options;
+  }, [clients, initialData]);
 
   const userOptions = useMemo(() => {
     if (!Array.isArray(users)) return [];
@@ -51,7 +64,7 @@ const TaskForm = ({
       });
     }
 
-    return [
+    const options = [
       { value: "", label: "Unassigned" },
       ...filtered.map((user) => ({
         value: String(user.id),
@@ -61,7 +74,29 @@ const TaskForm = ({
           `User ID: ${user.id}`,
       })),
     ];
-  }, [users, currentUser]);
+
+    // Keep the current assignee selectable even when outside the pickable
+    // set (e.g. task created/assigned by another role) — otherwise the
+    // select renders empty and saving would clear the assignment.
+    const currentAssigneeId = initialData?.assigneeId ? String(initialData.assigneeId) : null;
+    if (currentAssigneeId && !options.some((o) => o.value === currentAssigneeId)) {
+      const name =
+        (`${initialData?.assignee?.first_name || ""} ${initialData?.assignee?.last_name || ""}`.trim()) ||
+        `User ID: ${currentAssigneeId}`;
+      options.push({ value: currentAssigneeId, label: name });
+    }
+
+    return options;
+  }, [users, currentUser, initialData]);
+
+  // Assignment/client moves are creator/admin/client-owner only — matches
+  // the API rule; disable the selects for other editors (e.g. assignees).
+  const canChangeAssignment =
+    !initialData ||
+    !currentUser ||
+    initialData.createdBy === currentUser.id ||
+    currentUser.role === "admin" ||
+    (currentUser.role === "client" && currentUser.activeClientRole === "client");
 
   useEffect(() => {
     if (initialData) {
@@ -154,6 +189,7 @@ const TaskForm = ({
             onChange={handleChange}
             options={clientOptions}
             placeholder="Select a client"
+            disabled={!canChangeAssignment}
           />
         </div>
       )}
@@ -186,6 +222,7 @@ const TaskForm = ({
           value={formData.assignee_id || ''}
           onChange={handleChange} // Use unified handleChange
           options={userOptions}
+          disabled={!canChangeAssignment}
         />
       </div>
 
@@ -233,6 +270,7 @@ const TaskForm = ({
             { value: "Backlog", label: "Backlog" },
             { value: "To Do", label: "To Do" },
             { value: "In Progress", label: "In Progress" },
+            { value: "On Hold", label: "On Hold" },
             { value: "Done", label: "Done" },
           ]}
         />

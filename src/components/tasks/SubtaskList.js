@@ -13,6 +13,7 @@ import TaskCompletionBar from "./TaskCompletionBar";
 const STATUS_COLORS = {
   "To Do": "secondary",
   "In Progress": "default",
+  "On Hold": "secondary",
   Done: "outline",
   Backlog: "secondary",
 };

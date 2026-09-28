@@ -41,12 +41,14 @@ const FIELD_MAP = {
 const STATUS_TO_PRISMA = {
   "To Do": "To_Do",
   "In Progress": "In_Progress",
+  "On Hold": "On_Hold",
   Done: "Done",
   Backlog: "Backlog",
 };
 const STATUS_FROM_PRISMA = {
   To_Do: "To Do",
   In_Progress: "In Progress",
+  On_Hold: "On Hold",
   Done: "Done",
   Backlog: "Backlog",
 };

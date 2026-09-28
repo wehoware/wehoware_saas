@@ -27,6 +27,7 @@ const SORT_COLUMNS = [
 const TASK_STATUS_STYLES = {
   Done: "bg-green-500/10 text-green-600",
   "In Progress": "bg-yellow-500/10 text-yellow-600",
+  "On Hold": "bg-purple-500/10 text-purple-600",
   "To Do": "bg-orange-500/10 text-orange-600",
   Backlog: "bg-muted text-muted-foreground",
 };

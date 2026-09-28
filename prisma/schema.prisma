@@ -1652,6 +1652,7 @@ enum TaskPriority {
 enum TaskStatus {
   To_Do       @map("To Do")
   In_Progress @map("In Progress")
+  On_Hold     @map("On Hold")
   Done
   Backlog
 }

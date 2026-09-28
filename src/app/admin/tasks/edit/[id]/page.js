@@ -135,9 +135,16 @@ export default function EditTaskPage() {
 
       if (clientsResponse.ok) {
         const clientsData = await clientsResponse.json();
-        setClients(clientsData.clients);
+        setClients(clientsData.clients || []);
       } else {
-        console.warn('Could not fetch clients.');
+        // /api/v1/clients is admin-only — fall back to the user's
+        // accessible clients so the client field isn't blank.
+        setClients(
+          (user?.accessibleClients || []).map((c) => ({
+            id: c.id,
+            company_name: c.name,
+          }))
+        );
       }
 
     } catch (err) {
@@ -146,7 +153,7 @@ export default function EditTaskPage() {
     } finally {
       setIsFetching(false);
     }
-  }, [taskId, processActivities]);
+  }, [taskId, processActivities, user?.accessibleClients]);
 
   useEffect(() => {
     fetchData();

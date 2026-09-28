@@ -11,7 +11,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Plus, ListChecks, CheckCircle2, Clock, Loader2, List, TrendingUp } from "lucide-react";
+import { Plus, ListChecks, CheckCircle2, Clock, Loader2, List, TrendingUp, PauseCircle } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -49,6 +49,7 @@ export default function TasksPage() {
     total: 0,
     todo: 0,
     inProgress: 0,
+    onHold: 0,
     done: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -254,7 +255,7 @@ export default function TasksPage() {
       />
 
       {/* Stat Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatsCard
           title="Total Tasks"
           value={stats.total}
@@ -275,6 +276,13 @@ export default function TasksPage() {
           subtitle="Currently being worked on"
           icon={Loader2}
           accent="text-yellow-500 bg-yellow-500/10"
+        />
+        <StatsCard
+          title="On Hold"
+          value={stats.onHold}
+          subtitle="Paused tasks"
+          icon={PauseCircle}
+          accent="text-purple-500 bg-purple-500/10"
         />
         <StatsCard
           title="Completed"

@@ -10,6 +10,7 @@ const statusOptions = [
   { value: "all", label: "All Statuses" },
   { value: "To Do", label: "To Do" },
   { value: "In Progress", label: "In Progress" },
+  { value: "On Hold", label: "On Hold" },
   { value: "Done", label: "Done" },
   { value: "Backlog", label: "Backlog" },
 ];

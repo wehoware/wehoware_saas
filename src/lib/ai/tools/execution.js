@@ -278,11 +278,12 @@ export async function executeToolCall(toolName, args, clientId, userId) {
         const total = await prisma.wehowareTask.count({ where: { clientId } });
         const todo = await prisma.wehowareTask.count({ where: { clientId, status: "To_Do" } });
         const inProgress = await prisma.wehowareTask.count({ where: { clientId, status: "In_Progress" } });
+        const onHold = await prisma.wehowareTask.count({ where: { clientId, status: "On_Hold" } });
         const done = await prisma.wehowareTask.count({ where: { clientId, status: "Done" } });
         const backlog = await prisma.wehowareTask.count({ where: { clientId, status: "Backlog" } });
         const overdue = await prisma.wehowareTask.count({ where: { clientId, dueDate: { lt: new Date() }, status: { not: "Done" } } });
         const highPriority = await prisma.wehowareTask.count({ where: { clientId, priority: "High", status: { not: "Done" } } });
-        return JSON.stringify({ total, todo, inProgress, done, backlog, overdue, highPriority });
+        return JSON.stringify({ total, todo, inProgress, onHold, done, backlog, overdue, highPriority });
       }
 
       case "get_task_comments": {

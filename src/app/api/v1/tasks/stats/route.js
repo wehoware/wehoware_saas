@@ -14,6 +14,7 @@ import { buildTaskWhere } from "../../../utils/task-access";
 const STATUSES = {
   todo: "To_Do",
   inProgress: "In_Progress",
+  onHold: "On_Hold",
   done: "Done",
 };
 
@@ -23,16 +24,17 @@ export const GET = withAuth(
       const { prisma, user } = request;
       const where = await buildTaskWhere(prisma, user);
 
-      const [total, todo, inProgress, done] = await Promise.all([
+      const [total, todo, inProgress, onHold, done] = await Promise.all([
         prisma.wehowareTask.count({ where }),
         prisma.wehowareTask.count({ where: { ...where, status: STATUSES.todo } }),
         prisma.wehowareTask.count({
           where: { ...where, status: STATUSES.inProgress },
         }),
+        prisma.wehowareTask.count({ where: { ...where, status: STATUSES.onHold } }),
         prisma.wehowareTask.count({ where: { ...where, status: STATUSES.done } }),
       ]);
 
-      return NextResponse.json({ total, todo, inProgress, done });
+      return NextResponse.json({ total, todo, inProgress, onHold, done });
     } catch (err) {
       console.error("[GET /api/v1/tasks/stats] error:", err);
       return NextResponse.json(

@@ -22,6 +22,7 @@ import { withAuth } from "../../../utils/auth-middleware";
 const STATUS_DISPLAY = {
   To_Do: "To Do",
   In_Progress: "In Progress",
+  On_Hold: "On Hold",
   Done: "Done",
   Backlog: "Backlog",
 };
@@ -35,7 +36,7 @@ const VALID_SORT_FIELDS = new Set([
 ]);
 
 const PRIORITY_ORDER = { High: 3, Medium: 2, Low: 1 };
-const STATUS_ORDER = { Backlog: 0, To_Do: 1, In_Progress: 2, Done: 3 };
+const STATUS_ORDER = { Backlog: 0, To_Do: 1, In_Progress: 2, On_Hold: 3, Done: 4 };
 
 export const GET = withAuth(
   async (request) => {
@@ -57,7 +58,7 @@ export const GET = withAuth(
         Math.max(1, parseInt(searchParams.get("page_size") || "20", 10) || 20)
       );
 
-      const validStatuses = new Set(["To_Do", "In_Progress", "Done", "Backlog"]);
+      const validStatuses = new Set(["To_Do", "In_Progress", "On_Hold", "Done", "Backlog"]);
       const validPriorities = new Set(["Low", "Medium", "High"]);
 
       if (statusFilter && !validStatuses.has(statusFilter)) {

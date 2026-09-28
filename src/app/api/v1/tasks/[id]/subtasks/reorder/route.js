@@ -25,6 +25,7 @@ import { canAccessTask } from "../../../../../utils/task-access";
 const STATUS_FROM_PRISMA = {
   To_Do: "To Do",
   In_Progress: "In Progress",
+  On_Hold: "On Hold",
   Done: "Done",
   Backlog: "Backlog",
 };

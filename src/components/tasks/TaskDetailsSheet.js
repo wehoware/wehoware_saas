@@ -19,6 +19,7 @@ import CommentForm from "./CommentForm";
 const STATUS_VARIANT = {
   "To Do": "secondary",
   "In Progress": "default",
+  "On Hold": "secondary",
   Done: "outline",
   Backlog: "secondary",
 };

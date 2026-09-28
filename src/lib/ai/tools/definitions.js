@@ -225,7 +225,7 @@ export const ALL_TOOLS = [
         parameters: {
           type: "object",
           properties: {
-            status: { type: "string", enum: ["To_Do", "In_Progress", "Done", "Backlog"] },
+            status: { type: "string", enum: ["To_Do", "In_Progress", "On_Hold", "Done", "Backlog"] },
             priority: { type: "string", enum: ["Low", "Medium", "High"] },
             assignee_id: { type: "string", description: "Filter by assignee user ID" },
             limit: { type: "integer", description: "Max results (default 20)" },
@@ -244,7 +244,7 @@ export const ALL_TOOLS = [
             title: { type: "string", description: "Task title" },
             description: { type: "string", description: "Task description" },
             priority: { type: "string", enum: ["Low", "Medium", "High"], description: "Default: Medium" },
-            status: { type: "string", enum: ["To_Do", "In_Progress", "Done", "Backlog"], description: "Default: To_Do" },
+            status: { type: "string", enum: ["To_Do", "In_Progress", "On_Hold", "Done", "Backlog"], description: "Default: To_Do" },
             due_date: { type: "string", description: "Due date (ISO date string)" },
             assignee_id: { type: "string", description: "User ID to assign to" },
             estimated_hours: { type: "number", description: "Estimated hours to complete" },
@@ -266,7 +266,7 @@ export const ALL_TOOLS = [
             title: { type: "string" },
             description: { type: "string" },
             priority: { type: "string", enum: ["Low", "Medium", "High"] },
-            status: { type: "string", enum: ["To_Do", "In_Progress", "Done", "Backlog"] },
+            status: { type: "string", enum: ["To_Do", "In_Progress", "On_Hold", "Done", "Backlog"] },
             due_date: { type: "string" },
             assignee_id: { type: "string" },
             estimated_hours: { type: "number" },

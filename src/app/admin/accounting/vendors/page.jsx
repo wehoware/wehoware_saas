@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -88,7 +89,7 @@ export default function VendorsPage() {
       setVendors(json.data || []);
     } catch (err) {
       console.error("Error fetching vendors", err);
-      toast.error(err.message || "Failed to fetch vendors");
+      toastError(err, "Failed to fetch vendors");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -160,7 +161,7 @@ export default function VendorsPage() {
       toast.success(isEdit ? "Vendor updated" : "Vendor created");
       setSheetOpen(false);
     } catch (err) {
-      toast.error(err.message || "Failed to save vendor");
+      toastError(err, "Failed to save vendor");
     } finally {
       setIsSaving(false);
     }
@@ -189,7 +190,7 @@ export default function VendorsPage() {
         toast.success("Vendor deleted");
       }
     } catch (err) {
-      toast.error(err.message || "Failed to delete vendor");
+      toastError(err, "Failed to delete vendor");
     } finally {
       setIsDeleting(false);
       setDeleteOpen(false);

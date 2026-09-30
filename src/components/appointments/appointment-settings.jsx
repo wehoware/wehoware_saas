@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Save,
   Clock,
@@ -238,7 +239,7 @@ export function AppointmentSettings() {
       if (!res.ok) throw new Error("Failed to save settings");
       toast.success("Settings saved successfully");
     } catch (err) {
-      toast.error(err.message || "Failed to save settings");
+      toastError(err, "Failed to save settings");
     }
   };
 
@@ -278,7 +279,7 @@ export function AppointmentSettings() {
         });
       }
     } catch (err) {
-      toast.error(err.message || `Failed to toggle ${integrationName}`);
+      toastError(err, `Failed to toggle ${integrationName}`);
     }
   };
 
@@ -322,7 +323,7 @@ export function AppointmentSettings() {
         [keyMap[integrationName]]: null,
       }));
     } catch (err) {
-      toast.error(err.message || `Failed to disconnect ${integrationName}`);
+      toastError(err, `Failed to disconnect ${integrationName}`);
     }
   };
 
@@ -876,7 +877,8 @@ export function AppointmentSettings() {
                         });
                         toast.success("Logo uploaded!", { id: "logo-upload" });
                       } catch (err) {
-                        toast.error(err.message || "Upload failed", { id: "logo-upload" });
+                        console.error(err);
+                        toast.error("Upload failed", { id: "logo-upload" });
                       }
                     }}
                   />

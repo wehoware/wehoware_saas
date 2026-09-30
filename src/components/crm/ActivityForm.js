@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import SelectInput from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const ACTIVITY_TYPES = [
   { value: "Call", label: "Call" },
@@ -100,7 +101,7 @@ export default function ActivityForm({ open, onOpenChange, onSaved }) {
       onOpenChange(false);
       if (onSaved) onSaved();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to create activity");
     } finally {
       setSaving(false);
     }

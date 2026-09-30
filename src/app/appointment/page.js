@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Loader2, Calendar, Clock, MapPin, CheckCircle, AlertCircle, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 function AppointmentPageContent() {
   const searchParams = useSearchParams();
@@ -54,7 +55,7 @@ function AppointmentPageContent() {
       toast.success("Appointment cancelled.");
       setAppointment({ ...appointment, status: "Cancelled" });
     } catch (err) {
-      toast.error(err.message || "Failed to cancel.");
+      toastError(err, "Failed to cancel.");
     } finally {
       setCancelling(false);
     }

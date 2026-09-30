@@ -533,7 +533,7 @@ export default function AIChatPage() {
                   invoices, social media, SEO, and more.
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-w-2xl w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full">
                 {QUICK_ACTION_CATEGORIES.map((cat) => (
                   <div key={cat.label} className="rounded-xl border border-border/60 p-3 space-y-2 bg-card/50">
                     <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -665,7 +665,7 @@ export default function AIChatPage() {
 
         {/* Input */}
         <div className="border-t border-border pt-3">
-          <div className="flex items-end gap-2 mx-auto max-w-3xl">
+          <div className="flex items-end gap-2">
             <div className="flex-1 min-w-0 relative">
               <textarea
                 ref={textareaRef}

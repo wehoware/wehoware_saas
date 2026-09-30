@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Plus, Edit, Trash, Clock, Globe, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -96,7 +97,7 @@ export function AppointmentTypes() {
       setAppointmentTypes((prev) => prev.filter((t) => t.id !== typeToDelete.id));
       toast.success("Appointment type deleted");
     } catch (err) {
-      toast.error(err.message || "Failed to delete appointment type");
+      toastError(err, "Failed to delete appointment type");
     } finally {
       setDeleteLoading(false);
       setDeleteDialogOpen(false);
@@ -155,7 +156,7 @@ export function AppointmentTypes() {
       setIsEditing(false);
       setCurrentType(null);
     } catch (err) {
-      toast.error(err.message || "Failed to save appointment type");
+      toastError(err, "Failed to save appointment type");
     } finally {
       setSaving(false);
     }

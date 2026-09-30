@@ -63,7 +63,7 @@ export default function InventoryCategoriesPage() {
       setCategories(json.data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
-      setErrorMessage(error.message || "Failed to fetch categories");
+      setErrorMessage("Failed to fetch categories");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -131,7 +131,7 @@ export default function InventoryCategoriesPage() {
       setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Error adding category:", error);
-      setErrorMessage(error.message || "Failed to add category");
+      setErrorMessage("Failed to add category");
       setErrorDialogOpen(true);
     } finally {
       setIsSubmitting(false);
@@ -166,7 +166,7 @@ export default function InventoryCategoriesPage() {
       setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Error updating category:", error);
-      setErrorMessage(error.message || "Failed to update category");
+      setErrorMessage("Failed to update category");
       setErrorDialogOpen(true);
     } finally {
       setIsSubmitting(false);
@@ -193,7 +193,7 @@ export default function InventoryCategoriesPage() {
       setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Error deleting category:", error);
-      setErrorMessage(error.message || "Failed to delete category");
+      setErrorMessage("Failed to delete category");
       setErrorDialogOpen(true);
     } finally {
       setDeleteDialogOpen(false);

@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Trash2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { STATUS_COLORS, AP_STATUS_COLORS, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
 import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
+import { toastError } from "@/lib/toast-error";
 
 export default function PostDetailPage() {
   const { user } = useAuth();
@@ -30,6 +31,7 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -72,13 +74,14 @@ export default function PostDetailPage() {
       toast.success("Post published!");
       loadPost();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to publish post");
     } finally {
       setPublishing(false);
     }
   }
 
   async function handleCancel() {
+    setCancelling(true);
     try {
       const res = await fetch(`/api/v1/social/posts/${params.id}/cancel`, { method: "POST" });
       if (!res.ok) {
@@ -96,8 +99,10 @@ export default function PostDetailPage() {
       setCancelTarget(false);
       loadPost();
     } catch (err) {
-      toast.error(err.message || "Failed to cancel post");
+      toastError(err, "Failed to cancel post");
       setCancelTarget(false);
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -112,7 +117,7 @@ export default function PostDetailPage() {
       toast.success("Post deleted");
       router.push("/admin/social-media/posts");
     } catch (err) {
-      toast.error(err.message || "Failed to delete post");
+      toastError(err, "Failed to delete post");
       setDeleteTarget(false);
     } finally {
       setDeleting(false);
@@ -136,7 +141,7 @@ export default function PostDetailPage() {
   const canDelete = DELETABLE_STATUSES.has(post.status);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/admin/social-media/posts">
@@ -161,13 +166,13 @@ export default function PostDetailPage() {
             </Button>
           )}
           {canCancel && (
-            <Button variant="outline" size="sm" onClick={() => setCancelTarget(true)}>
-              <X className="h-4 w-4 mr-2" />Cancel
+            <Button variant="outline" size="sm" disabled={cancelling} onClick={() => setCancelTarget(true)}>
+              {cancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}Cancel
             </Button>
           )}
           {canDelete && (
-            <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(true)}>
-              <Trash2 className="h-4 w-4 mr-2" />Delete
+            <Button variant="outline" size="sm" disabled={deleting} className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(true)}>
+              {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}Delete
             </Button>
           )}
         </div>
@@ -177,7 +182,6 @@ export default function PostDetailPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              {post.title && <h2 className="font-semibold text-lg">{post.title}</h2>}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <Badge variant="outline" className={STATUS_COLORS[post.status]}>{post.status}</Badge>
                 <Badge variant="outline">{post.post_type}</Badge>
@@ -265,8 +269,10 @@ export default function PostDetailPage() {
                         View on platform →
                       </a>
                     )}
-                    {ap.error_details?.message && (
-                      <p className="text-xs text-red-500 mt-0.5 max-w-48 text-right">{ap.error_details.message}</p>
+                    {ap.status === "Failed" && (
+                      <p className="text-xs text-red-500 mt-0.5 text-right">
+                        Publishing failed on this platform
+                      </p>
                     )}
                   </div>
                 </div>
@@ -295,7 +301,7 @@ export default function PostDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(false)}>
+      <AlertDialog open={deleteTarget} onOpenChange={() => setDeleteTarget(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
@@ -307,13 +313,12 @@ export default function PostDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Deleting..." : "Delete"}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

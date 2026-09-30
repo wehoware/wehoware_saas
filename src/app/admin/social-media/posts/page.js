@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, FileText, Calendar, Eye, Pencil, Send, X, Trash2 } from "lucide-react";
+import { Plus, Search, FileText, Calendar, Eye, Pencil, Send, X, Trash2, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import {
@@ -20,7 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { STATUS_COLORS, POST_STATUSES, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
+import { STATUS_COLORS, AP_STATUS_COLORS, POST_STATUSES, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
+import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
+import { toastError } from "@/lib/toast-error";
 
 const STATUSES = ["", ...POST_STATUSES];
 
@@ -35,8 +37,10 @@ export default function SocialPostsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [publishing, setPublishing] = useState(() => new Set());
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancellingIds, setCancellingIds] = useState(() => new Set());
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deletingIds, setDeletingIds] = useState(() => new Set());
+  const [previewUrl, setPreviewUrl] = useState(null);
   const LIMIT = 20;
 
   const loadPosts = useCallback(async (skipLoadingState = false) => {
@@ -77,7 +81,7 @@ export default function SocialPostsPage() {
       toast.success("Post published successfully!");
       await loadPosts(true);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to publish post");
     } finally {
       setPublishing((prev) => {
         const next = new Set(prev);
@@ -87,38 +91,45 @@ export default function SocialPostsPage() {
     }
   }
 
-  async function cancelPost() {
-    if (!cancelTarget) return;
+  async function cancelPost(postId) {
+    setCancellingIds((prev) => new Set(prev).add(postId));
     try {
-      const res = await fetch(`/api/v1/social/posts/${cancelTarget}/cancel`, { method: "POST" });
+      const res = await fetch(`/api/v1/social/posts/${postId}/cancel`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Cancel failed");
       }
       toast.success("Post cancelled");
-      setCancelTarget(null);
       await loadPosts();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to cancel post");
+    } finally {
+      setCancellingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
     }
   }
 
-  async function deletePost() {
-    if (!deleteTarget) return;
-    setDeleting(true);
+  async function deletePost(postId) {
+    setDeletingIds((prev) => new Set(prev).add(postId));
     try {
-      const res = await fetch(`/api/v1/social/posts/${deleteTarget}`, { method: "DELETE" });
+      const res = await fetch(`/api/v1/social/posts/${postId}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Delete failed");
       }
       toast.success("Post deleted");
-      setDeleteTarget(null);
       await loadPosts();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete post");
     } finally {
-      setDeleting(false);
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
     }
   }
 
@@ -194,55 +205,177 @@ export default function SocialPostsPage() {
         ) : (
           <div className="space-y-3">
             {posts.map((post) => (
-              <Card key={post.id} className="hover:shadow-sm transition-shadow">
-                <CardContent className="flex items-start justify-between py-4">
-                  <div className="flex-1 min-w-0 mr-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className={STATUS_COLORS[post.status] || ""}>
-                        {post.status}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {post.post_type}
-                      </Badge>
-                      {post.platforms?.map((code) => (
-                        <Badge key={code} variant="secondary" className="text-xs capitalize">{code}</Badge>
-                      ))}
+              <Card key={post.id} className="hover:shadow-sm transition-shadow overflow-hidden">
+                <CardContent className="p-0 flex flex-col md:flex-row overflow-hidden">
+                  {/* ── Left: Media pane ─────────────────────────────── */}
+                  <div className="md:w-56 lg:w-64 flex-shrink-0 bg-muted/40 border-b md:border-b-0 md:border-r">
+                    {post.media_urls?.length > 0 ? (
+                      <div className="p-3 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewUrl(post.media_urls[0])}
+                          title="Preview media"
+                          className="block w-full cursor-zoom-in"
+                        >
+                          <MediaThumbnail url={post.media_urls[0]} className="w-full aspect-video md:aspect-square h-auto rounded-lg" />
+                        </button>
+                        {post.media_urls.length > 1 && (
+                          <div className="flex gap-1.5 overflow-x-auto pb-1">
+                            {post.media_urls.slice(1).map((url, i) => (
+                              <button
+                                key={url + i}
+                                type="button"
+                                onClick={() => setPreviewUrl(url)}
+                                title="Preview media"
+                                className="cursor-zoom-in flex-shrink-0"
+                              >
+                                <MediaThumbnail url={url} className="h-11 w-11" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" />
+                          {post.media_urls.length} file{post.media_urls.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-full min-h-24 flex flex-col items-center justify-center text-muted-foreground/60 gap-1.5 p-3">
+                        <ImageIcon className="h-8 w-8" />
+                        <span className="text-xs italic">no media</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Right: Details pane ──────────────────────────── */}
+                  <div className="flex-1 min-w-0 p-4 space-y-3">
+                    {/* Header: badges + actions */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <Badge variant="outline" className={STATUS_COLORS[post.status] || ""}>
+                          {post.status}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {post.post_type}
+                        </Badge>
+                        {post.platforms?.map((code) => (
+                          <Badge key={code} variant="secondary" className="text-xs capitalize">{code}</Badge>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Link href={`/admin/social-media/posts/${post.id}`}>
+                          <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+                        </Link>
+                        {(post.status === "Draft" || post.status === "Scheduled") && (
+                          <Link href={`/admin/social-media/posts/${post.id}/edit`}>
+                            <Button variant="ghost" size="sm"><Pencil className="h-4 w-4" /></Button>
+                          </Link>
+                        )}
+                        {(post.status === "Draft" || post.status === "Failed") && (
+                          <Button variant="ghost" size="sm" disabled={publishing.has(post.id)} onClick={() => publishPost(post.id)}>
+                            <Send className={`h-4 w-4 ${publishing.has(post.id) ? "animate-pulse" : ""}`} />
+                          </Button>
+                        )}
+                        {post.status === "Scheduled" && (
+                          <Button variant="ghost" size="sm" disabled={cancellingIds.has(post.id)} onClick={() => setCancelTarget(post.id)}>
+                            {cancellingIds.has(post.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                        {DELETABLE_STATUSES.has(post.status) && (
+                          <Button variant="ghost" size="sm" disabled={deletingIds.has(post.id)} className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(post.id)}>
+                            {deletingIds.has(post.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <p className="font-medium truncate">{post.title || post.content?.slice(0, 80)}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+
+                    {/* Full content */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="w-16 flex-shrink-0 font-medium text-muted-foreground pt-2">Text:</span>
+                      <p className="flex-1 text-sm whitespace-pre-wrap break-words bg-muted/50 p-2.5 rounded-lg min-w-0 max-h-40 overflow-y-auto">
+                        {post.content}
+                      </p>
+                    </div>
+
+                    {/* Hashtags */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="w-16 flex-shrink-0 font-medium text-muted-foreground flex items-center gap-1">
+                        <Hash className="h-3 w-3" /> Tags:
+                      </span>
+                      {post.hashtags?.length > 0 ? (
+                        <span className="flex flex-wrap gap-1">
+                          {post.hashtags.map((tag) => (
+                            <Badge key={tag} variant="secondary">#{tag}</Badge>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/70 italic">none</span>
+                      )}
+                    </div>
+
+                    {/* Per-account platform status */}
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="w-16 flex-shrink-0 font-medium text-muted-foreground flex items-center gap-1 pt-2">
+                        <Share2 className="h-3 w-3" /> Targets:
+                      </span>
+                      {post.account_posts?.length > 0 ? (
+                        <div className="flex-1 space-y-2 min-w-0">
+                          {post.account_posts.map((ap) => (
+                            <div key={ap.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 gap-2 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {ap.account?.platform?.logoUrl
+                                  ? <img src={ap.account.platform.logoUrl} alt={ap.account.platform.name} className="w-4 h-4 rounded object-contain flex-shrink-0" />
+                                  : <Share2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                                <span className="text-xs font-medium truncate">{ap.account?.account_name}</span>
+                                <span className="text-xs text-muted-foreground truncate">{ap.account?.platform?.name}</span>
+                              </div>
+                              <div className="text-right flex-shrink-0 min-w-0 max-w-[50%]">
+                                <Badge variant="outline" className={`${AP_STATUS_COLORS[ap.status] || ""} flex items-center gap-1 text-[10px]`}>
+                                  {ap.status === "Published" && <CheckCircle className="h-3 w-3" />}
+                                  {ap.status === "Failed" && <AlertCircle className="h-3 w-3" />}
+                                  {ap.status}
+                                </Badge>
+                                {ap.platform_url && (
+                                  <a href={ap.platform_url} target="_blank" rel="noreferrer" className="text-[10px] text-primary block mt-0.5">
+                                    View on platform →
+                                  </a>
+                                )}
+                                {ap.status === "Failed" && (
+                                  <p className="text-[10px] text-red-500 mt-0.5 text-right">
+                                    Publishing failed on this platform
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/70 italic pt-2">none</span>
+                      )}
+                    </div>
+
+                    {/* Dates footer */}
+                    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-muted-foreground border-t pt-2.5">
                       {post.scheduled_for && (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {new Date(post.scheduled_for).toLocaleString()}
+                          Scheduled: {new Date(post.scheduled_for).toLocaleString()}
                         </span>
                       )}
-                      <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                      {post.published_at && (
+                        <span>Published: {new Date(post.published_at).toLocaleString()}</span>
+                      )}
+                      <span>Created: {new Date(post.created_at).toLocaleString()}</span>
+                      <span>Updated: {new Date(post.updated_at).toLocaleString()}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Link href={`/admin/social-media/posts/${post.id}`}>
-                      <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
-                    </Link>
-                    {(post.status === "Draft" || post.status === "Scheduled") && (
-                      <Link href={`/admin/social-media/posts/${post.id}/edit`}>
-                        <Button variant="ghost" size="sm"><Pencil className="h-4 w-4" /></Button>
-                      </Link>
-                    )}
-                    {(post.status === "Draft" || post.status === "Failed") && (
-                      <Button variant="ghost" size="sm" disabled={publishing.has(post.id)} onClick={() => publishPost(post.id)}>
-                        <Send className={`h-4 w-4 ${publishing.has(post.id) ? "animate-pulse" : ""}`} />
-                      </Button>
-                    )}
-                    {post.status === "Scheduled" && (
-                      <Button variant="ghost" size="sm" onClick={() => setCancelTarget(post.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {DELETABLE_STATUSES.has(post.status) && (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => setDeleteTarget(post.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -264,6 +397,12 @@ export default function SocialPostsPage() {
         )}
       </div>
 
+      <MediaPreviewModal
+        url={previewUrl}
+        open={!!previewUrl}
+        onOpenChange={(open) => !open && setPreviewUrl(null)}
+      />
+
       <AlertDialog open={!!cancelTarget} onOpenChange={() => setCancelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -274,12 +413,14 @@ export default function SocialPostsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
-            <AlertDialogAction onClick={cancelPost}>Yes, Cancel Post</AlertDialogAction>
+            <AlertDialogAction onClick={() => cancelPost(cancelTarget)}>
+              Yes, Cancel Post
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Post?</AlertDialogTitle>
@@ -291,13 +432,12 @@ export default function SocialPostsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={deletePost}
-              disabled={deleting}
+              onClick={() => deletePost(deleteTarget)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Deleting..." : "Delete"}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

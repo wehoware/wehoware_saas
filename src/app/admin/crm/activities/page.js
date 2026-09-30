@@ -28,6 +28,7 @@ import ConfirmDialog from "@/components/ui/confirm-dialog";
 import ActivityForm from "@/components/crm/ActivityForm";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const TYPE_ICONS = {
   Call: Phone,
@@ -70,7 +71,7 @@ export default function ActivitiesPage() {
       setTotalPages(pagination?.totalPages || 1);
       setTotalItems(pagination?.totalItems || 0);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch activities");
     } finally {
       setIsLoading(false);
     }
@@ -99,7 +100,7 @@ export default function ActivitiesPage() {
       setActivityToDelete(null);
       fetchActivities();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete activity");
     } finally {
       setDeleteLoading(false);
     }
@@ -116,7 +117,7 @@ export default function ActivitiesPage() {
       toast.success("Activity marked complete");
       fetchActivities();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to complete activity");
     }
   };
 

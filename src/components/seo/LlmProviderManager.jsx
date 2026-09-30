@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Loader2,
   KeyRound,
@@ -183,7 +184,7 @@ export function LlmProviderManager() {
       });
       setKeyStatus(statusMap);
     } catch (error) {
-      toast.error("Failed to load LLM providers. " + error.message);
+      toastError(error, "Failed to load LLM providers.");
     } finally {
       setIsLoading(false);
     }
@@ -205,7 +206,7 @@ export function LlmProviderManager() {
       const json = await res.json();
       setAvailableModels(json.data || []);
     } catch (error) {
-      toast.error("Failed to load models. " + error.message);
+      toastError(error, "Failed to load models.");
       setAvailableModels([]);
     } finally {
       setModelsLoading(false);
@@ -246,11 +247,11 @@ export function LlmProviderManager() {
           `${providerName} is healthy (${json.latencyMs}ms, model: ${json.model})`
         );
       } else {
-        toast.error(`${providerName} test failed: ${json.error || "Unknown error"}`);
+        toastError(json.error, `${providerName} test failed`);
       }
       fetchData();
     } catch (error) {
-      toast.error("Test request failed. " + error.message);
+      toastError(error, "Test request failed.");
     } finally {
       setTestingProvider(null);
     }
@@ -269,7 +270,7 @@ export function LlmProviderManager() {
       );
       fetchData();
     } catch (error) {
-      toast.error("Failed to toggle provider. " + error.message);
+      toastError(error, "Failed to toggle provider.");
     }
   };
 
@@ -284,7 +285,7 @@ export function LlmProviderManager() {
       toast.success(`${providerName} health state reset.`);
       fetchData();
     } catch (error) {
-      toast.error("Failed to reset provider. " + error.message);
+      toastError(error, "Failed to reset provider.");
     } finally {
       setResettingProvider(null);
     }
@@ -305,7 +306,7 @@ export function LlmProviderManager() {
       toast.success(`${modelType} model updated for ${providerName}.`);
       fetchData();
     } catch (error) {
-      toast.error("Failed to update model. " + error.message);
+      toastError(error, "Failed to update model.");
     } finally {
       setSavingModel(null);
     }
@@ -328,7 +329,7 @@ export function LlmProviderManager() {
       setSettings((prev) => ({ ...prev, manualProvider: providerName }));
       toast.success(`Manual provider set to ${providerName}.`);
     } catch (error) {
-      toast.error("Failed to update provider. " + error.message);
+      toastError(error, "Failed to update provider.");
     } finally {
       setIsSavingSettings(false);
     }
@@ -346,7 +347,7 @@ export function LlmProviderManager() {
       setSettings((prev) => ({ ...prev, providerMode: newMode }));
       toast.success(`Switched to ${newMode} mode.`);
     } catch (error) {
-      toast.error("Failed to update mode. " + error.message);
+      toastError(error, "Failed to update mode.");
     } finally {
       setIsSavingSettings(false);
     }
@@ -364,7 +365,7 @@ export function LlmProviderManager() {
       setSettings((prev) => ({ ...prev, autoFailover: value }));
       toast.success(`Auto-failover ${value ? "enabled" : "disabled"}.`);
     } catch (error) {
-      toast.error("Failed to update failover setting. " + error.message);
+      toastError(error, "Failed to update failover setting.");
     } finally {
       setIsSavingSettings(false);
     }

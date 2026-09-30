@@ -159,7 +159,8 @@ export default function DailyReportAnalyticsPage() {
       );
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error || "Failed to load analytics");
+        console.error(json.error);
+        setError("Failed to load analytics");
         setData(null);
       } else {
         setData(json);

@@ -49,7 +49,8 @@ export default function BlogSeoAccordion({ blogId }) {
       const json = await res.json();
       setRun(json.data || null);
     } catch (err) {
-      setError(err.message || "Failed to load SEO analysis");
+      console.error(err);
+      setError("Failed to load SEO analysis");
     } finally {
       setLoading(false);
     }

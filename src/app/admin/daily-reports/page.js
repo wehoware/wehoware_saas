@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import DailyReportList from "@/components/daily-reports/DailyReportList";
 import DailyReportFilters from "@/components/daily-reports/DailyReportFilters";
 import AdminPageHeader from "@/components/AdminPageHeader";
@@ -80,7 +81,7 @@ export default function DailyReportsPage() {
       setTotal(data.total || 0);
       setHasMore((data.reports?.length || 0) < (data.total || 0));
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch reports");
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ export default function DailyReportsPage() {
       setPage(nextPage);
       setHasMore(newReports.length > 0 && nextPage * PAGE_SIZE < (data.total || 0));
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to load more reports");
     } finally {
       setLoadingMore(false);
     }
@@ -161,7 +162,7 @@ export default function DailyReportsPage() {
       fetchReports(filters);
       fetchSummary();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete report");
     }
   };
 
@@ -174,7 +175,7 @@ export default function DailyReportsPage() {
       fetchReports(filters);
       fetchSummary();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to submit report");
     }
   };
 
@@ -187,7 +188,7 @@ export default function DailyReportsPage() {
       fetchReports(filters);
       fetchSummary();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to unsubmit report");
     }
   };
 

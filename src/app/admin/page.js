@@ -34,6 +34,7 @@ import { Overview } from "@/components/dashboard/overview";
 import { RecentSales } from "@/components/dashboard/recent-sales";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const initialDashboardData = {
   pendingInquiries: 0,
@@ -140,7 +141,7 @@ export default function DashboardPage() {
       }));
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-      toast.error("Failed to load dashboard data. " + error.message);
+      toastError(error, "Failed to load dashboard data.");
     } finally {
       setIsLoading(false);
     }

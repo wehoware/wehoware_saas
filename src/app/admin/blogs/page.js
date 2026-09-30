@@ -138,7 +138,7 @@ export default function BlogsPage() {
       setSelectedIds([]);
     } catch (error) {
       console.error("Error fetching blogs:", error);
-      setErrorMessage(error.message || "Failed to fetch blogs");
+      setErrorMessage("Failed to fetch blogs");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -232,7 +232,7 @@ export default function BlogsPage() {
       setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Error deleting blog:", error);
-      setErrorMessage(error.message || "Failed to delete blog post");
+      setErrorMessage("Failed to delete blog post");
       setErrorDialogOpen(true);
     } finally {
       setDeleteLoading(false);
@@ -250,7 +250,7 @@ export default function BlogsPage() {
       router.push(`/admin/blogs/edit/${json.blog.id}`);
     } catch (error) {
       console.error("Error cloning blog:", error);
-      setErrorMessage(error.message || "Failed to clone blog post");
+      setErrorMessage("Failed to clone blog post");
       setErrorDialogOpen(true);
     } finally {
       setCloneLoading(null);
@@ -278,7 +278,7 @@ export default function BlogsPage() {
       setSelectedIds([]);
     } catch (error) {
       console.error("Bulk action error:", error);
-      setErrorMessage(error.message || "Bulk action failed");
+      setErrorMessage("Bulk action failed");
       setErrorDialogOpen(true);
     } finally {
       setBulkLoading(false);
@@ -301,7 +301,7 @@ export default function BlogsPage() {
       setSelectedIds([]);
     } catch (error) {
       console.error("Bulk delete error:", error);
-      setErrorMessage(error.message || "Bulk delete failed");
+      setErrorMessage("Bulk delete failed");
       setErrorDialogOpen(true);
     } finally {
       setBulkLoading(false);
@@ -360,7 +360,7 @@ export default function BlogsPage() {
             <CardDescription>Overview of your blog performance</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <div className="p-4 border border-gray-200 rounded-lg shadow-sm">
                 <div className="text-sm font-medium text-muted-foreground">
                   Total Posts
@@ -417,18 +417,18 @@ export default function BlogsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center space-x-2">
+              <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                <div className="flex items-center space-x-2 w-full sm:w-auto">
                   <form
                     onSubmit={handleSearch}
-                    className="flex items-center space-x-2"
+                    className="flex items-center space-x-2 w-full sm:w-auto"
                   >
                     <Input
                       type="text"
                       placeholder="Search blogs..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-[300px]"
+                      className="w-full sm:w-[300px]"
                     />
                     <Button
                       type="submit"
@@ -468,7 +468,7 @@ export default function BlogsPage() {
                     />
                     <Label htmlFor="featured-only">Featured only</Label>
                   </div>
-                  <div className="w-[160px]">
+                  <div className="w-full sm:w-[160px]">
                     <SelectInput
                       placeholder="All Categories"
                       value={selectedCategoryId}
@@ -479,7 +479,7 @@ export default function BlogsPage() {
                       ]}
                     />
                   </div>
-                  <div className="w-[140px]">
+                  <div className="w-full sm:w-[140px]">
                     <SelectInput
                       placeholder="All Statuses"
                       value={selectedStatus}

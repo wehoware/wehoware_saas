@@ -13,6 +13,7 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Loader2, Search, Copy } from "lucide-react";
 import {
   Sheet,
@@ -52,7 +53,7 @@ export default function CloneInvoiceSheet({ open, onOpenChange, onClone }) {
         const json = await res.json();
         if (!cancelled) setInvoices(Array.isArray(json.data) ? json.data : []);
       } catch (err) {
-        if (!cancelled) toast.error(err.message || "Failed to load invoices");
+        if (!cancelled) toastError(err, "Failed to load invoices");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -87,7 +88,7 @@ export default function CloneInvoiceSheet({ open, onOpenChange, onClone }) {
       onClone?.(payload);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err.message || "Failed to clone invoice");
+      toastError(err, "Failed to clone invoice");
     } finally {
       setCloningId(null);
     }

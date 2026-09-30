@@ -36,18 +36,22 @@ export const POST = withAuth(
         );
       }
 
-      // Send via platform API
-      const client = getSocialClient(conv.account);
+      // Send via platform API — seeded/demo conversations skip the real send
       let platformMessageId;
-      try {
-        platformMessageId = await client.sendReply(
-          conv.platformConversationId,
-          conv.participantId,
-          text
-        );
-      } catch (apiErr) {
-        console.error("[inbox/reply] Platform send failed:", apiErr.message);
-        return NextResponse.json({ error: "Failed to send reply via platform" }, { status: 502 });
+      if (conv.metadata?.seeded) {
+        platformMessageId = `seed-reply-${Date.now()}`;
+      } else {
+        const client = getSocialClient(conv.account);
+        try {
+          platformMessageId = await client.sendReply(
+            conv.platformConversationId,
+            conv.participantId,
+            text
+          );
+        } catch (apiErr) {
+          console.error("[inbox/reply] Platform send failed:", apiErr.message);
+          return NextResponse.json({ error: "Failed to send reply via platform" }, { status: 502 });
+        }
       }
 
       // Store the outbound message locally

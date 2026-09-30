@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Inbox, RefreshCw, Search, MessageSquare, Archive, X } from "lucide-react";
+import { Inbox, RefreshCw, Search, MessageSquare, Archive } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const PLATFORM_COLORS = {
   facebook: "bg-blue-100 text-blue-700",
@@ -60,7 +61,7 @@ export default function SocialInboxPage() {
   const [platformFilter, setPlatformFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [readFilter, setReadFilter] = useState("all");
   const LIMIT = 25;
 
   const loadConversations = useCallback(async () => {
@@ -73,7 +74,8 @@ export default function SocialInboxPage() {
         limit: String(LIMIT),
       });
       if (platformFilter) params.set("platform", platformFilter);
-      if (unreadOnly) params.set("unread", "true");
+      if (readFilter === "unread") params.set("unread", "true");
+      if (readFilter === "read") params.set("unread", "false");
       if (search) params.set("search", search);
 
       const res = await fetch(`/api/v1/social/inbox?${params}`);
@@ -87,7 +89,7 @@ export default function SocialInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, page, statusFilter, platformFilter, unreadOnly, search]);
+  }, [user, page, statusFilter, platformFilter, readFilter, search]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
@@ -101,7 +103,7 @@ export default function SocialInboxPage() {
       setPage(1);
       await loadConversations();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Sync failed");
     } finally {
       setSyncing(false);
     }
@@ -158,7 +160,7 @@ export default function SocialInboxPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -168,14 +170,6 @@ export default function SocialInboxPage() {
             onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <Select value={platformFilter || "all"} onValueChange={(v) => { setPlatformFilter(v === "all" ? "" : v); setPage(1); }}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="All platforms" />
@@ -188,14 +182,45 @@ export default function SocialInboxPage() {
             <SelectItem value="tiktok">TikTok Comments</SelectItem>
           </SelectContent>
         </Select>
-        <Button
-          variant={unreadOnly ? "default" : "outline"}
-          size="sm"
-          onClick={() => { setUnreadOnly((v) => !v); setPage(1); }}
-        >
-          Unread only
-          {unreadOnly && <X className="h-3 w-3 ml-1" />}
-        </Button>
+      </div>
+
+      {/* Status tabs */}
+      <div className="flex gap-1 border-b items-center">
+        {STATUSES.map((s) => (
+          <button
+            key={s}
+            onClick={() => { setStatusFilter(s); setPage(1); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              statusFilter === s
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+        <div className="ml-auto flex rounded-md border overflow-hidden mb-1">
+          {[["all", "All"], ["unread", "Unread"], ["read", "Read"]].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => { setReadFilter(value); setPage(1); }}
+              className={`px-3 py-1 text-xs font-medium transition-colors ${
+                readFilter === value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {label}
+              {value === "unread" && unreadTotal > 0 && (
+                <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  readFilter === "unread" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-red-500 text-white"
+                }`}>
+                  {unreadTotal}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Conversation list */}
@@ -225,19 +250,24 @@ export default function SocialInboxPage() {
         <div className="space-y-2">
           {conversations.map((conv) => (
             <Link key={conv.id} href={`/admin/social-media/inbox/${conv.id}`}>
-              <Card className={`hover:shadow-sm transition-shadow cursor-pointer ${conv.unread_count > 0 ? "border-primary/40 bg-primary/5" : ""}`}>
+              <Card className={`hover:shadow-sm transition-shadow cursor-pointer ${conv.unread_count > 0 ? "border-l-4 border-l-primary bg-primary/5" : ""}`}>
                 <CardContent className="flex items-center gap-3 py-3">
                   {/* Avatar / initials */}
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold flex-shrink-0 uppercase">
-                    {conv.participant_avatar
-                      ? <img src={conv.participant_avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      : (conv.participant_name?.[0] || "?")}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold uppercase">
+                      {conv.participant_avatar
+                        ? <img src={conv.participant_avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        : (conv.participant_name?.[0] || "?")}
+                    </div>
+                    {conv.unread_count > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full ring-2 ring-background" />
+                    )}
                   </div>
 
                   {/* Body */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className={`text-sm font-medium truncate ${conv.unread_count > 0 ? "font-semibold" : ""}`}>
+                      <span className={`text-sm truncate ${conv.unread_count > 0 ? "font-bold" : "font-medium"}`}>
                         {conv.participant_name}
                       </span>
                       {conv.participant_handle && (
@@ -246,7 +276,7 @@ export default function SocialInboxPage() {
                         </span>
                       )}
                     </div>
-                    <p className={`text-xs truncate ${conv.unread_count > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                    <p className={`text-xs truncate ${conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                       {conv.last_message_preview || "No messages yet"}
                     </p>
                   </div>

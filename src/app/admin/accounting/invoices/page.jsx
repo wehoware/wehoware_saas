@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -193,7 +194,8 @@ export default function InvoicesPage() {
       if (json.summary) setSummary(json.summary);
     } catch (err) {
       console.error("Error fetching invoices:", err);
-      setErrorMessage(err.message || "Failed to fetch invoices");
+      console.error(err);
+      setErrorMessage("Failed to fetch invoices");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -257,7 +259,7 @@ export default function InvoicesPage() {
       fetchInvoices(page);
     } catch (err) {
       console.error("Error deleting invoice:", err);
-      toast.error(err.message || "Failed to delete invoice");
+      toastError(err, "Failed to delete invoice");
     } finally {
       setDeleteDialogOpen(false);
       setInvoiceToDelete(null);
@@ -323,7 +325,7 @@ export default function InvoicesPage() {
   }, [summary]);
 
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6">
+    <div className="py-6 px-4 md:px-6">
       <AdminPageHeader
         title="Invoices"
         description="Manage all your invoices and track payments."

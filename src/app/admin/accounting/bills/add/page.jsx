@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -74,7 +75,7 @@ export default function AddBillPage() {
         const json = await res.json();
         if (!cancelled) setVendors(json.data || []);
       } catch (err) {
-        toast.error(err.message);
+        toastError(err, "Failed to load vendors");
       } finally {
         if (!cancelled) setIsLoadingVendors(false);
       }
@@ -141,7 +142,7 @@ export default function AddBillPage() {
         router.push(`/admin/accounting/bills/${json.id}`);
       }
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to create bill");
     } finally {
       setIsSaving(false);
     }

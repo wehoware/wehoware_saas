@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 function AcceptInviteForm() {
   const searchParams = useSearchParams();
@@ -35,7 +36,8 @@ function AcceptInviteForm() {
         if (res.ok) {
           setInvite(data);
         } else {
-          setError(data.error || "Invalid or expired invitation.");
+          console.error(data.error);
+          setError("Invalid or expired invitation.");
         }
       } catch (e) {
         console.error("Invite validation error:", e);
@@ -64,7 +66,7 @@ function AcceptInviteForm() {
           setAccepted(true);
           toast.success(data.message || "Invitation accepted!");
         } else {
-          toast.error(data.error || "Failed to accept invitation.");
+          toastError(data.error, "Failed to accept invitation.");
         }
       } catch (e) {
         console.error("Invite accept error:", e);

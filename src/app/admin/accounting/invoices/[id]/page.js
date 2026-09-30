@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import InvoiceTemplate from '@/components/invoice/InvoiceTemplate';
 import toast from 'react-hot-toast';
+import { toastError } from "@/lib/toast-error";
 import { useAuth } from "@/contexts/auth-context";
 
 const fetchInvoiceById = async (id) => {
@@ -58,7 +59,7 @@ export default function ViewInvoicePage() {
       .catch((err) => {
         if (cancelled) return;
         console.error("Error fetching invoice:", err);
-        setError(err.message || "Failed to load invoice data.");
+        setError("Failed to load invoice data.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -97,7 +98,7 @@ export default function ViewInvoicePage() {
       shareUrl = data.share_url;
       setShareResult(data);
     } catch (err) {
-      toast.error(err.message || 'Failed to generate share link');
+      toastError(err, 'Failed to generate share link');
       setSending(false);
       return;
     }
@@ -151,12 +152,12 @@ export default function ViewInvoicePage() {
       if (data.email_sent) {
         toast.success(`Invoice emailed to ${sendEmail}`);
       } else if (data.email_error) {
-        toast.error(`Share link created, but email failed: ${data.email_error}`);
+        toastError(data.email_error, 'Share link created, but the email failed to send.');
       } else {
         toast.success('Share link generated');
       }
     } catch (err) {
-      toast.error(err.message || 'Failed to send invoice');
+      toastError(err, 'Failed to send invoice');
     } finally {
       setSending(false);
     }
@@ -179,7 +180,7 @@ export default function ViewInvoicePage() {
       setShareResult(data);
       toast.success('Share link generated');
     } catch (err) {
-      toast.error(err.message || 'Failed to generate link');
+      toastError(err, 'Failed to generate link');
     } finally {
       setSending(false);
     }
@@ -187,7 +188,7 @@ export default function ViewInvoicePage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6 px-4 md:px-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+      <div className="py-6 px-4 md:px-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
         <p className="text-gray-600 text-lg">Loading invoice details...</p>
       </div>
     );
@@ -195,7 +196,7 @@ export default function ViewInvoicePage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-6 px-4 md:px-6 text-center">
+      <div className="py-6 px-4 md:px-6 text-center">
         <p className="text-red-600 text-lg">Error: {error}</p>
         <Button asChild variant="link" className="mt-4 text-lg">
           <Link href="/admin/accounting/invoices">Go back to Invoices</Link>
@@ -206,7 +207,7 @@ export default function ViewInvoicePage() {
 
   if (!invoice) {
     return (
-      <div className="container mx-auto py-6 px-4 md:px-6 text-center">
+      <div className="py-6 px-4 md:px-6 text-center">
         <p className="text-gray-600 text-lg">Invoice not found.</p>
         <Button asChild variant="link" className="mt-4 text-lg">
           <Link href="/admin/accounting/invoices">Go back to Invoices</Link>
@@ -216,7 +217,7 @@ export default function ViewInvoicePage() {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6 bg-gray-50 min-h-screen">
+    <div className="py-6 px-4 md:px-6 bg-gray-50 min-h-screen">
       <AdminPageHeader
         title={invoice.invoice_number ?? `Invoice #${invoiceId}`}
         description={`Details for invoice sent to ${invoice.client_name}.`}

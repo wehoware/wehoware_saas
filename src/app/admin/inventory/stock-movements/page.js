@@ -215,7 +215,7 @@ export default function StockMovementsPage() {
       }
     } catch (error) {
       console.error("Error fetching stock movements:", error);
-      setErrorMessage(error.message || "Failed to fetch stock movements");
+      setErrorMessage("Failed to fetch stock movements");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);

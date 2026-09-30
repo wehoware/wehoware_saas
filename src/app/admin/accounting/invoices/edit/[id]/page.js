@@ -30,7 +30,8 @@ export default function EditInvoicePage() {
         const json = await res.json();
         setInvoice(json.data ?? json);
       } catch (err) {
-        setError(err.message || "Failed to load invoice");
+        console.error(err);
+        setError("Failed to load invoice");
       } finally {
         setLoading(false);
       }
@@ -61,7 +62,7 @@ export default function EditInvoicePage() {
 
   if (error || !invoice) {
     return (
-      <div className="container mx-auto py-6 px-4 text-center">
+      <div className="py-6 px-4 text-center">
         <p className="text-red-600">{error || "Invoice not found."}</p>
         <Link href="/admin/accounting/invoices" className="text-blue-600 hover:underline mt-4 inline-block">
           Go back to Invoices
@@ -71,7 +72,7 @@ export default function EditInvoicePage() {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6">
+    <div className="py-6 px-4 md:px-6">
       <AdminPageHeader
         title={`Edit Invoice ${invoice.invoice_number}`}
         description={`Update details for ${invoice.client_name}`}

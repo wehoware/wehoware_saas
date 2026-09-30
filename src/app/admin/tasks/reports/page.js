@@ -28,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { useAuth } from "@/contexts/auth-context";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -288,7 +289,7 @@ export default function TaskReportsPage() {
       URL.revokeObjectURL(url);
       toast.success("Export downloaded");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Export failed");
     } finally {
       setExporting(false);
     }

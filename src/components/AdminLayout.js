@@ -827,13 +827,13 @@ const AdminLayout = ({ children }) => {
 
           {/* Main content */}
           <div
-            className={`flex-1 overflow-auto ${
+            className={`flex-1 min-w-0 overflow-auto ${
               isSidebarOpen ? "lg:ml-64" : "lg:ml-16"
             }`}
           >
             <AdminHeader onMenuClick={toggleSidebar}/>
-            <main className="grid flex-1 items-start gap-4 p-4 sm:p-6 md:gap-8">
-              <div className="w-full rounded-xl border border-gray-200 bg-card shadow-md p-6">
+            <main className="grid flex-1 items-start gap-4 p-4 sm:p-6 md:gap-8 min-w-0">
+              <div className="w-full min-w-0 rounded-xl border border-gray-200 bg-card shadow-md p-4 sm:p-6 overflow-hidden">
                 {children}
               </div>
             </main>

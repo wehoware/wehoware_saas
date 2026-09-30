@@ -39,6 +39,8 @@ import {
 import AdminPageHeader from "@/components/AdminPageHeader";
 import DateTimePicker from "@/components/ui/date-time-picker";
 import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
+import PostPreview from "@/components/social/post-preview";
+import { toastError } from "@/lib/toast-error";
 
 export default function CreatePostPage() {
   const { user } = useAuth();
@@ -48,7 +50,6 @@ export default function CreatePostPage() {
   const [loadingAccounts, setLoadingAccounts] = useState(true);
 
   const [formData, setFormData] = useState({
-    title: "",
     content: "",
     mediaUrls: [],
     hashtags: [],
@@ -151,7 +152,6 @@ export default function CreatePostPage() {
     setLoading(true);
     try {
       const payload = {
-        title: formData.title || undefined,
         content: formData.content,
         media_urls: formData.mediaUrls,
         hashtags: formData.hashtags,
@@ -169,7 +169,7 @@ export default function CreatePostPage() {
       toast.success(schedule ? "Post scheduled!" : "Post saved as draft");
       router.push("/admin/social-media/posts");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to create post");
     } finally {
       setLoading(false);
     }
@@ -184,7 +184,6 @@ export default function CreatePostPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: formData.title || undefined,
           content: formData.content,
           media_urls: formData.mediaUrls,
           hashtags: formData.hashtags,
@@ -201,15 +200,17 @@ export default function CreatePostPage() {
       fetch(`/api/v1/social/posts/${created.id}/publish`, { method: "POST" })
         .then(async (r) => {
           const d = await r.json().catch(() => ({}));
-          if (!r.ok) toast.error(d.error || "Publish failed — post is saved, open it to retry");
-          else toast.success("Post published!");
+          if (!r.ok) {
+            console.error("[publish]", d);
+            toast.error("Publish failed — post is saved, open it to retry");
+          } else toast.success("Post published!");
         })
         .catch(() => toast.error("Publish request failed — post is saved, open it to retry"));
 
       toast.success("Post created — publishing in background…");
       router.push("/admin/social-media/posts");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to create post");
       setLoading(false);
     }
   }
@@ -297,7 +298,7 @@ export default function CreatePostPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       <AdminPageHeader
         title="Create Post"
         description="Compose and publish or schedule a post across your social platforms"
@@ -320,20 +321,6 @@ export default function CreatePostPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* Title */}
-              <div>
-                <Label htmlFor="title" className="text-xs text-muted-foreground">
-                  Title <span className="text-muted-foreground/60">(optional, internal reference)</span>
-                </Label>
-                <Input
-                  id="title"
-                  placeholder="e.g. Summer campaign launch..."
-                  value={formData.title}
-                  onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
-                  className="mt-1.5"
-                />
-              </div>
-
               {/* Content textarea */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -482,6 +469,16 @@ export default function CreatePostPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Live platform preview */}
+          <PostPreview
+            accounts={selectedAccounts}
+            content={formData.content}
+            hashtags={formData.hashtags}
+            mediaUrls={formData.mediaUrls}
+            postType={formData.postType}
+            scheduledFor={formData.scheduledFor}
+          />
         </div>
 
         {/* ── Sidebar (1/3 width) ──────────────────────────────────────── */}

@@ -160,7 +160,7 @@ export default function FormSubmissions({ params }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <div className="flex items-center mb-6">
         <button
           onClick={() => router.push('/admin/forms')}

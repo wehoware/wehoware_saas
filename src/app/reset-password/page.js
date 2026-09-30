@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -34,7 +35,8 @@ function ResetPasswordForm() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setError(data.error || "Invalid or expired reset link.");
+          console.error(data.error);
+          setError("Invalid or expired reset link.");
         }
       } catch (e) {
         console.error("Token verification error:", e);
@@ -70,7 +72,7 @@ function ResetPasswordForm() {
         setDone(true);
         toast.success(data.message || "Password updated successfully.");
       } else {
-        toast.error(data.error || "Failed to reset password.");
+        toastError(data.error, "Failed to reset password.");
       }
     } catch (e) {
       console.error("Password reset error:", e);

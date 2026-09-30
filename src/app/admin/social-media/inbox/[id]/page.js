@@ -5,10 +5,11 @@ import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Send, Archive, RotateCcw, CheckCheck, MessageSquare } from "lucide-react";
+import { ArrowLeft, Send, Archive, RotateCcw, CheckCheck, MessageSquare, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const PLATFORM_LABELS = {
   facebook: "Messenger",
@@ -47,7 +48,7 @@ function MessageBubble({ message, isOwn }) {
             : (message.sender_name?.[0] || "?")}
         </div>
       )}
-      <div className={`max-w-xs lg:max-w-md ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
+      <div className={`max-w-xs sm:max-w-md lg:max-w-xl ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
         {!isOwn && (
           <p className="text-xs text-muted-foreground mb-1 ml-1">{message.sender_name}</p>
         )}
@@ -94,23 +95,25 @@ export default function InboxConversationPage() {
   const [sending, setSending] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  const conversationId = params?.id;
+
   const loadConversation = useCallback(async () => {
-    if (!params?.id) return;
+    if (!conversationId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/v1/social/inbox/${params.id}`);
+      const res = await fetch(`/api/v1/social/inbox/${conversationId}`);
       if (!res.ok) { toast.error("Conversation not found"); return; }
       const data = await res.json();
       setConversation(data.conversation);
 
       // Mark as read silently
-      await fetch(`/api/v1/social/inbox/${params.id}/read`, { method: "POST" });
+      await fetch(`/api/v1/social/inbox/${conversationId}/read`, { method: "POST" });
     } catch {
       toast.error("Failed to load conversation");
     } finally {
       setLoading(false);
     }
-  }, [params?.id]);
+  }, [conversationId]);
 
   useEffect(() => { if (user) loadConversation(); }, [user, loadConversation]);
 
@@ -142,7 +145,7 @@ export default function InboxConversationPage() {
       }));
       setReplyText("");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to send reply");
     } finally {
       setSending(false);
     }
@@ -195,7 +198,7 @@ export default function InboxConversationPage() {
   const isClosed = conversation.status === "Closed";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-3xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -317,7 +320,11 @@ export default function InboxConversationPage() {
               disabled={sending || !replyText.trim()}
               className="self-end"
             >
-              <Send className="h-4 w-4" />
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
         )}

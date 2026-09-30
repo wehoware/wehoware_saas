@@ -112,7 +112,8 @@ export default function AttachmentUploader({
         const attachment = await res.json();
         newAttachments.push(attachment);
       } catch (err) {
-        setError(err.message || "Failed to upload file");
+        console.error(err);
+        setError("Failed to upload file");
         break;
       }
     }
@@ -184,7 +185,8 @@ export default function AttachmentUploader({
             const attachment = await res.json();
             newAttachments.push(attachment);
           } catch (err) {
-            setError(err.message || "Failed to upload file");
+            console.error(err);
+            setError("Failed to upload file");
             break;
           }
         }
@@ -223,7 +225,8 @@ export default function AttachmentUploader({
         const updated = attachments.filter((a) => a.id !== attachmentId);
         onAttachmentsChange?.(updated);
       } catch (err) {
-        setError(err.message || "Failed to delete attachment");
+        console.error(err);
+        setError("Failed to delete attachment");
       }
     },
     [attachments, entityId, entityType, disabled, onAttachmentsChange]

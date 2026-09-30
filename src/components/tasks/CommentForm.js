@@ -35,7 +35,7 @@ export default function CommentForm({ taskId, onCommentAdded }) {
         }
         return 'Comment posted!';
       },
-      error: (err) => err.message || 'Failed to post comment.',
+      error: (err) => { console.error(err); return 'Failed to post comment.'; },
     });
 
     try {

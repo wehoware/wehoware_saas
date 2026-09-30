@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -78,7 +79,7 @@ export default function EditUserPage() {
       });
     } catch (error) {
       console.error("Error fetching user:", error);
-      toast.error(error.message || "Failed to fetch user details");
+      toastError(error, "Failed to fetch user details");
       router.push("/admin/users");
     }
   }, [userId, router]);
@@ -168,7 +169,7 @@ export default function EditUserPage() {
       router.push("/admin/users");
     } catch (error) {
       console.error("Error updating user:", error);
-      toast.error(`Error updating user: ${error.message || "Unknown error"}`);
+      toastError(error, "Failed to update user");
     } finally {
       setIsSubmitting(false);
     }
@@ -181,7 +182,7 @@ export default function EditUserPage() {
   const clientRoleOptions = isAdmin ? ADMIN_CLIENT_ROLE_OPTIONS : MANAGER_CLIENT_ROLE_OPTIONS;
 
   return (
-    <div className="container mx-auto p-4 max-w-3xl">
+    <div className="p-4">
       <AdminPageHeader
         title="Edit User"
         description="Update user details and permissions"

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -91,7 +92,7 @@ export default function CustomersPage() {
       setCustomers(json.data || []);
     } catch (err) {
       console.error("Error fetching customers", err);
-      toast.error(err.message || "Failed to fetch customers");
+      toastError(err, "Failed to fetch customers");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -167,7 +168,7 @@ export default function CustomersPage() {
       toast.success(isEdit ? "Customer updated" : "Customer created");
       setSheetOpen(false);
     } catch (err) {
-      toast.error(err.message || "Failed to save customer");
+      toastError(err, "Failed to save customer");
     } finally {
       setIsSaving(false);
     }
@@ -195,7 +196,7 @@ export default function CustomersPage() {
         toast.success("Customer deleted");
       }
     } catch (err) {
-      toast.error(err.message || "Failed to delete customer");
+      toastError(err, "Failed to delete customer");
     } finally {
       setIsDeleting(false);
       setDeleteOpen(false);

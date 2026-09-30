@@ -39,6 +39,7 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 import slugify from "slugify";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import SelectInput from "@/components/ui/select";
 
@@ -320,9 +321,9 @@ export default function AddServicePage() {
     } catch (error) {
       console.error("Error in handleSubmit:", error);
       if (!errorMessage) {
-        setErrorMessage(error.message || "An unexpected error occurred.");
+        setErrorMessage("An unexpected error occurred.");
       }
-      toast.error(errorMessage || error.message || "Failed to add service.");
+      toastError(error, "Failed to add service.");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);

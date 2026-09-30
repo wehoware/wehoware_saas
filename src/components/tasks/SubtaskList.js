@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import SubtaskForm from "./SubtaskForm";
 import TaskCompletionBar from "./TaskCompletionBar";
 
@@ -38,7 +39,8 @@ export default function SubtaskList({ taskId, userRole }) {
       setTotal(data.total ?? 0);
       setCompletionPct(data.completion_percentage ?? 0);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("Failed to load sub-tasks");
     } finally {
       setIsLoading(false);
     }
@@ -62,7 +64,7 @@ export default function SubtaskList({ taskId, userRole }) {
       }
       fetchSubtasks();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to update sub-task");
     }
   };
 
@@ -79,7 +81,7 @@ export default function SubtaskList({ taskId, userRole }) {
       toast.success("Sub-task deleted");
       fetchSubtasks();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete sub-task");
     }
   };
 

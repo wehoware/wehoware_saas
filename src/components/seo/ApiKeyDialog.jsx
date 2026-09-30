@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Loader2, Save, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
 
 const PROVIDER_FIELDS = [
@@ -60,7 +61,7 @@ export function ApiKeyDialog({ open, onOpenChange, keyStatus, onSave }) {
       await onSave(keys);
       setKeys({});
     } catch (error) {
-      toast.error("Failed to save API keys. " + error.message);
+      toastError(error, "Failed to save API keys.");
     } finally {
       setIsSaving(false);
     }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -225,7 +226,7 @@ export default function BillsPage() {
       if (json.summary) setSummary(json.summary);
     } catch (err) {
       console.error("Error fetching bills", err);
-      toast.error(err.message || "Failed to fetch bills");
+      toastError(err, "Failed to fetch bills");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -312,7 +313,7 @@ export default function BillsPage() {
       toast.success("Bill deleted");
       fetchBills(page);
     } catch (err) {
-      toast.error(err.message || "Failed to delete bill");
+      toastError(err, "Failed to delete bill");
     } finally {
       setIsDeleting(false);
       setDeleteOpen(false);

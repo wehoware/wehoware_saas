@@ -34,7 +34,8 @@ export default function PublicInvoicePage() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err.message || "Failed to load invoice.");
+        console.error(err);
+        setError("Failed to load invoice.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

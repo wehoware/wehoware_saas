@@ -55,7 +55,10 @@ export default function PrintInvoicePage() {
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || "Failed to load invoice");
+        if (!cancelled) {
+          console.error(err);
+          setError("Failed to load invoice");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

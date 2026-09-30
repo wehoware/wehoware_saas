@@ -4,6 +4,7 @@
  *   status   = Open | Archived | Closed  (default: Open)
  *   platform = facebook | instagram | twitter | tiktok
  *   unread   = true  (only conversations with unreadCount > 0)
+ *            = false (only fully-read conversations)
  *   page, limit
  */
 import { NextResponse } from "next/server";
@@ -58,12 +59,13 @@ export const GET = withAuth(async (request) => {
     const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number.parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10)));
     const platformFilter = searchParams.get("platform");
-    const unreadOnly = searchParams.get("unread") === "true";
+    const unreadParam = searchParams.get("unread");
     const searchQuery = searchParams.get("search")?.trim();
 
     const where = { clientId, status: statusFilter };
     if (platformFilter) where.platformCode = platformFilter;
-    if (unreadOnly) where.unreadCount = { gt: 0 };
+    if (unreadParam === "true") where.unreadCount = { gt: 0 };
+    else if (unreadParam === "false") where.unreadCount = 0;
     if (searchQuery) {
       where.OR = [
         { participantName: { contains: searchQuery } },

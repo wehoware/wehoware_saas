@@ -98,7 +98,7 @@ export default function AddInvoicePage() {
   };
 
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6">
+    <div className="py-6 px-4 md:px-6">
       <AdminPageHeader
         title="Create New Invoice"
         description="Fill in the details below to create a new invoice."

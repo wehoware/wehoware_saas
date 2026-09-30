@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import SelectInput from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const DEAL_STATUSES = [
   { value: "Open", label: "Open" },
@@ -145,7 +146,7 @@ export default function DealForm({ open, onOpenChange, deal = null, pipeline = n
       onOpenChange(false);
       if (onSaved) onSaved();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to save deal");
     } finally {
       setSaving(false);
     }

@@ -25,6 +25,7 @@ import ConfirmDialog from "@/components/ui/confirm-dialog";
 import DealForm from "@/components/crm/DealForm";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const STATUS_VARIANTS = {
   Open: "secondary",
@@ -63,7 +64,7 @@ export default function DealsPage() {
       setTotalPages(pagination?.totalPages || 1);
       setTotalItems(pagination?.totalItems || 0);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch deals");
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +112,7 @@ export default function DealsPage() {
       setDealToDelete(null);
       fetchDeals();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete deal");
     } finally {
       setDeleteLoading(false);
     }

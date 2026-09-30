@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import PropTypes from "prop-types";
 
 export default function BookingPage({ params }) {
@@ -102,7 +103,7 @@ export default function BookingPage({ params }) {
       setStep(4);
       toast.success("Booked successfully!");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Booking failed");
     } finally {
       setSubmitting(false);
     }

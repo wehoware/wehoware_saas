@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
@@ -103,7 +104,7 @@ export default function UsersPage() {
       setUsers(sorted);
     } catch (error) {
       console.error("Error fetching users:", error);
-      toast.error(error.message || "Failed to fetch users");
+      toastError(error, "Failed to fetch users");
     } finally {
       setIsLoading(false);
     }
@@ -152,7 +153,7 @@ export default function UsersPage() {
       setUserToDelete(null);
     } catch (error) {
       console.error("Error deactivating user:", error);
-      toast.error(error.message || "Failed to deactivate user");
+      toastError(error, "Failed to deactivate user");
     } finally {
       setDeleteLoading(false);
     }
@@ -179,7 +180,7 @@ export default function UsersPage() {
       );
     } catch (error) {
       console.error("Error reactivating user:", error);
-      toast.error(error.message || "Failed to reactivate user");
+      toastError(error, "Failed to reactivate user");
     }
   };
 
@@ -227,7 +228,7 @@ export default function UsersPage() {
     : "Manage your team members and their access levels";
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
+    <div className="p-4">
       <AdminPageHeader
         title={pageTitle}
         description={pageDescription}

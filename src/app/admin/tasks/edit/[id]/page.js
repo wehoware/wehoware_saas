@@ -11,6 +11,7 @@ import SubtaskList from '@/components/tasks/SubtaskList'; // Use SubtaskList
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'react-hot-toast';
+import { toastError } from "@/lib/toast-error";
 import { useAuth } from "@/contexts/auth-context";
 import { ArrowLeft } from "lucide-react";
 
@@ -148,8 +149,9 @@ export default function EditTaskPage() {
       }
 
     } catch (err) {
-      setError(err.message);
-      toast.error(`Error: ${err.message}`);
+      console.error(err);
+      setError("Failed to load task data");
+      toast.error("Could not load task data.");
     } finally {
       setIsFetching(false);
     }
@@ -180,7 +182,7 @@ export default function EditTaskPage() {
         router.push('/admin/tasks');
         return 'Task updated successfully!';
       },
-      error: (err) => err.message || 'Failed to update task.',
+      error: (err) => { console.error(err); return 'Failed to update task.'; },
     });
 
     try {
@@ -218,14 +220,13 @@ export default function EditTaskPage() {
       
       toast.success('Comment added!');
     } catch (err) {
-      toast.error(err.message || 'Could not add comment.');
-      console.error('Failed to add comment:', err);
+      toastError(err, 'Could not add comment.');
     }
   };
 
   if (isFetching) {
     return (
-      <div className="container mx-auto py-6 px-4 md:px-6 space-y-6">
+      <div className="py-6 px-4 md:px-6 space-y-6">
         <Skeleton className="h-10 w-1/2" />
         <Card>
           <CardHeader>
@@ -245,7 +246,7 @@ export default function EditTaskPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto p-6 text-center">
+      <div className="p-6 text-center">
         <p className="text-red-500">{error}</p>
         <Link href="/admin/tasks" className="text-primary hover:underline mt-4 inline-block">
           &larr; Back to Tasks
@@ -256,7 +257,7 @@ export default function EditTaskPage() {
 
   if (!task) {
     return (
-      <div className="container mx-auto p-6 text-center">
+      <div className="p-6 text-center">
         <p>Task not found.</p>
         <Link href="/admin/tasks" className="text-primary hover:underline mt-4 inline-block">
           &larr; Back to Tasks
@@ -266,7 +267,7 @@ export default function EditTaskPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4 md:px-6 space-y-6">
+    <div className="py-6 px-4 md:px-6 space-y-6">
       <AdminPageHeader
         title={`Edit Task: ${task.title}`}
         description={`Update details for task ID: ${task.id}`}

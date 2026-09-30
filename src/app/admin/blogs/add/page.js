@@ -39,6 +39,7 @@ import AlertComponent from "@/components/ui/alert-component";
 import { useAuth } from "@/contexts/auth-context";
 import { uploadThumbnail } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SelectInput from "@/components/ui/select";
 
@@ -99,8 +100,8 @@ export default function AddBlogPage() {
       const json = await res.json();
       setCategories(json.data || []);
     } catch (error) {
-      toast.error(error.message || "Failed to fetch categories");
-      setErrorMessage(error.message || "Failed to fetch categories");
+      toastError(error, "Failed to fetch categories");
+      setErrorMessage("Failed to fetch categories");
       setErrorDialogOpen(true);
     }
   };
@@ -234,11 +235,11 @@ export default function AddBlogPage() {
           toast.success("Thumbnail uploaded!", { id: "thumbnail-upload" });
         } catch (uploadError) {
           console.error("Thumbnail upload error:", uploadError);
-          toast.error(`Thumbnail upload failed: ${uploadError.message}`, {
+          toast.error("Thumbnail upload failed.", {
             id: "thumbnail-upload",
           });
           setErrorMessage(
-            `Failed to upload thumbnail: ${uploadError.message}. Please try again.`
+            "Failed to upload thumbnail. Please try again."
           );
           setErrorDialogOpen(true);
           setIsUploading(false);

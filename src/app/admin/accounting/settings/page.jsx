@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -138,7 +139,7 @@ export default function AccountingSettingsPage() {
         setSettings(normalized);
         setOriginal(normalized);
       } catch (err) {
-        toast.error(err.message);
+        toastError(err, "Failed to load settings");
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -206,7 +207,7 @@ export default function AccountingSettingsPage() {
       setOriginal(normalized);
       toast.success("Settings saved");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to save settings");
     } finally {
       setIsSaving(false);
     }

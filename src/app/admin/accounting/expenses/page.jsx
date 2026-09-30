@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -156,8 +157,7 @@ export default function ExpensesPage() {
       const json = await res.json();
       setExpenses(json.data || []);
     } catch (err) {
-      console.error(err);
-      toast.error(err.message);
+      toastError(err, "Failed to fetch expenses");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -217,7 +217,7 @@ export default function ExpensesPage() {
         await fetchExpenses();
       }
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to submit expense");
     } finally {
       setIsSaving(false);
     }
@@ -259,7 +259,7 @@ export default function ExpensesPage() {
       setPendingAction(null);
       await fetchExpenses();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Action failed");
     } finally {
       setActionLoading(false);
     }
@@ -284,7 +284,7 @@ export default function ExpensesPage() {
       setExpenses((prev) => prev.filter((e) => e.id !== expenseToDelete.id));
       toast.success("Expense deleted");
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete expense");
     } finally {
       setIsDeleting(false);
       setDeleteOpen(false);

@@ -43,6 +43,7 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 import slugify from "slugify";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import SelectInput from "@/components/ui/select";
 
 const ITEM_TYPE_OPTIONS = [
@@ -279,7 +280,7 @@ export default function EditInventoryPage({ params }) {
       } catch (error) {
         console.error("Error fetching inventory item:", error);
         setErrorDialogOpen(true);
-        setErrorMessage(error.message || "Failed to fetch item");
+        setErrorMessage("Failed to fetch item");
         setTimeout(() => router.push("/admin/inventory"), 100);
       } finally {
         setIsFetching(false);
@@ -322,7 +323,7 @@ export default function EditInventoryPage({ params }) {
         setStockMovements(json.movements || []);
       } catch (err) {
         console.error("Error fetching stock movements:", err);
-        toast.error(err.message || "Failed to fetch stock movements");
+        toastError(err, "Failed to fetch stock movements");
       } finally {
         setMovementsLoading(false);
       }
@@ -487,7 +488,7 @@ export default function EditInventoryPage({ params }) {
       setImages((prev) =>
         prev.map((img, i) => (i === index ? { ...img, uploading: false } : img))
       );
-      toast.error(err.message || "Failed to upload image");
+      toastError(err, "Failed to upload image");
     }
   };
 
@@ -602,7 +603,7 @@ export default function EditInventoryPage({ params }) {
     } catch (error) {
       toast.dismiss();
       console.error("Error during item update:", error);
-      setErrorMessage(error.message || "Failed to update item");
+      setErrorMessage("Failed to update item");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -636,7 +637,7 @@ export default function EditInventoryPage({ params }) {
       setMovementForm({ movement_type: "restock", quantity: "1", reason: "" });
       toast.success("Stock movement recorded");
     } catch (err) {
-      toast.error(err.message || "Failed to record stock movement");
+      toastError(err, "Failed to record stock movement");
     } finally {
       setSavingMovement(false);
     }

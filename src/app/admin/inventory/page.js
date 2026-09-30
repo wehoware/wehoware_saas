@@ -172,7 +172,7 @@ export default function InventoryPage() {
       setSelectedIds([]);
     } catch (error) {
       console.error("Error fetching inventory items:", error);
-      setErrorMessage(error.message || "Failed to fetch inventory items");
+      setErrorMessage("Failed to fetch inventory items");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -264,7 +264,7 @@ export default function InventoryPage() {
       fetchItems(page);
     } catch (error) {
       console.error("Error deleting item:", error);
-      setErrorMessage(error.message || "Failed to delete item");
+      setErrorMessage("Failed to delete item");
       setErrorDialogOpen(true);
     } finally {
       setDeleteDialogOpen(false);
@@ -282,7 +282,7 @@ export default function InventoryPage() {
       router.push(`/admin/inventory/edit/${json.item.id}`);
     } catch (error) {
       console.error("Error cloning item:", error);
-      setErrorMessage(error.message || "Failed to clone item");
+      setErrorMessage("Failed to clone item");
       setErrorDialogOpen(true);
     } finally {
       setCloneLoading(null);
@@ -329,7 +329,7 @@ export default function InventoryPage() {
       fetchItems(page);
     } catch (error) {
       console.error("Bulk action error:", error);
-      setErrorMessage(error.message || "Bulk action failed");
+      setErrorMessage("Bulk action failed");
       setErrorDialogOpen(true);
     } finally {
       setBulkLoading(false);
@@ -353,7 +353,7 @@ export default function InventoryPage() {
       fetchItems(page);
     } catch (error) {
       console.error("Bulk delete error:", error);
-      setErrorMessage(error.message || "Bulk delete failed");
+      setErrorMessage("Bulk delete failed");
       setErrorDialogOpen(true);
     } finally {
       setBulkLoading(false);
@@ -413,7 +413,7 @@ export default function InventoryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <div className="p-4 border border-border/40 rounded-lg hover:shadow-sm transition-shadow">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-muted-foreground">Total Items</span>
@@ -480,14 +480,14 @@ export default function InventoryPage() {
                     onSubmit={handleSearch}
                     className="flex items-center space-x-2"
                   >
-                    <div className="relative">
+                    <div className="relative w-full sm:w-[250px]">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                       <Input
                         type="text"
                         placeholder="Search items..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-[250px] pl-8"
+                        className="w-full pl-8"
                       />
                     </div>
                     <Button
@@ -512,7 +512,7 @@ export default function InventoryPage() {
                   </form>
                 </div>
                 <div className="flex gap-3 items-center flex-wrap">
-                  <div className="w-[140px]">
+                  <div className="w-full sm:w-[140px]">
                     <SelectInput
                       placeholder="All Types"
                       value={selectedType}
@@ -520,7 +520,7 @@ export default function InventoryPage() {
                       options={ITEM_TYPE_OPTIONS}
                     />
                   </div>
-                  <div className="w-[150px]">
+                  <div className="w-full sm:w-[150px]">
                     <SelectInput
                       placeholder="All Statuses"
                       value={selectedStatus}
@@ -528,7 +528,7 @@ export default function InventoryPage() {
                       options={STATUS_OPTIONS}
                     />
                   </div>
-                  <div className="w-[180px]">
+                  <div className="w-full sm:w-[180px]">
                     <SelectInput
                       placeholder="All Categories"
                       value={selectedCategoryId}

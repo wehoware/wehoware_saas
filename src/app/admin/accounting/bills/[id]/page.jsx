@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -96,7 +97,7 @@ export default function BillViewPage() {
         amount: Number(data.amount_due) || 0,
       }));
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to load bill");
     } finally {
       setIsLoading(false);
     }
@@ -126,7 +127,7 @@ export default function BillViewPage() {
       setPaymentOpen(false);
       await loadBill();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to record payment");
     } finally {
       setIsRecording(false);
     }

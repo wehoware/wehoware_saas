@@ -112,7 +112,7 @@ export default function ServicesPage() {
       setSelectedIds([]);
     } catch (error) {
       console.error("Error fetching services:", error);
-      setErrorMessage(error.message || "Failed to fetch services");
+      setErrorMessage("Failed to fetch services");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -194,7 +194,7 @@ export default function ServicesPage() {
       fetchServices(page);
     } catch (error) {
       console.error("Error deleting service:", error);
-      setErrorMessage(error.message || "Failed to delete service");
+      setErrorMessage("Failed to delete service");
       setErrorDialogOpen(true);
     } finally {
       setDeleteDialogOpen(false);
@@ -212,7 +212,7 @@ export default function ServicesPage() {
       router.push(`/admin/services/edit/${json.service.id}`);
     } catch (error) {
       console.error("Error cloning service:", error);
-      setErrorMessage(error.message || "Failed to clone service");
+      setErrorMessage("Failed to clone service");
       setErrorDialogOpen(true);
     } finally {
       setCloneLoading(null);
@@ -259,7 +259,7 @@ export default function ServicesPage() {
       fetchServices(page);
     } catch (error) {
       console.error("Bulk action error:", error);
-      setErrorMessage(error.message || "Bulk action failed");
+      setErrorMessage("Bulk action failed");
       setErrorDialogOpen(true);
     } finally {
       setBulkLoading(false);
@@ -283,7 +283,7 @@ export default function ServicesPage() {
       fetchServices(page);
     } catch (error) {
       console.error("Bulk delete error:", error);
-      setErrorMessage(error.message || "Bulk delete failed");
+      setErrorMessage("Bulk delete failed");
       setErrorDialogOpen(true);
     } finally {
       setBulkLoading(false);

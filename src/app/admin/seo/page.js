@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Globe, CheckCircle2, PlusCircle, Loader2 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { useAuth } from "@/contexts/auth-context";
@@ -61,7 +62,7 @@ export default function SEOPage() {
 
     } catch (error) {
       console.error('Error fetching SEO data:', error);
-      toast.error("Failed to load SEO settings. " + error.message);
+      toastError(error, "Failed to load SEO settings.");
     } finally {
       setIsLoading(false);
     }
@@ -105,7 +106,7 @@ export default function SEOPage() {
       toast.success("Global SEO settings saved successfully!");
     } catch (error) {
       console.error('Error saving global settings:', error);
-      toast.error("Failed to save global settings. " + error.message);
+      toastError(error, "Failed to save global settings.");
     } finally {
       setIsSavingGlobal(false);
     }
@@ -155,7 +156,7 @@ export default function SEOPage() {
       fetchSettings();
     } catch (error) {
       console.error('Error saving static page:', error);
-      toast.error(`Failed to ${isNewPage ? 'add' : 'update'} static page. ${error.message}`);
+      toastError(error, `Failed to ${isNewPage ? 'add' : 'update'} static page.`);
     } finally {
       setIsSavingStaticPage(false);
     }
@@ -180,7 +181,7 @@ export default function SEOPage() {
       fetchSettings();
     } catch (error) {
       console.error('Error deleting static page:', error);
-      toast.error(`Failed to delete static page. ${error.message}`);
+      toastError(error, "Failed to delete static page.");
     } finally {
       setIsSavingStaticPage(false);
       setIsDeleteDialogOpen(false);

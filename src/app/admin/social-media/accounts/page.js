@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Share2, Plus, RefreshCw, Trash2, AlertCircle, CheckCircle, Pause, Wifi } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,7 +49,10 @@ export default function SocialAccountsPage() {
         : `${platform || "Account"} connected successfully!`;
       toast.success(msg);
     }
-    if (error) toast.error(`Connection failed: ${decodeURIComponent(error)}`);
+    if (error) {
+      console.error("[oauth] connection failed:", decodeURIComponent(error));
+      toast.error("Connection failed. Please try again.");
+    }
     if (success || error) window.history.replaceState({}, "", window.location.pathname);
   }, []);
 
@@ -91,10 +95,10 @@ export default function SocialAccountsPage() {
       if (!popup) {
         // Popup was blocked — fall back to redirecting the current page
         toast.error("Popup blocked. Please allow popups for this site, or you'll be redirected.");
-        window.location.href = data.authUrl;
+        window.location.assign(data.authUrl);
       }
     } catch (err) {
-      toast.error(err.message || "Failed to connect platform");
+      toastError(err, "Failed to connect platform");
     } finally {
       setConnecting(null);
     }

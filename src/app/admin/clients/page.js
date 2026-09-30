@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 import {
   Plus,
@@ -61,7 +62,7 @@ export default function ClientsPage() {
       setClients(json.clients || []);
     } catch (error) {
       console.error("Error fetching clients:", error);
-      toast.error(error.message || "Failed to fetch clients");
+      toastError(error, "Failed to fetch clients");
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +116,7 @@ export default function ClientsPage() {
       setClientToDelete(null);
     } catch (error) {
       console.error("Error deleting client:", error);
-      toast.error(error.message || "Failed to delete client");
+      toastError(error, "Failed to delete client");
     } finally {
       setDeleteLoading(false);
     }

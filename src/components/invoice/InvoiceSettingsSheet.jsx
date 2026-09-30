@@ -14,6 +14,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Loader2, UploadCloud, Trash2 } from "lucide-react";
 import {
   Sheet,
@@ -101,7 +102,7 @@ export default function InvoiceSettingsSheet({ open, onOpenChange, onSaved }) {
           });
         }
       } catch (err) {
-        if (!cancelled) toast.error(err.message || "Failed to load settings");
+        if (!cancelled) toastError(err, "Failed to load settings");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -131,7 +132,7 @@ export default function InvoiceSettingsSheet({ open, onOpenChange, onSaved }) {
       update("logo_url", url);
       toast.success("Logo uploaded");
     } catch (err) {
-      toast.error(err.message || "Logo upload failed");
+      toastError(err, "Logo upload failed");
     } finally {
       setUploading(false);
     }
@@ -195,7 +196,7 @@ export default function InvoiceSettingsSheet({ open, onOpenChange, onSaved }) {
       onSaved?.(updated);
       onOpenChange(false);
     } catch (err) {
-      toast.error(err.message || "Failed to save settings");
+      toastError(err, "Failed to save settings");
     } finally {
       setSaving(false);
     }

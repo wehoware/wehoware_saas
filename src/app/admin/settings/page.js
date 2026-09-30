@@ -7,6 +7,7 @@ import GeneralSettingsForm from "@/components/settings/GeneralSettingsForm";
 import ThemeSettingsForm from "@/components/settings/ThemeSettingsForm";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 // Define all expected setting keys grouped by their form/section
 const settingKeys = {
@@ -53,7 +54,7 @@ export default function SettingsPage() {
 
         } catch (error) {
             console.error('Error fetching settings:', error);
-            toast.error("Failed to load settings. " + error.message);
+            toastError(error, "Failed to load settings.");
         } finally {
             setIsLoading(false);
         }
@@ -111,7 +112,7 @@ export default function SettingsPage() {
             // fetchSettings(); 
         } catch (error) {
             console.error(`Error saving ${group} settings:`, error);
-            toast.error(`Failed to save ${group} settings. ${error.message}`);
+            toastError(error, `Failed to save ${group} settings.`);
         } finally {
             savingSetter(false);
         }

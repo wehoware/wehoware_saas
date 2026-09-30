@@ -47,6 +47,7 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 import slugify from "slugify";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import SelectInput from "@/components/ui/select";
 
 async function resolveThumbnailUrl(thumbnailFile, formData, originalThumbnailUrl) {
@@ -207,7 +208,7 @@ export default function EditServicePage({ params }) {
       } catch (error) {
         console.error("Error fetching service:", error);
         setErrorDialogOpen(true);
-        setErrorMessage(error.message || "Failed to fetch service");
+        setErrorMessage("Failed to fetch service");
         setTimeout(() => router.push("/admin/services"), 100);
       } finally {
         setIsFetching(false);
@@ -230,7 +231,7 @@ export default function EditServicePage({ params }) {
         setCategories(json.data || []);
       } catch (error) {
         console.error("Error fetching categories:", error);
-        setErrorMessage(error.message || "Failed to fetch service categories");
+        setErrorMessage("Failed to fetch service categories");
         setErrorDialogOpen(true);
       }
     };
@@ -288,7 +289,7 @@ export default function EditServicePage({ params }) {
         setFaqs(json.faqs || []);
       } catch (err) {
         console.error("Error fetching FAQs:", err);
-        toast.error(err.message || "Failed to fetch FAQs");
+        toastError(err, "Failed to fetch FAQs");
       } finally {
         setFaqsLoading(false);
       }
@@ -444,7 +445,7 @@ export default function EditServicePage({ params }) {
     } catch (error) {
       toast.dismiss();
       console.error("Error during service update process:", error);
-      setErrorMessage(error.message || "Failed to update service");
+      setErrorMessage("Failed to update service");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -465,7 +466,7 @@ export default function EditServicePage({ params }) {
       setVersions((prev) => [json.version, ...prev].filter(Boolean));
       toast.success("Version saved!");
     } catch (err) {
-      toast.error(err.message || "Failed to save version");
+      toastError(err, "Failed to save version");
     } finally {
       setSavingVersion(false);
     }
@@ -480,7 +481,7 @@ export default function EditServicePage({ params }) {
       const json = await res.json();
       setBlogSearchResults(json.blogs || json.data || []);
     } catch (err) {
-      toast.error(err.message || "Blog search failed");
+      toastError(err, "Blog search failed");
     } finally {
       setBlogSearching(false);
     }
@@ -500,7 +501,7 @@ export default function EditServicePage({ params }) {
       setBlogSearchResults((prev) => prev.filter((b) => b.id !== blogId));
       toast.success("Blog linked!");
     } catch (err) {
-      toast.error(err.message || "Failed to link blog");
+      toastError(err, "Failed to link blog");
     } finally {
       setLinkingBlog(false);
     }
@@ -517,7 +518,7 @@ export default function EditServicePage({ params }) {
       setRelatedBlogs((prev) => prev.filter((b) => b.id !== blogId));
       toast.success("Blog unlinked!");
     } catch (err) {
-      toast.error(err.message || "Failed to unlink blog");
+      toastError(err, "Failed to unlink blog");
     }
   };
 
@@ -584,7 +585,7 @@ export default function EditServicePage({ params }) {
         toast.success("FAQ updated");
       }
     } catch (err) {
-      toast.error(err.message || "Failed to save FAQ");
+      toastError(err, "Failed to save FAQ");
     } finally {
       setSavingFaqId(null);
     }
@@ -605,7 +606,7 @@ export default function EditServicePage({ params }) {
       setFaqs((prev) => prev.filter((_, i) => i !== index));
       toast.success("FAQ deleted");
     } catch (err) {
-      toast.error(err.message || "Failed to delete FAQ");
+      toastError(err, "Failed to delete FAQ");
     } finally {
       setDeletingFaqId(null);
     }

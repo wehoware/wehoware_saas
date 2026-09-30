@@ -189,7 +189,7 @@ export default function AddFormTemplate() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Create New Form Template</h1>
 
       <form onSubmit={saveFormTemplate} className="space-y-8">

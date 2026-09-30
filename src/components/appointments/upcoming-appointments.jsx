@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { format, parseISO, isToday, isTomorrow, isFuture } from "date-fns";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   CalendarClock, Clock, User, Video, MapPin, MoreHorizontal,
   Calendar, Check, X, Phone, Loader2,
@@ -92,7 +93,7 @@ export function UpcomingAppointments({ refreshKey }) {
       );
       toast.success("Appointment confirmed");
     } catch (err) {
-      toast.error(err.message || "Failed to confirm appointment");
+      toastError(err, "Failed to confirm appointment");
     }
   };
 
@@ -121,7 +122,7 @@ export function UpcomingAppointments({ refreshKey }) {
         setSelectedAppointment(null);
       }
     } catch (err) {
-      toast.error(err.message || "Failed to cancel appointment");
+      toastError(err, "Failed to cancel appointment");
     } finally {
       setCancelLoading(false);
       setCancelDialogOpen(false);
@@ -163,7 +164,7 @@ export function UpcomingAppointments({ refreshKey }) {
       setRescheduleDialogOpen(false);
       toast.success("Appointment rescheduled");
     } catch (err) {
-      toast.error(err.message || "Failed to reschedule");
+      toastError(err, "Failed to reschedule");
     } finally {
       setRescheduleLoading(false);
     }

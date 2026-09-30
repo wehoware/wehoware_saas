@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -32,7 +33,7 @@ export default function ForgotPasswordPage() {
         setSent(true);
         toast.success("If an account exists, a reset link has been sent.");
       } else {
-        toast.error(data.error || "Failed to send reset link.");
+        toastError(data.error, "Failed to send reset link.");
       }
     } catch (e) {
       console.error("Forgot password error:", e);

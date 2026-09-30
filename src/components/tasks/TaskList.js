@@ -169,6 +169,106 @@ const TaskList = ({
     return () => observer.disconnect();
   }, [onLoadMore, hasMore, isLoadingMore, isLoading]);
 
+  const renderTaskActions = (task) => {
+    if (!task._permissions?.canEdit && !task._permissions?.canDelete) return null;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {task._permissions?.canEdit && (
+            <DropdownMenuItem
+              onClick={() => router.push(`/admin/tasks/edit/${task.id}`)}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+          )}
+          {task._permissions?.canEdit && task._permissions?.canDelete && (
+            <DropdownMenuSeparator />
+          )}
+          {task._permissions?.canDelete && (
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => onTaskDelete(task.id)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
+  const renderStatusControl = (task) =>
+    task._permissions?.canUpdateStatus ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
+            <StatusBadge status={task.status} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuRadioGroup
+            value={task.status}
+            onValueChange={(status) => onUpdateTask(task.id, { status })}
+          >
+            <DropdownMenuRadioItem value="To Do">To Do</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="In Progress">In Progress</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="On Hold">On Hold</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="Done">Done</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : (
+      <StatusBadge status={task.status} />
+    );
+
+  const renderPriorityControl = (task) =>
+    task._permissions?.canEdit ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
+            <PriorityBadge priority={task.priority} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuRadioGroup
+            value={task.priority}
+            onValueChange={(priority) => onUpdateTask(task.id, { priority })}
+          >
+            <DropdownMenuRadioItem value="Low">Low</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="Medium">Medium</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="High">High</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : (
+      <PriorityBadge priority={task.priority} />
+    );
+
+  const getTaskMeta = (task) => {
+    let dueDate = null;
+    if (task.dueDate) {
+      try {
+        let dateStr = task.dueDate;
+        if (!task.dueDate.includes("T")) dateStr = task.dueDate + "T00:00:00";
+        dueDate = new Date(dateStr);
+        if (isNaN(dueDate.getTime())) dueDate = null;
+      } catch (e) {
+        dueDate = null;
+      }
+    }
+    const todayUTC = new Date();
+    todayUTC.setUTCHours(0, 0, 0, 0);
+    const isOverdue = dueDate && dueDate < todayUTC && task.status !== "Done";
+    return { isOverdue, assignee: task.assignee };
+  };
+
   if (isLoading) {
     return (
       <div className="border rounded-lg">
@@ -225,7 +325,65 @@ const TaskList = ({
   return (
     <TooltipProvider delayDuration={100}>
       <>
-        <div className="border rounded-lg overflow-x-auto scrollbar-thin">
+        {/* Mobile: card list */}
+        <div className="md:hidden space-y-3">
+          {tasks.map((task) => {
+            const { isOverdue, assignee } = getTaskMeta(task);
+            return (
+              <div
+                key={task.id}
+                onClick={() => router.push(`/admin/tasks/edit/${task.id}`)}
+                className="border rounded-lg p-3 space-y-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {isOverdue && (
+                      <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                    )}
+                    <span className="font-medium text-sm" title={task.title}>
+                      {task.title}
+                    </span>
+                  </div>
+                  <span onClick={stopPropagation}>{renderTaskActions(task)}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground min-w-0">
+                  <span className="truncate" title={task.client?.company_name || ""}>
+                    {task.client?.company_name || "N/A"}
+                  </span>
+                  <span className={cn("shrink-0", isOverdue && "text-destructive font-medium")}>
+                    {formatDate(task.dueDate)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2" onClick={stopPropagation}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {assignee ? (
+                      <>
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarImage src={assignee.avatar_url} alt={assignee.first_name} />
+                          <AvatarFallback className="text-[9px]">
+                            {getInitials(assignee.first_name, assignee.last_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs truncate">
+                          {`${assignee.first_name || ""} ${assignee.last_name || ""}`.trim()}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {renderStatusControl(task)}
+                    {renderPriorityControl(task)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop: table */}
+        <div className="hidden md:block border rounded-lg overflow-x-auto scrollbar-thin">
           <Table className="table-fixed">
             <TableHeader>
               <TableRow className="bg-muted/30">
@@ -285,25 +443,7 @@ const TaskList = ({
             </TableHeader>
             <TableBody>
               {tasks.map((task) => {
-                let dueDate = null;
-                if (task.dueDate) {
-                  try {
-                    let dateStr = task.dueDate;
-                    if (!task.dueDate.includes('T')) {
-                      dateStr = task.dueDate + 'T00:00:00';
-                    }
-                    dueDate = new Date(dateStr);
-                    if (isNaN(dueDate.getTime())) {
-                      dueDate = null;
-                    }
-                  } catch (e) {
-                    dueDate = null;
-                  }
-                }
-                const todayUTC = new Date();
-                todayUTC.setUTCHours(0, 0, 0, 0);
-                const isOverdue = dueDate && dueDate < todayUTC && task.status !== "Done";
-                const assignee = task.assignee;
+                const { isOverdue, assignee } = getTaskMeta(task);
 
                 return (
                   <TableRow
@@ -374,107 +514,16 @@ const TaskList = ({
                       </span>
                     </TableCell>
                     <TableCell onClick={stopPropagation} className="whitespace-nowrap">
-                      {task._permissions?.canUpdateStatus ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
-                              <StatusBadge status={task.status} />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuRadioGroup
-                              value={task.status}
-                              onValueChange={(status) =>
-                                onUpdateTask(task.id, { status })
-                              }
-                            >
-                              <DropdownMenuRadioItem value="To Do">
-                                To Do
-                              </DropdownMenuRadioItem>
-                              <DropdownMenuRadioItem value="In Progress">
-                                In Progress
-                              </DropdownMenuRadioItem>
-                              <DropdownMenuRadioItem value="On Hold">
-                                On Hold
-                              </DropdownMenuRadioItem>
-                              <DropdownMenuRadioItem value="Done">
-                                Done
-                              </DropdownMenuRadioItem>
-                            </DropdownMenuRadioGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <StatusBadge status={task.status} />
-                      )}
+                      {renderStatusControl(task)}
                     </TableCell>
                     <TableCell onClick={stopPropagation} className="whitespace-nowrap">
-                      {task._permissions?.canEdit ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80">
-                              <PriorityBadge priority={task.priority} />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuRadioGroup
-                              value={task.priority}
-                              onValueChange={(priority) =>
-                                onUpdateTask(task.id, { priority })
-                              }
-                            >
-                              <DropdownMenuRadioItem value="Low">
-                                Low
-                              </DropdownMenuRadioItem>
-                              <DropdownMenuRadioItem value="Medium">
-                                Medium
-                              </DropdownMenuRadioItem>
-                              <DropdownMenuRadioItem value="High">
-                                High
-                              </DropdownMenuRadioItem>
-                            </DropdownMenuRadioGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <PriorityBadge priority={task.priority} />
-                      )}
+                      {renderPriorityControl(task)}
                     </TableCell>
                     <TableCell
                       className="text-right"
                       onClick={stopPropagation}
                     >
-                      {(task._permissions?.canEdit || task._permissions?.canDelete) && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {task._permissions?.canEdit && (
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  router.push(`/admin/tasks/edit/${task.id}`)
-                                }
-                              >
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                            )}
-                            {task._permissions?.canEdit && task._permissions?.canDelete && (
-                              <DropdownMenuSeparator />
-                            )}
-                            {task._permissions?.canDelete && (
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => onTaskDelete(task.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                      {renderTaskActions(task)}
                     </TableCell>
                   </TableRow>
                 );

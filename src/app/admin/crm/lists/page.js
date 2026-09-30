@@ -32,6 +32,7 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const EMPTY_FORM = {
   name: "",
@@ -61,7 +62,7 @@ export default function ListsPage() {
       const { data } = await res.json();
       setLists(data || []);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch lists");
     } finally {
       setIsLoading(false);
     }
@@ -121,7 +122,7 @@ export default function ListsPage() {
       setEditingList(null);
       fetchLists();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to save list");
     } finally {
       setSaving(false);
     }
@@ -140,7 +141,7 @@ export default function ListsPage() {
       setListToDelete(null);
       fetchLists();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete list");
     } finally {
       setDeleteLoading(false);
     }

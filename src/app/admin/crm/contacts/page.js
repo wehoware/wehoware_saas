@@ -28,6 +28,7 @@ import ConfirmDialog from "@/components/ui/confirm-dialog";
 import ContactForm from "@/components/crm/ContactForm";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const STATUS_COLORS = {
   New: "bg-blue-100 text-blue-800",
@@ -77,7 +78,7 @@ export default function ContactsPage() {
       setTotalPages(pagination?.totalPages || 1);
       setTotalItems(pagination?.totalItems || 0);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch contacts");
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +139,7 @@ export default function ContactsPage() {
       setContactToDelete(null);
       fetchContacts();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete contact");
     } finally {
       setDeleteLoading(false);
     }
@@ -156,7 +157,7 @@ export default function ContactsPage() {
       toast.success("Contact converted to customer");
       fetchContacts();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to convert contact");
     }
   };
 

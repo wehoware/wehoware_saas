@@ -44,6 +44,7 @@ import AlertComponent from "@/components/ui/alert-component";
 import { useAuth } from "@/contexts/auth-context";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import SelectInput from "@/components/ui/select";
 
 export default function EditBlogPage() {
@@ -229,7 +230,7 @@ export default function EditBlogPage() {
         await fetchCategories();
       } catch (error) {
         console.error("Error fetching data:", error);
-        setErrorMessage(error.message || "Failed to fetch data");
+        setErrorMessage("Failed to fetch data");
         setErrorDialogOpen(true);
       } finally {
         setIsFetching(false);
@@ -257,7 +258,7 @@ export default function EditBlogPage() {
         setFaqs(json.faqs || []);
       } catch (err) {
         console.error("Error fetching FAQs:", err);
-        toast.error(err.message || "Failed to fetch FAQs");
+        toastError(err, "Failed to fetch FAQs");
       } finally {
         setFaqsLoading(false);
       }
@@ -350,7 +351,7 @@ export default function EditBlogPage() {
       toast.success("Version saved!");
       await fetchVersions();
     } catch (error) {
-      toast.error(error.message || "Failed to save version");
+      toastError(error, "Failed to save version");
     } finally {
       setIsSavingVersion(false);
     }
@@ -390,7 +391,7 @@ export default function EditBlogPage() {
       setServiceResults([]);
       await fetchRelatedServices();
     } catch (error) {
-      toast.error(error.message || "Failed to link service");
+      toastError(error, "Failed to link service");
     } finally {
       setIsLinking(false);
     }
@@ -408,7 +409,7 @@ export default function EditBlogPage() {
       toast.success("Service unlinked!");
       await fetchRelatedServices();
     } catch (error) {
-      toast.error(error.message || "Failed to unlink service");
+      toastError(error, "Failed to unlink service");
     }
   };
 
@@ -475,7 +476,7 @@ export default function EditBlogPage() {
         toast.success("FAQ updated");
       }
     } catch (err) {
-      toast.error(err.message || "Failed to save FAQ");
+      toastError(err, "Failed to save FAQ");
     } finally {
       setSavingFaqId(null);
     }
@@ -496,7 +497,7 @@ export default function EditBlogPage() {
       setFaqs((prev) => prev.filter((_, i) => i !== index));
       toast.success("FAQ deleted");
     } catch (err) {
-      toast.error(err.message || "Failed to delete FAQ");
+      toastError(err, "Failed to delete FAQ");
     } finally {
       setDeletingFaqId(null);
     }
@@ -557,12 +558,10 @@ export default function EditBlogPage() {
           }
         } catch (uploadError) {
           console.error("Thumbnail upload error:", uploadError);
-          toast.error(`Thumbnail upload failed: ${uploadError.message}`, {
+          toast.error("Thumbnail upload failed.", {
             id: "thumb-upload",
           });
-          throw new Error(
-            `Failed to upload thumbnail: ${uploadError.message}.`
-          );
+          throw new Error("Failed to upload thumbnail.");
         }
         setIsUploading(false);
       } else if (!previewUrl && originalThumbnailUrl) {
@@ -635,7 +634,7 @@ export default function EditBlogPage() {
         } catch (deleteError) {
           console.error("Failed to delete old thumbnail:", deleteError);
           toast.error(
-            `Failed to remove old thumbnail: ${deleteError.message}`,
+            "Failed to remove old thumbnail.",
             { id: "thumb-delete" }
           );
         }

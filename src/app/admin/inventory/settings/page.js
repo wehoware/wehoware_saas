@@ -124,7 +124,7 @@ export default function InventorySettingsPage() {
         });
       } catch (error) {
         console.error("Error fetching inventory settings:", error);
-        setErrorMessage(error.message || "Failed to fetch settings");
+        setErrorMessage("Failed to fetch settings");
         setErrorDialogOpen(true);
       } finally {
         setIsFetching(false);
@@ -184,7 +184,7 @@ export default function InventorySettingsPage() {
       setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Error saving inventory settings:", error);
-      setErrorMessage(error.message || "Failed to save settings");
+      setErrorMessage("Failed to save settings");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);

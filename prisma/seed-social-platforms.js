@@ -10,7 +10,7 @@ const SOCIAL_PLATFORMS = [
     oauthConfig: {
       authUrl: "https://www.facebook.com/v18.0/dialog/oauth",
       tokenUrl: "https://graph.facebook.com/v18.0/oauth/access_token",
-      scopes: ["pages_read_engagement", "pages_manage_posts", "pages_show_list", "public_profile"],
+      scopes: ["pages_read_engagement", "pages_manage_posts", "pages_show_list", "pages_messaging", "public_profile"],
       pkce: false,
     },
     rateLimits: {

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { useAuth } from "@/contexts/auth-context";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
@@ -62,7 +63,7 @@ export default function TeamPage() {
       } catch (error) {
         if (!cancelled) {
           console.error("Error fetching team:", error);
-          toast.error(error.message || "Failed to fetch team");
+          toastError(error, "Failed to fetch team");
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -99,7 +100,7 @@ export default function TeamPage() {
       setInviteRole("viewer");
     } catch (error) {
       console.error("Invite error:", error);
-      toast.error(error.message || "Failed to send invitation");
+      toastError(error, "Failed to send invitation");
     } finally {
       setInviteSubmitting(false);
     }
@@ -124,7 +125,7 @@ export default function TeamPage() {
       setMemberToDelete(null);
     } catch (error) {
       console.error("Remove error:", error);
-      toast.error(error.message || "Failed to remove member");
+      toastError(error, "Failed to remove member");
     } finally {
       setDeleteLoading(false);
     }
@@ -144,7 +145,7 @@ export default function TeamPage() {
       );
     } catch (error) {
       console.error("Role update error:", error);
-      toast.error(error.message || "Failed to update role");
+      toastError(error, "Failed to update role");
     }
   };
 
@@ -177,7 +178,7 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
+    <div className="p-4">
       <AdminPageHeader
         title="Team Management"
         description={`Manage team members for ${activeClient?.name || "your client"}`}

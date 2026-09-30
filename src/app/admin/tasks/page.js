@@ -14,6 +14,7 @@ import {
 import { Plus, ListChecks, CheckCircle2, Clock, Loader2, List, TrendingUp, PauseCircle } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +97,8 @@ export default function TasksPage() {
       setTasks(newTasks);
       setHasMore(newTasks.length < (data.total || 0));
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("Failed to fetch tasks");
       toast.error("Could not fetch tasks.");
     } finally {
       setIsLoading(false);
@@ -188,7 +190,7 @@ export default function TasksPage() {
         setStats(statsData);
       }
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to create task");
     }
   };
 
@@ -212,7 +214,7 @@ export default function TasksPage() {
         setStats(statsData);
       }
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to update task");
     }
   };
 
@@ -234,7 +236,7 @@ export default function TasksPage() {
         setStats(statsData);
       }
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete task");
     }
   };
 

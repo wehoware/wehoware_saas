@@ -232,7 +232,7 @@ export default function AddIntegrationPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <div className="flex items-center mb-6">
         <h1 className="text-2xl font-bold">Add New Integration</h1>
       </div>
@@ -245,7 +245,7 @@ export default function AddIntegrationPage() {
       ) : (
         <form
           onSubmit={saveIntegration}
-          className="bg-white rounded-lg shadow overflow-hidden max-w-3xl mx-auto"
+          className="bg-white rounded-lg shadow overflow-hidden"
         >
           <div className="p-6 space-y-6">
             <div>

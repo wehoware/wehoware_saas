@@ -51,7 +51,7 @@ export default function ClientKeywordsPage() {
       setSections(json.data?.sections || []);
     } catch (err) {
       console.error("Error fetching sections:", err);
-      setErrorMessage(err.message || "Failed to fetch sections");
+      setErrorMessage("Failed to fetch sections");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -84,7 +84,7 @@ export default function ClientKeywordsPage() {
       setSuccessDialogOpen(true);
     } catch (err) {
       console.error("Error saving sections:", err);
-      setErrorMessage(err.message || "Failed to save sections");
+      setErrorMessage("Failed to save sections");
       setErrorDialogOpen(true);
     } finally {
       setIsSubmitting(false);

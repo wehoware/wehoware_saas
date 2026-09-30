@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Loader2,
   Play,
@@ -74,7 +75,7 @@ export function SeoAnalyser() {
       setContentItems(json.data || []);
       setSelectedItemId("");
     } catch (error) {
-      toast.error("Failed to load content items. " + error.message);
+      toastError(error, "Failed to load content items.");
     }
   }, [activeClient?.id]);
 
@@ -90,7 +91,7 @@ export function SeoAnalyser() {
       const json = await res.json();
       setRuns(json.data || []);
     } catch (error) {
-      toast.error("Failed to load analysis runs. " + error.message);
+      toastError(error, "Failed to load analysis runs.");
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +121,7 @@ export function SeoAnalyser() {
 
       if (res.status === 409) {
         const json = await res.json().catch(() => ({}));
-        toast.error(json.error || "An analysis is already running for this item.");
+        toastError(json.error, "An analysis is already running for this item.");
         setIsRunning(false);
         return;
       }
@@ -175,7 +176,7 @@ export function SeoAnalyser() {
             pollIntervalRef.current = null;
             setPollingRunId(null);
             setIsRunning(false);
-            toast.error("Analysis failed. " + (run.errorMessage || "Unknown error"));
+            toastError(run.errorMessage, "Analysis failed.");
             fetchRuns();
           }
         } catch {
@@ -183,7 +184,7 @@ export function SeoAnalyser() {
         }
       }, 5000);
     } catch (error) {
-      toast.error("Analysis failed. " + error.message);
+      toastError(error, "Analysis failed.");
       setIsRunning(false);
       setPollingRunId(null);
     }
@@ -204,7 +205,7 @@ export function SeoAnalyser() {
         const json = await res.json();
         setRunDetails((prev) => ({ ...prev, [runId]: json.data }));
       } catch (error) {
-        toast.error("Failed to load run details. " + error.message);
+        toastError(error, "Failed to load run details.");
       }
     }
   };

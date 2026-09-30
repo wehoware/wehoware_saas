@@ -36,6 +36,7 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 import slugify from "slugify";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { uploadThumbnail, deleteThumbnailByUrl } from "@/lib/storageUtils";
 import SelectInput from "@/components/ui/select";
 
@@ -386,7 +387,7 @@ export default function AddInventoryPage() {
       setImages((prev) =>
         prev.map((img, i) => (i === index ? { ...img, uploading: false } : img))
       );
-      toast.error(err.message || "Failed to upload image");
+      toastError(err, "Failed to upload image");
     }
   };
 
@@ -520,8 +521,8 @@ export default function AddInventoryPage() {
       router.push("/admin/inventory");
     } catch (error) {
       console.error("Error in handleSubmit:", error);
-      setErrorMessage(error.message || "An unexpected error occurred.");
-      toast.error(error.message || "Failed to add inventory item.");
+      setErrorMessage("An unexpected error occurred.");
+      toastError(error, "Failed to add inventory item.");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);

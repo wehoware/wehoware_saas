@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -144,7 +145,7 @@ export default function AdminTransactionsPage() {
       setTransactions(json.data || []);
     } catch (error) {
       console.error("Error fetching transactions:", error);
-      toast.error(error.message || "Failed to fetch transactions");
+      toastError(error, "Failed to fetch transactions");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -199,7 +200,7 @@ export default function AdminTransactionsPage() {
       toast.success("Transaction deleted successfully");
     } catch (error) {
       console.error("Error deleting transaction:", error);
-      toast.error(error.message || "Failed to delete transaction");
+      toastError(error, "Failed to delete transaction");
     } finally {
       setDeleteDialogOpen(false);
       setTransactionToDelete(null);

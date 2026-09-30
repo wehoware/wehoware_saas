@@ -1,14 +1,13 @@
-feat: social media UI overhaul — delete accounts/posts, date pickers, analytics redesign
+feat: social inbox improvements + pages_messaging scope fix
 
-- Replace broken Wikimedia logo URLs with SimpleIcons CDN (Facebook, Instagram, Twitter/X, TikTok)
-- Account disconnect now permanently deletes record (cascade deletes accountPosts + inbox)
-- Overview page: limit to 3 recent posts/accounts, enhanced "View All" buttons
-- Create post page: wider layout, grouped account selectors, sticky action bar with status indicator
-- New DateTimePicker component with calendar popover + spinner time picker
-- Fix Calendar component for react-day-picker v9 class name changes
-- Unify DatePicker to use styled Calendar component
-- Analytics page: quick date presets, card grid for platform performance, consistent stat cards
-- Add delete buttons to posts list and post detail page with confirmation dialogs
+- Add pages_messaging to Facebook OAuth scopes (seed + live DB) so
+  /{page-id}/conversations works — fixes 403 inbox sync errors
+- Inbox API: unread=false filter, skip platform send for seeded demo
+  conversations
+- toastError helper applied across admin pages for safer error messages;
+  login only surfaces whitelisted messages
+- TaskList mobile card view with status/priority dropdowns
+- Post preview component for social posts
 
 Generated with [Devin](https://devin.ai)
 

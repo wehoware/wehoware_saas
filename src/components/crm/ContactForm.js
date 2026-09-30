@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import SelectInput from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 const CONTACT_TYPES = [
   { value: "Lead", label: "Lead" },
@@ -135,7 +136,7 @@ export default function ContactForm({ open, onOpenChange, contact = null, onSave
       onOpenChange(false);
       if (onSaved) onSaved(data);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to save contact");
     } finally {
       setSaving(false);
     }

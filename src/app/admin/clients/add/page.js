@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { useAuth } from "@/contexts/auth-context";
@@ -70,7 +71,7 @@ export default function AddClientPage() {
       router.push("/admin/clients");
     } catch (error) {
       console.error("Error adding client:", error);
-      toast.error(error.message || "Failed to add client");
+      toastError(error, "Failed to add client");
     } finally {
       setIsSubmitting(false);
     }
@@ -85,12 +86,12 @@ export default function AddClientPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
+    <div className="p-4">
       <AdminPageHeader
         title="Add New Client"
         description="Fill in the details to create a new client"
       />
-      <form onSubmit={handleAddClient} className="max-w-lg mx-auto space-y-4">
+      <form onSubmit={handleAddClient} className="space-y-4">
         <div>
           <label htmlFor="company_name" className="block mb-1">
             Company Name <span className="text-destructive">*</span>

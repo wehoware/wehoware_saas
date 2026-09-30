@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { useAuth } from "@/contexts/auth-context";
@@ -49,7 +50,7 @@ export default function EditClientPage() {
         setClient(json.client);
       } catch (error) {
         console.error("Error fetching client:", error);
-        toast.error(error.message || "Failed to fetch client");
+        toastError(error, "Failed to fetch client");
         router.push("/admin/clients");
       } finally {
         setIsLoading(false);
@@ -78,7 +79,7 @@ export default function EditClientPage() {
       router.push("/admin/clients");
     } catch (error) {
       console.error("Error updating client:", error);
-      toast.error(error.message || "Failed to update client");
+      toastError(error, "Failed to update client");
     } finally {
       setIsSubmitting(false);
     }
@@ -93,12 +94,12 @@ export default function EditClientPage() {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="p-4">
       <AdminPageHeader
         title="Edit Client"
         description="Update client details"
       />
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="company_name" className="block mb-1">
             Company Name<span className="text-destructive">*</span>

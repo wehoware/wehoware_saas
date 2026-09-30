@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { format } from "date-fns";
 
 function formatDate(d) {
@@ -117,7 +118,8 @@ export default function TimeTrackerPanel({ taskId, task, userRole }) {
       setShowForm(false);
       fetchData();
     } catch (err) {
-      setFormError(err.message);
+      console.error(err);
+      setFormError("Failed to log time");
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +135,7 @@ export default function TimeTrackerPanel({ taskId, task, userRole }) {
       toast.success("Time entry deleted");
       fetchData();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete time entry");
     }
   };
 

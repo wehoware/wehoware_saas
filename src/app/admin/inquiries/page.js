@@ -79,7 +79,7 @@ export default function InquiriesPage() {
       setInquiries(formattedData || []);
     } catch (error) {
       console.error("Error fetching inquiries:", error);
-      setErrorMessage(error.message || "Failed to fetch inquiries");
+      setErrorMessage("Failed to fetch inquiries");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);
@@ -155,7 +155,7 @@ export default function InquiriesPage() {
       setSuccessDialogOpen(true);
     } catch (error) {
       console.error("Error updating inquiry status:", error);
-      setErrorMessage(error.message || "Failed to update inquiry status");
+      setErrorMessage("Failed to update inquiry status");
       setErrorDialogOpen(true);
     } finally {
       setIsLoading(false);

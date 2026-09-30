@@ -238,7 +238,12 @@ export function AuthProvider({ children }) {
       return true;
     } catch (error) {
       console.error("Login error:", error);
-      toast.error(error.message || "Login failed");
+      // Only surface intentionally-safe messages thrown above; hide internals.
+      const safeMessages = [
+        "Invalid email or password",
+        "Failed to load user profile after login",
+      ];
+      toast.error(safeMessages.includes(error.message) ? error.message : "Login failed");
       return false;
     }
   };

@@ -140,7 +140,7 @@ export default function IntegrationsPage() {
   }, {});
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Integration Hub</h1>
         <Link
@@ -281,7 +281,7 @@ export default function IntegrationsPage() {
             Connect your website with popular services to enhance functionality
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
             {providers.slice(0, 6).map((provider) => (
               <Link
                 key={provider.id}

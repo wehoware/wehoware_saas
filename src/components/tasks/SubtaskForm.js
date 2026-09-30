@@ -38,7 +38,8 @@ export default function SubtaskForm({ taskId, onCreated, onCancel }) {
       setDescription("");
       onCreated?.(data);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("Failed to create sub-task");
     } finally {
       setIsSubmitting(false);
     }

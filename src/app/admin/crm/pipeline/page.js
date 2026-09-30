@@ -22,6 +22,7 @@ import AdminPageHeader from "@/components/AdminPageHeader";
 import DealForm from "@/components/crm/DealForm";
 import { useAuth } from "@/contexts/auth-context";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 
 function DealCard({ deal, onEdit }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -134,7 +135,7 @@ export default function PipelineBoardPage() {
         setSelectedPipeline(data[0]);
       }
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch pipelines");
     }
   }, [activeClient, selectedPipeline]);
 
@@ -148,7 +149,7 @@ export default function PipelineBoardPage() {
       const { data } = await res.json();
       setDeals(data || []);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to fetch deals");
     } finally {
       setIsLoading(false);
     }
@@ -198,7 +199,7 @@ export default function PipelineBoardPage() {
       toast.success("Deal moved");
       fetchDeals();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to move deal");
       fetchDeals();
     }
   };

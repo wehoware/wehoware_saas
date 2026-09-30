@@ -30,6 +30,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { useAuth } from "@/contexts/auth-context";
 import { format } from "date-fns";
 import {
@@ -258,7 +259,8 @@ function CreateGoalForm({ onCreated, onCancel, clients }) {
       toast.success("Goal created");
       onCreated?.(data);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("Failed to create goal");
     } finally {
       setSubmitting(false);
     }
@@ -417,7 +419,7 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
       toast.success("Goal updated");
       onUpdated?.();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to update goal");
     } finally {
       setUpdating(false);
     }
@@ -438,7 +440,7 @@ function GoalDetailSheet({ goal, open, onClose, onUpdated }) {
       toast.success("Key result updated");
       onUpdated?.();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to update key result");
     } finally {
       setUpdating(false);
     }
@@ -668,7 +670,7 @@ export default function GoalsPage() {
       toast.success("Goal deleted");
       fetchGoals();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to delete goal");
     }
   };
 

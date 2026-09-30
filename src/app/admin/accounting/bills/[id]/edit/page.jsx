@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import {
   Card,
   CardContent,
@@ -91,7 +92,7 @@ export default function EditBillPage() {
               : [{ ...EMPTY_LINE }],
         });
       } catch (err) {
-        toast.error(err.message);
+        toastError(err, "Failed to load bill");
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -153,7 +154,7 @@ export default function EditBillPage() {
       toast.success("Bill updated");
       router.push(`/admin/accounting/bills/${billId}`);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to update bill");
     } finally {
       setIsSaving(false);
     }

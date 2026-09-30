@@ -13,6 +13,7 @@ import SearchableSelect from "@/components/ui/searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, CalendarDays, Clock, FileText, ListTodo, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { toLocalISODate, formatDuration } from "@/lib/date-utils";
 
 function computeHours(start, end) {
@@ -130,7 +131,7 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
       await onSave(payload);
       router.push("/admin/daily-reports");
     } catch (err) {
-      toast.error(err.message || "Failed to save report");
+      toastError(err, "Failed to save report");
     } finally {
       setSaving(false);
     }

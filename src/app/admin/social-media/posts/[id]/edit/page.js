@@ -22,6 +22,8 @@ import {
 } from "@/lib/social-clients/constants.js";
 import DateTimePicker from "@/components/ui/date-time-picker";
 import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
+import PostPreview from "@/components/social/post-preview";
+import { toastError } from "@/lib/toast-error";
 
 export default function EditPostPage() {
   const { user } = useAuth();
@@ -31,7 +33,7 @@ export default function EditPostPage() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [formData, setFormData] = useState({
-    title: "", content: "", mediaUrls: [], hashtags: [],
+    content: "", mediaUrls: [], hashtags: [],
     scheduledFor: "", postType: "Text", targetAccounts: [],
   });
   const [hashtagInput, setHashtagInput] = useState("");
@@ -55,7 +57,6 @@ export default function EditPostPage() {
         return;
       }
       setFormData({
-        title: post.title || "",
         content: post.content || "",
         mediaUrls: post.media_urls || [],
         hashtags: post.hashtags || [],
@@ -147,7 +148,6 @@ export default function EditPostPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: formData.title || undefined,
           content: formData.content,
           media_urls: formData.mediaUrls,
           hashtags: formData.hashtags,
@@ -161,7 +161,7 @@ export default function EditPostPage() {
       toast.success(schedule ? "Post scheduled!" : "Post updated");
       router.push(`/admin/social-media/posts/${params.id}`);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to update post");
     } finally {
       setLoading(false);
     }
@@ -182,7 +182,7 @@ export default function EditPostPage() {
   const isOverLimit = formData.content.length > minCharLimit;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link href={`/admin/social-media/posts/${params.id}`}>
           <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button>
@@ -195,12 +195,6 @@ export default function EditPostPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">Post Content</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="title">Title (optional)</Label>
-                <Input id="title" value={formData.title}
-                  onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
-                  className="mt-1" />
-              </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label htmlFor="content">Content *</Label>
@@ -293,6 +287,15 @@ export default function EditPostPage() {
               </div>
             </CardContent>
           </Card>
+
+          <PostPreview
+            accounts={selectedAccounts}
+            content={formData.content}
+            hashtags={formData.hashtags}
+            mediaUrls={formData.mediaUrls}
+            postType={formData.postType}
+            scheduledFor={formData.scheduledFor}
+          />
         </div>
 
         <div className="space-y-4">

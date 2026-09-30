@@ -45,7 +45,7 @@ export function KeywordManager() {
       setRecordId(result.data?.id || null);
     } catch (err) {
       console.error("Failed to fetch keywords:", err);
-      setError(err.message);
+      setError("Failed to load keywords");
     } finally {
       setLoading(false);
     }
@@ -149,7 +149,7 @@ export function KeywordManager() {
 
     } catch (err) {
       console.error("Failed to save keywords:", err);
-      setError(err.message);
+      setError("Failed to save keywords");
     } finally {
       setSaving(false);
     }

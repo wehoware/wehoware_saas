@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/auth-context";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -159,7 +160,7 @@ export default function AddUserPage() {
       router.push("/admin/users");
     } catch (error) {
       console.error("Error adding user:", error);
-      toast.error(`Error adding user: ${error.message || "Unknown error"}`);
+      toastError(error, "Failed to add user");
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +173,7 @@ export default function AddUserPage() {
   const showClientSelection = isAdmin && newUser.role === "client";
 
   return (
-    <div className="container mx-auto p-4 max-w-3xl">
+    <div className="p-4">
       <AdminPageHeader
         title="Add New User"
         description={

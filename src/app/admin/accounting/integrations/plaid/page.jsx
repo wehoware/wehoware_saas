@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
+import { toastError } from "@/lib/toast-error";
 import { usePlaidLink } from "react-plaid-link";
 import { RefreshCw, Link2, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import AdminPageHeader from "@/components/AdminPageHeader";
@@ -68,7 +69,7 @@ export default function PlaidIntegrationsPage() {
         setEntries(entriesJson.data || []);
       }
     } catch (err) {
-      toast.error(err.message || "Failed to load Plaid data");
+      toastError(err, "Failed to load Plaid data");
     } finally {
       setLoading(false);
     }
@@ -88,7 +89,7 @@ export default function PlaidIntegrationsPage() {
       }
       setLinkToken(data.link_token);
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Failed to create link token");
     } finally {
       setCreatingToken(false);
     }
@@ -120,7 +121,7 @@ export default function PlaidIntegrationsPage() {
         setLinkToken(null);
         loadData();
       } catch (err) {
-        toast.error(err.message);
+        toastError(err, "Failed to connect account");
       }
     },
     [loadData]
@@ -130,7 +131,7 @@ export default function PlaidIntegrationsPage() {
     token: linkToken,
     onSuccess: onPlaidSuccess,
     onExit: (err) => {
-      if (err) toast.error(err.display_message || err.error_message || "Plaid Link exited");
+      if (err) toastError(err, "Plaid Link exited");
       setLinkToken(null);
     },
   });
@@ -152,7 +153,7 @@ export default function PlaidIntegrationsPage() {
       toast.success("Sync complete");
       loadData();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Sync failed");
     } finally {
       setSyncingItemId(null);
     }
@@ -169,7 +170,7 @@ export default function PlaidIntegrationsPage() {
       toast.success("Disconnected");
       loadData();
     } catch (err) {
-      toast.error(err.message);
+      toastError(err, "Disconnect failed");
     }
   };
 

@@ -36,6 +36,7 @@ import { UpcomingAppointments } from '@/components/appointments/upcoming-appoint
 import { AppointmentTypes } from '@/components/appointments/appointment-types';
 import { AppointmentSettings } from '@/components/appointments/appointment-settings';
 import toast from 'react-hot-toast';
+import { toastError } from "@/lib/toast-error";
 import { format } from 'date-fns';
 
 export default function AppointmentsPage() {
@@ -309,7 +310,7 @@ export default function AppointmentsPage() {
       setBookingDialogOpen(false);
       resetBookingForm();
     } catch (err) {
-      toast.error(err.message || `Failed to ${isEditing ? 'update' : 'create'} appointment`);
+      toastError(err, `Failed to ${isEditing ? 'update' : 'create'} appointment`);
     } finally {
       setBookingLoading(false);
     }
@@ -322,7 +323,7 @@ export default function AppointmentsPage() {
   };
 
   return (
-    <div className="container px-4 py-6 max-w-7xl mx-auto">
+    <div className="px-4 py-6">
       <div className="flex flex-col space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Appointments</h1>

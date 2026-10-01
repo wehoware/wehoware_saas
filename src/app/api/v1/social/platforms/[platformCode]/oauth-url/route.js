@@ -44,9 +44,7 @@ export const GET = withAuth(async (request, { params }) => {
     const appClientId =
       process.env[`${envPrefix}_APP_ID`] ||
       process.env[`${envPrefix}_CLIENT_KEY`] ||
-      process.env[`${envPrefix}_API_KEY`] ||
-      // Instagram shares the Meta app with Facebook — fall back to FB credentials
-      (platform.platformCode === "instagram" ? process.env.FACEBOOK_APP_ID : undefined);
+      process.env[`${envPrefix}_API_KEY`];
 
     if (!appClientId) {
       return NextResponse.json(

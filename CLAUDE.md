@@ -195,7 +195,7 @@ src/
 
 **Social Media Env Vars:**
 - FACEBOOK_APP_ID, FACEBOOK_APP_SECRET, FACEBOOK_CALLBACK_URL
-- INSTAGRAM_CALLBACK_URL (shares Meta app credentials with Facebook)
+- INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_CALLBACK_URL (Instagram Business Login — uses the *Instagram* App ID from the Meta app's Instagram product, NOT the Facebook App ID)
 - TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_CALLBACK_URL
 - TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, TIKTOK_CALLBACK_URL
 

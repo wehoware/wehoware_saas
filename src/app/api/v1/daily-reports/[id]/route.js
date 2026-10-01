@@ -76,15 +76,24 @@ async function _validateAndBuildItems(prisma, user, items) {
 
 function _buildItemData(items) {
   const itemData = items.map((item, idx) => {
-    const start = item.start_time ?? item.startTime ? new Date(item.start_time ?? item.startTime) : null;
-    const end = item.end_time ?? item.endTime ? new Date(item.end_time ?? item.endTime) : null;
+    const rawStart = item.start_time ?? item.startTime;
+    const rawEnd = item.end_time ?? item.endTime;
+    const start = rawStart ? new Date(rawStart) : null;
+    const end = rawEnd ? new Date(rawEnd) : null;
+    if ((rawStart && Number.isNaN(start.getTime())) || (rawEnd && Number.isNaN(end.getTime()))) {
+      return { error: `Item ${idx + 1} has an invalid start/end time` };
+    }
     let hoursWorked = 0;
-    if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+    if (start && end) {
+      if (end < start) {
+        return { error: `Item ${idx + 1}: end_time must be after start_time` };
+      }
       const diffMs = end.getTime() - start.getTime();
       hoursWorked = Math.max(0, diffMs / (1000 * 60 * 60));
     }
     if (item.hours_worked !== undefined && item.hours_worked !== null) {
-      hoursWorked = Number(item.hours_worked);
+      const parsed = Number(item.hours_worked);
+      if (!Number.isNaN(parsed)) hoursWorked = Math.max(0, parsed);
     }
     return {
       taskId: item.task_id ?? item.taskId,
@@ -97,6 +106,10 @@ function _buildItemData(items) {
     };
   });
 
+  const itemError = itemData.find((it) => it?.error);
+  if (itemError) {
+    return { error: itemError.error };
+  }
   const totalHours = itemData.reduce((sum, item) => sum + item.hoursWorked, 0);
   if (totalHours > 24) {
     return { error: "Total hours cannot exceed 24 per report" };
@@ -197,10 +210,13 @@ export const PUT = withAuth(
 
       // Execute update + item replacement in a transaction
       const updated = await prisma.$transaction(async (tx) => {
-        // Delete existing items
-        await tx.wehowareDailyWorkReportItem.deleteMany({
-          where: { reportId: id },
-        });
+        // Replace items only when the request actually provides them —
+        // otherwise preserve the existing rows.
+        if (itemData) {
+          await tx.wehowareDailyWorkReportItem.deleteMany({
+            where: { reportId: id },
+          });
+        }
 
         // Update report fields
         await tx.wehowareDailyWorkReport.update({
@@ -215,23 +231,13 @@ export const PUT = withAuth(
           },
         });
 
-        // Recalc totalHours if items were replaced
-        if (itemData) {
-          await recalcTotalHours(tx, id);
-        } else if (data.startTime || data.endTime) {
-          // If no items but report-level times changed, recompute from times
-          const report = await tx.wehowareDailyWorkReport.findUnique({
-            where: { id },
-            select: { startTime: true, endTime: true, items: { select: { hoursWorked: true } } },
-          });
-          if (report && (!report.items || report.items.length === 0) && report.startTime && report.endTime) {
-            const diffMs = report.endTime.getTime() - report.startTime.getTime();
-            const computedHours = Math.max(0, diffMs / (1000 * 60 * 60));
-            await tx.wehowareDailyWorkReport.update({
-              where: { id },
-              data: { totalHours: computedHours },
-            });
-          }
+        // Recalc totalHours from report-level start/end times —
+        // item hours are tracked individually and never feed the total
+        const total = await recalcTotalHours(tx, id);
+        if (total > 24) {
+          const err = new Error("Total hours cannot exceed 24 per report");
+          err.statusCode = 400;
+          throw err;
         }
 
         // Reload to get updated totalHours
@@ -250,6 +256,9 @@ export const PUT = withAuth(
     } catch (err) {
       if (err instanceof SyntaxError) {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      }
+      if (err?.statusCode === 400) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
       }
       if (err?.code === "P2002") {
         return NextResponse.json(

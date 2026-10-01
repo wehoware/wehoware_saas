@@ -10,6 +10,7 @@ import {
   buildReportWhere,
   canMutateReport,
   validateReportItems,
+  computeReportTotalHours,
   shapeReport,
 } from "../../utils/daily-report-access";
 
@@ -194,7 +195,7 @@ export const POST = withAuth(
         }
         if (item.hours_worked !== undefined && item.hours_worked !== null) {
           const parsed = Number(item.hours_worked);
-          hoursWorked = Number.isNaN(parsed) ? hoursWorked : parsed;
+          if (!Number.isNaN(parsed)) hoursWorked = Math.max(0, parsed);
         }
 
         return {
@@ -213,12 +214,9 @@ export const POST = withAuth(
         return NextResponse.json({ error: itemError.error }, { status: 400 });
       }
 
-      // Compute total hours: prefer item sum, fall back to report-level time diff
-      let totalHours = itemData.reduce((sum, item) => sum + item.hoursWorked, 0);
-      if (itemData.length === 0 && reportStartTime && reportEndTime) {
-        const diffMs = reportEndTime.getTime() - reportStartTime.getTime();
-        totalHours = Math.max(0, diffMs / (1000 * 60 * 60));
-      }
+      // Compute total hours from report-level start/end times only —
+      // item hours are tracked individually and never feed the total
+      const totalHours = computeReportTotalHours(reportStartTime, reportEndTime);
       if (totalHours > 24) {
         return NextResponse.json(
           { error: "Total hours cannot exceed 24 per report" },

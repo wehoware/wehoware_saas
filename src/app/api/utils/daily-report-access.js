@@ -240,15 +240,28 @@ async function validateReportItems(prisma, user, items) {
 }
 
 /**
- * Recalculate totalHours from all items and update the parent report.
- * Must be called inside a transaction.
+ * Compute a report's totalHours from its own start/end times.
+ * Report-level times are independent of per-item hours — item times
+ * never feed into the report total.
+ */
+function computeReportTotalHours(startTime, endTime) {
+  if (startTime && endTime) {
+    const diffMs = new Date(endTime).getTime() - new Date(startTime).getTime();
+    if (diffMs > 0) return diffMs / (1000 * 60 * 60);
+  }
+  return 0;
+}
+
+/**
+ * Recalculate totalHours from the report-level start/end times and
+ * update the parent report. Must be called inside a transaction.
  */
 async function recalcTotalHours(tx, reportId) {
-  const result = await tx.wehowareDailyWorkReportItem.aggregate({
-    where: { reportId },
-    _sum: { hoursWorked: true },
+  const report = await tx.wehowareDailyWorkReport.findUnique({
+    where: { id: reportId },
+    select: { startTime: true, endTime: true },
   });
-  const total = result._sum.hoursWorked ?? 0;
+  const total = computeReportTotalHours(report?.startTime, report?.endTime);
   await tx.wehowareDailyWorkReport.update({
     where: { id: reportId },
     data: { totalHours: total },
@@ -369,6 +382,7 @@ export {
   loadReport,
   canMutateReport,
   validateReportItems,
+  computeReportTotalHours,
   recalcTotalHours,
   canCreateReport,
   shapeReport,

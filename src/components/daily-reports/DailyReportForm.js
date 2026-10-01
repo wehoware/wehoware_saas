@@ -38,22 +38,34 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
   );
   const [summary, setSummary] = useState(initialReport?.summary || "");
   const [items, setItems] = useState(
-    (initialReport?.items || []).map((it) => ({
-      id: it.id,
-      taskId: it.task_id || it.taskId || "",
-      subtaskId: it.subtask_id || it.subtaskId || "",
-      startTime: it.start_time ? it.start_time.slice(11, 16) : "",
-      endTime: it.end_time ? it.end_time.slice(11, 16) : "",
-      hoursWorked: it.hours_worked === undefined ? "" : Number(it.hours_worked).toFixed(2),
-      description: it.description || "",
-    })) || []
+    (initialReport?.items || []).map((it) => {
+      const startTime = it.start_time ? it.start_time.slice(11, 16) : "";
+      const endTime = it.end_time ? it.end_time.slice(11, 16) : "";
+      const stored = it.hours_worked == null ? null : Number(it.hours_worked);
+      const computed = computeHours(startTime, endTime);
+      // Treat a stored value that differs from the computed diff as a
+      // deliberate manual override; matching values stay auto-computed.
+      const hoursManual =
+        stored != null && !Number.isNaN(stored) &&
+        (computed <= 0 || Math.abs(stored - computed) > 0.005);
+      return {
+        id: it.id,
+        taskId: it.task_id || it.taskId || "",
+        subtaskId: it.subtask_id || it.subtaskId || "",
+        startTime,
+        endTime,
+        hoursWorked: stored == null || Number.isNaN(stored) ? "" : stored.toFixed(2),
+        hoursManual,
+        description: it.description || "",
+      };
+    }) || []
   );
   const [saving, setSaving] = useState(false);
 
   const addItem = useCallback(() => {
     setItems((prev) => [
       ...prev,
-      { taskId: "", subtaskId: "", startTime: "", endTime: "", hoursWorked: "", description: "" },
+      { taskId: "", subtaskId: "", startTime: "", endTime: "", hoursWorked: "", hoursManual: false, description: "" },
     ]);
   }, []);
 
@@ -73,13 +85,15 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
   const updateItem = useCallback((index, field, value) => {
     setItems((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      if (field === "startTime" || field === "endTime") {
-        const computed = computeHours(next[index].startTime, next[index].endTime);
-        if (computed > 0 && !next[index].hoursWorked) {
-          next[index] = { ...next[index], hoursWorked: computed.toFixed(2) };
-        }
+      const item = { ...next[index], [field]: value };
+      if (field === "hoursWorked") {
+        // Typing in the field marks it manual; clearing it returns to auto.
+        item.hoursManual = value !== "";
+      } else if ((field === "startTime" || field === "endTime") && !item.hoursManual) {
+        const computed = computeHours(item.startTime, item.endTime);
+        item.hoursWorked = computed > 0 ? computed.toFixed(2) : "";
       }
+      next[index] = item;
       return next;
     });
   }, []);
@@ -137,9 +151,7 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
     }
   };
 
-  const itemHours = items.reduce((sum, it) => sum + (Number(it.hoursWorked) || 0), 0);
-  const reportLevelHours = computeHours(reportStartTime, reportEndTime);
-  const totalHours = itemHours > 0 ? itemHours : reportLevelHours;
+  const totalHours = computeHours(reportStartTime, reportEndTime);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -200,7 +212,7 @@ export default function DailyReportForm({ initialReport, tasks, onSave }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Start/end times are used to calculate total hours when no work items are added.
+            Start/end times determine this report&apos;s total hours. Work item times are tracked individually.
           </p>
         </CardContent>
       </Card>

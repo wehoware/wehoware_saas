@@ -2308,8 +2308,8 @@ model WehowareDailyWorkReportItem {
   reportId     String   @map("report_id") @db.VarChar(36)
   taskId       String   @map("task_id") @db.VarChar(36)
   subtaskId    String?  @map("subtask_id") @db.VarChar(36)
-  startTime    DateTime @map("start_time")
-  endTime      DateTime @map("end_time")
+  startTime    DateTime? @map("start_time")
+  endTime      DateTime? @map("end_time")
   hoursWorked  Decimal  @map("hours_worked") @db.Decimal(5, 2)
   description  String?  @db.Text
   sequence     Int      @default(0) @map("sequence")

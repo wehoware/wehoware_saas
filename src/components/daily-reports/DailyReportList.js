@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Pencil, Trash2, Send, Undo2, FileText, Clock, ListTodo } from "lucide-react";
+import { Pencil, Trash2, Send, Undo2, FileText, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateOnly, formatTime12h } from "@/lib/date-utils";
 
@@ -23,6 +23,16 @@ function getInitials(first, last) {
   const f = first?.charAt(0) || "";
   const l = last?.charAt(0) || "";
   return (f + l).toUpperCase() || "?";
+}
+
+function formatSubmitTime(tsStr) {
+  if (!tsStr) return "—";
+  const d = new Date(tsStr);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 const STATUS_STYLES = {
@@ -103,11 +113,11 @@ export default function DailyReportList({
         <TableHeader>
           <TableRow className="bg-muted/30">
             <TableHead className="w-[15%]">Date</TableHead>
+            <TableHead className="w-[10%]">Submit Time</TableHead>
             <TableHead className="w-[18%]">User</TableHead>
             <TableHead className="w-[10%]">Start</TableHead>
             <TableHead className="w-[10%]">End</TableHead>
             <TableHead className="w-[12%]">Status</TableHead>
-            <TableHead className="w-[10%]">Items</TableHead>
             <TableHead className="w-[12%]">Total Hours</TableHead>
             <TableHead className="w-[13%] text-right">Actions</TableHead>
           </TableRow>
@@ -131,6 +141,15 @@ export default function DailyReportList({
                     {formatDate(report.reportDate)}
                   </Link>
                 </TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">
+                  {report.submittedAt ? (
+                    <span title={new Date(report.submittedAt).toLocaleString("en-US")}>
+                      {formatSubmitTime(report.submittedAt)}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
                 <TableCell className="min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
                     <Avatar className="h-7 w-7 shrink-0">
@@ -151,12 +170,6 @@ export default function DailyReportList({
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   <StatusBadge status={report.status} />
-                </TableCell>
-                <TableCell>
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <ListTodo className="h-3.5 w-3.5" />
-                    {report.items?.length ?? 0}
-                  </span>
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center gap-1 text-sm font-medium tabular-nums">

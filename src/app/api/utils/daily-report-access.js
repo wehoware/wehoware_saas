@@ -115,14 +115,25 @@ function _checkAdminMutations(user, report, isCreator, isDraft, isSubmitted) {
   return { allowed: canEdit || canDelete || canSubmit || canUnsubmit, reason: "", canEdit, canDelete, canSubmit, canUnsubmit };
 }
 
-function _checkEmployeeMutations(user, report, isCreator, isDraft) {
+function _checkEmployeeMutations(user, report, isCreator, isDraft, isSubmitted, sameDay) {
   if (!isCreator) {
     return { allowed: false, reason: "You can only mutate your own reports", canEdit: false, canDelete: false, canSubmit: false, canUnsubmit: false };
   }
   if (!GROUP_1_ROLES.includes(report.creatorRole)) {
     return { allowed: false, reason: "You cannot mutate reports from another role group", canEdit: false, canDelete: false, canSubmit: false, canUnsubmit: false };
   }
-  return { allowed: isDraft, reason: "", canEdit: isDraft, canDelete: isDraft, canSubmit: isDraft, canUnsubmit: false };
+  const canUnsubmit = isSubmitted && sameDay;
+  const reason = isSubmitted && !sameDay
+    ? "Submitted reports can only be reverted on the report's date"
+    : "";
+  return {
+    allowed: isDraft || canUnsubmit,
+    reason,
+    canEdit: isDraft,
+    canDelete: isDraft,
+    canSubmit: isDraft,
+    canUnsubmit,
+  };
 }
 
 function _checkClientOwnerMutations(report, isCreator, isDraft, isSubmitted) {
@@ -133,14 +144,25 @@ function _checkClientOwnerMutations(report, isCreator, isDraft, isSubmitted) {
   return { allowed: canEdit || canDelete || canSubmit || canUnsubmit, reason: "", canEdit, canDelete, canSubmit, canUnsubmit };
 }
 
-function _checkClientStaffMutations(report, isCreator, isDraft) {
+function _checkClientStaffMutations(report, isCreator, isDraft, isSubmitted, sameDay) {
   if (!isCreator) {
     return { allowed: false, reason: "You can only mutate your own reports", canEdit: false, canDelete: false, canSubmit: false, canUnsubmit: false };
   }
-  return { allowed: isDraft, reason: "", canEdit: isDraft, canDelete: isDraft, canSubmit: isDraft, canUnsubmit: false };
+  const canUnsubmit = isSubmitted && sameDay;
+  const reason = isSubmitted && !sameDay
+    ? "Submitted reports can only be reverted on the report's date"
+    : "";
+  return {
+    allowed: isDraft || canUnsubmit,
+    reason,
+    canEdit: isDraft,
+    canDelete: isDraft,
+    canSubmit: isDraft,
+    canUnsubmit,
+  };
 }
 
-function _checkClientMutations(user, report, isCreator, isDraft, isSubmitted) {
+function _checkClientMutations(user, report, isCreator, isDraft, isSubmitted, sameDay) {
   const role = user.activeClientRole;
   if (report.creatorRole !== "client") {
     return { allowed: false, reason: "You cannot mutate reports from another role group", canEdit: false, canDelete: false, canSubmit: false, canUnsubmit: false };
@@ -151,26 +173,128 @@ function _checkClientMutations(user, report, isCreator, isDraft, isSubmitted) {
   if (role === "client") {
     return _checkClientOwnerMutations(report, isCreator, isDraft, isSubmitted);
   }
-  return _checkClientStaffMutations(report, isCreator, isDraft);
+  return _checkClientStaffMutations(report, isCreator, isDraft, isSubmitted, sameDay);
+}
+
+/**
+ * Normalize a value to a "YYYY-MM-DD" date part.
+ * @db.Date columns come back as Date objects at UTC midnight, so the ISO
+ * prefix is the stored calendar day. Strings keep their leading date part.
+ */
+function _toDatePart(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  const m = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Default business timezone when a client hasn't configured one.
+ * The platform operates on Canadian business hours by default; clients can
+ * override via the "timezone" key in wehoware_settings (General Settings).
+ */
+const DEFAULT_BUSINESS_TIMEZONE = "America/Toronto";
+
+function isValidTimezone(tz) {
+  if (!tz || typeof tz !== "string") return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "Today" (YYYY-MM-DD) in an IANA timezone. Falls back to the server's
+ * UTC date when the timezone is missing or invalid.
+ */
+function todayInTimezone(timeZone) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || DEFAULT_BUSINESS_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const p = Object.fromEntries(
+      fmt.formatToParts(new Date()).map((part) => [part.type, part.value])
+    );
+    return `${p.year}-${p.month}-${p.day}`;
+  } catch {
+    return _toDatePart(new Date());
+  }
+}
+
+/**
+ * Resolve configured business timezones for a set of clients from
+ * wehoware_settings (setting_key = "timezone"). Returns Map<clientId, tz>
+ * containing only valid IANA timezones.
+ */
+async function getBusinessTimezones(prisma, clientIds) {
+  const map = new Map();
+  const ids = [...new Set((clientIds || []).filter(Boolean))];
+  if (ids.length === 0) return map;
+  const rows = await prisma.wehowareSetting.findMany({
+    where: { clientId: { in: ids }, settingKey: "timezone" },
+    select: { clientId: true, settingValue: true },
+  });
+  for (const row of rows) {
+    const tz = row.settingValue?.trim();
+    if (tz && isValidTimezone(tz)) map.set(row.clientId, tz);
+  }
+  return map;
+}
+
+/**
+ * The client's business "today" (YYYY-MM-DD) — the calendar day that
+ * defines the same-day unsubmit window. Defaults to the platform
+ * business timezone when the client hasn't configured one.
+ */
+async function businessDateToday(prisma, clientId) {
+  const map = await getBusinessTimezones(prisma, [clientId]);
+  return todayInTimezone(map.get(clientId));
+}
+
+/**
+ * True when the report's date equals the business "today" — i.e. the
+ * calendar day in the report's client timezone. `businessToday` is a
+ * "YYYY-MM-DD" value resolved server-side; when omitted we fall back to
+ * the server's UTC date.
+ */
+function isSameDayAsReportDate(report, businessToday) {
+  const reportDay = _toDatePart(report?.reportDate);
+  const today = _toDatePart(businessToday) ?? _toDatePart(new Date());
+  return Boolean(reportDay && today) && reportDay === today;
 }
 
 /**
  * Enforce mutation permissions on a single report.
+ * `businessToday` — the business "today" ("YYYY-MM-DD") in the report
+ * client's timezone, resolved via businessDateToday(); used for the
+ * same-day unsubmit rule for non-privileged roles.
  * Returns `{ allowed, reason, canEdit, canDelete, canSubmit, canUnsubmit }`.
  */
-function canMutateReport(user, report) {
+function canMutateReport(user, report, businessToday) {
   const isCreator = report.userId === user.id;
   const isDraft = report.status === "draft";
   const isSubmitted = report.status === "submitted";
+  const sameDay = isSameDayAsReportDate(report, businessToday);
 
   if (user.role === "admin") {
     return _checkAdminMutations(user, report, isCreator, isDraft, isSubmitted);
   }
   if (user.role === "employee") {
-    return _checkEmployeeMutations(user, report, isCreator, isDraft);
+    return _checkEmployeeMutations(user, report, isCreator, isDraft, isSubmitted, sameDay);
   }
   if (user.role === "client") {
-    return _checkClientMutations(user, report, isCreator, isDraft, isSubmitted);
+    return _checkClientMutations(user, report, isCreator, isDraft, isSubmitted, sameDay);
   }
   return { allowed: false, reason: "Insufficient permissions", canEdit: false, canDelete: false, canSubmit: false, canUnsubmit: false };
 }
@@ -381,6 +505,10 @@ export {
   canAccessReport,
   loadReport,
   canMutateReport,
+  isSameDayAsReportDate,
+  todayInTimezone,
+  getBusinessTimezones,
+  businessDateToday,
   validateReportItems,
   computeReportTotalHours,
   recalcTotalHours,

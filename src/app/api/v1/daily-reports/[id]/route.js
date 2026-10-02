@@ -13,6 +13,7 @@ import {
   validateReportItems,
   recalcTotalHours,
   shapeReport,
+  businessDateToday,
 } from "../../../utils/daily-report-access";
 
 function toDateOnly(dateStr) {
@@ -33,8 +34,8 @@ function maxAllowedReportDateUTC() {
   return d;
 }
 
-function _checkEditPermission(user, existing) {
-  const mutationCheck = canMutateReport(user, existing);
+function _checkEditPermission(user, existing, localDate) {
+  const mutationCheck = canMutateReport(user, existing, localDate);
   if (!mutationCheck.canEdit) {
     return { ok: false, status: 403, error: mutationCheck.reason || "You cannot edit this report" };
   }
@@ -131,8 +132,9 @@ export const GET = withAuth(
         return NextResponse.json({ error: "Report not found" }, { status: 404 });
       }
 
+      const businessToday = await businessDateToday(prisma, report.clientId);
       const out = shapeReport(report);
-      out._permissions = canMutateReport(user, report);
+      out._permissions = canMutateReport(user, report, businessToday);
       return NextResponse.json(out);
     } catch (err) {
       console.error("[GET /api/v1/daily-reports/[id]] error:", err);
@@ -157,7 +159,8 @@ export const PUT = withAuth(
         return NextResponse.json({ error: "Report not found" }, { status: 404 });
       }
 
-      const permCheck = _checkEditPermission(user, existing);
+      const businessToday = await businessDateToday(prisma, existing.clientId);
+      const permCheck = _checkEditPermission(user, existing, businessToday);
       if (!permCheck.ok) {
         return NextResponse.json({ error: permCheck.error }, { status: permCheck.status });
       }
@@ -251,7 +254,7 @@ export const PUT = withAuth(
       });
 
       const out = shapeReport(updated);
-      out._permissions = canMutateReport(user, updated);
+      out._permissions = canMutateReport(user, updated, businessToday);
       return NextResponse.json(out);
     } catch (err) {
       if (err instanceof SyntaxError) {
@@ -287,7 +290,8 @@ export const DELETE = withAuth(
         return NextResponse.json({ error: "Report not found" }, { status: 404 });
       }
 
-      const mutationCheck = canMutateReport(user, existing);
+      const businessToday = await businessDateToday(prisma, existing.clientId);
+      const mutationCheck = canMutateReport(user, existing, businessToday);
       if (!mutationCheck.canDelete) {
         return NextResponse.json(
           { error: mutationCheck.reason || "You cannot delete this report" },

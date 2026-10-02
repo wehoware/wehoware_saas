@@ -1,11 +1,14 @@
 /**
  * POST /api/v1/daily-reports/[id]/unsubmit
  *
- * Unsubmit a daily work report (admin/owner/manager only).
+ * Unsubmit a daily work report. Admins and client owners may revert any
+ * submitted report; other roles may revert only their own report, and only
+ * on the report's date — where "today" is evaluated in the report client's
+ * configured business timezone (wehoware_settings.timezone).
  */
 import { NextResponse } from "next/server";
 import { withAuth } from "../../../../utils/auth-middleware";
-import { loadReport, canMutateReport, shapeReport } from "../../../../utils/daily-report-access";
+import { loadReport, canMutateReport, shapeReport, businessDateToday } from "../../../../utils/daily-report-access";
 
 export const POST = withAuth(
   async (request, { params }) => {
@@ -18,7 +21,8 @@ export const POST = withAuth(
         return NextResponse.json({ error: "Report not found" }, { status: 404 });
       }
 
-      const mutationCheck = canMutateReport(user, existing);
+      const businessToday = await businessDateToday(prisma, existing.clientId);
+      const mutationCheck = canMutateReport(user, existing, businessToday);
       if (!mutationCheck.canUnsubmit) {
         return NextResponse.json(
           { error: mutationCheck.reason || "You cannot unsubmit this report" },
@@ -44,7 +48,7 @@ export const POST = withAuth(
       });
 
       const out = shapeReport(updated);
-      out._permissions = canMutateReport(user, updated);
+      out._permissions = canMutateReport(user, updated, businessToday);
       return NextResponse.json(out);
     } catch (err) {
       console.error("[POST /api/v1/daily-reports/[id]/unsubmit] error:", err);

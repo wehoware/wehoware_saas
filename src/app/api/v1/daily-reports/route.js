@@ -12,6 +12,8 @@ import {
   validateReportItems,
   computeReportTotalHours,
   shapeReport,
+  todayInTimezone,
+  getBusinessTimezones,
 } from "../../utils/daily-report-access";
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -101,10 +103,18 @@ export const GET = withAuth(async (request) => {
       prisma.wehowareDailyWorkReport.count({ where }),
     ]);
 
+    // Resolve each report client's business "today" for the same-day
+    // unsubmit window (one batched settings lookup)
+    const tzMap = await getBusinessTimezones(prisma, items.map((r) => r.clientId));
+
     return NextResponse.json({
       reports: items.map((report) => {
         const shaped = shapeReport(report);
-        shaped._permissions = canMutateReport(user, report);
+        shaped._permissions = canMutateReport(
+          user,
+          report,
+          todayInTimezone(tzMap.get(report.clientId))
+        );
         return shaped;
       }),
       total,

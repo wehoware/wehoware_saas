@@ -69,24 +69,29 @@ export const POST = withAuth(
           return NextResponse.json({ synced: 0, reason: "no_users" });
         }
 
-        // 2. Use a transaction to atomically read existing + create missing
-        const result = await prisma.$transaction(async (tx) => {
-          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        // 2. Reads run outside a transaction — the per-client lock above
+        //    prevents concurrent syncs, and the single createMany below is
+        //    already one atomic statement.
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-          // --- Sync 1: Booked notifications ---
-          // Find existing "appointment.booked" notification appointmentIds
-          const existingBookedNotifs = await tx.wehowareNotification.findMany({
-            where: { clientId, type: "appointment.booked" },
+        const [
+          existingBookedNotifs,
+          unnotifiedAppts,
+          existingStatusNotifs,
+          statusChangedAppts,
+        ] = await Promise.all([
+          // Existing "appointment.booked" notification appointmentIds
+          // (bounded to 7 days — a notification can't predate its appointment)
+          prisma.wehowareNotification.findMany({
+            where: {
+              clientId,
+              type: "appointment.booked",
+              createdAt: { gte: sevenDaysAgo },
+            },
             select: { metadata: true },
-          });
-          const bookedApptIds = new Set(
-            existingBookedNotifs
-              .map((n) => n.metadata?.appointmentId)
-              .filter(Boolean)
-          );
-
-          // Find appointments that don't have booking notifications (last 7 days, non-cancelled)
-          const unnotifiedAppts = await tx.wehowareAppointment.findMany({
+          }),
+          // Appointments that might lack booking notifications (last 7 days, non-cancelled)
+          prisma.wehowareAppointment.findMany({
             where: {
               clientId,
               createdAt: { gte: sevenDaysAgo },
@@ -95,15 +100,9 @@ export const POST = withAuth(
             include: { appointmentType: { select: { name: true } } },
             orderBy: { createdAt: "desc" },
             take: 50,
-          });
-
-          const missingBooked = unnotifiedAppts.filter(
-            (a) => !bookedApptIds.has(a.id)
-          );
-
-          // --- Sync 2: Status-change notifications ---
-          // Find existing status-change notification keys (type + appointmentId)
-          const existingStatusNotifs = await tx.wehowareNotification.findMany({
+          }),
+          // Existing status-change notification keys (type + appointmentId)
+          prisma.wehowareNotification.findMany({
             where: {
               clientId,
               type: {
@@ -114,18 +113,13 @@ export const POST = withAuth(
                   "appointment.noshow",
                 ],
               },
+              createdAt: { gte: sevenDaysAgo },
             },
             select: { type: true, metadata: true },
-          });
-          const statusNotifKeys = new Set(
-            existingStatusNotifs.map(
-              (n) => `${n.type}|${n.metadata?.appointmentId}`
-            )
-          );
-
-          // Find appointments with status changes (last 7 days, non-pending/non-cancelled bookings)
+          }),
+          // Appointments with status changes (last 7 days)
           // We look at updatedAt to detect recent status changes
-          const statusChangedAppts = await tx.wehowareAppointment.findMany({
+          prisma.wehowareAppointment.findMany({
             where: {
               clientId,
               updatedAt: { gte: sevenDaysAgo },
@@ -134,120 +128,130 @@ export const POST = withAuth(
             include: { appointmentType: { select: { name: true } } },
             orderBy: { updatedAt: "desc" },
             take: 50,
-          });
+          }),
+        ]);
 
-          // Filter to appointments that don't have the corresponding status notification
-          const missingStatus = statusChangedAppts.filter((a) => {
-            const eventType = `appointment.${STATUS_EVENT_MAP[a.status]}`;
-            const key = `${eventType}|${a.id}`;
-            return !statusNotifKeys.has(key);
-          });
+        // --- Sync 1: Booked notifications ---
+        const bookedApptIds = new Set(
+          existingBookedNotifs
+            .map((n) => n.metadata?.appointmentId)
+            .filter(Boolean)
+        );
+        const missingBooked = unnotifiedAppts.filter(
+          (a) => !bookedApptIds.has(a.id)
+        );
 
-          if (missingBooked.length === 0 && missingStatus.length === 0) {
-            return { synced: 0, notifications_created: 0 };
-          }
-
-          let created = 0;
-
-          // Create booked notifications
-          for (const appt of missingBooked) {
-            const scheduledAt = appt.scheduledAt;
-            const formattedDate = scheduledAt.toLocaleString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            });
-            const apptType = appt.appointmentType?.name || "Appointment";
-            const guestName = appt.guestName || "Guest";
-
-            await tx.wehowareNotification.createMany({
-              data: userIds.map((userId) => ({
-                clientId,
-                userId,
-                type: "appointment.booked",
-                title: `New appointment — ${guestName}`,
-                message: `${apptType} with ${guestName} on ${formattedDate}`,
-                link: "/admin/appointments",
-                metadata: {
-                  appointmentId: appt.id,
-                  guestName,
-                  guestEmail: appt.guestEmail,
-                  appointmentType: apptType,
-                  scheduledAt: scheduledAt.toISOString(),
-                  synced: true,
-                },
-              })),
-            });
-            created += userIds.length;
-          }
-
-          // Create status-change notifications
-          for (const appt of missingStatus) {
-            const event = STATUS_EVENT_MAP[appt.status];
-            const eventType = `appointment.${event}`;
-            const scheduledAt = appt.scheduledAt;
-            const formattedDate = scheduledAt.toLocaleString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            });
-            const apptType = appt.appointmentType?.name || "Appointment";
-            const guestName = appt.guestName || "Guest";
-            const label = EVENT_LABELS[event] || "Updated";
-
-            let message;
-            switch (event) {
-              case "cancelled":
-                message = `${apptType} with ${guestName} on ${formattedDate} has been cancelled`;
-                break;
-              case "confirmed":
-                message = `${apptType} with ${guestName} on ${formattedDate} has been confirmed`;
-                break;
-              case "completed":
-                message = `${apptType} with ${guestName} on ${formattedDate} marked as completed`;
-                break;
-              case "noshow":
-                message = `${apptType} with ${guestName} on ${formattedDate} marked as no-show`;
-                break;
-              default:
-                message = `${apptType} with ${guestName} on ${formattedDate} has been updated`;
-            }
-
-            await tx.wehowareNotification.createMany({
-              data: userIds.map((userId) => ({
-                clientId,
-                userId,
-                type: eventType,
-                title: `Appointment ${label.toLowerCase()} — ${guestName}`,
-                message,
-                link: "/admin/appointments",
-                metadata: {
-                  appointmentId: appt.id,
-                  event,
-                  guestName,
-                  guestEmail: appt.guestEmail,
-                  appointmentType: apptType,
-                  scheduledAt: scheduledAt.toISOString(),
-                  synced: true,
-                },
-              })),
-            });
-            created += userIds.length;
-          }
-
-          return {
-            synced: missingBooked.length + missingStatus.length,
-            notifications_created: created,
-          };
+        // --- Sync 2: Status-change notifications ---
+        const statusNotifKeys = new Set(
+          existingStatusNotifs.map(
+            (n) => `${n.type}|${n.metadata?.appointmentId}`
+          )
+        );
+        const missingStatus = statusChangedAppts.filter((a) => {
+          const eventType = `appointment.${STATUS_EVENT_MAP[a.status]}`;
+          const key = `${eventType}|${a.id}`;
+          return !statusNotifKeys.has(key);
         });
 
+        if (missingBooked.length === 0 && missingStatus.length === 0) {
+          return NextResponse.json({ synced: 0, notifications_created: 0 });
+        }
+
+        const formatDate = (d) =>
+          d.toLocaleString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+
+        // 3. Flatten into one createMany — a single atomic INSERT, no
+        //    interactive transaction (the old per-appointment loop hit the
+        //    5s interactive-transaction timeout under load, Prisma P2028)
+        const data = [];
+
+        for (const appt of missingBooked) {
+          const scheduledAt = appt.scheduledAt;
+          const formattedDate = formatDate(scheduledAt);
+          const apptType = appt.appointmentType?.name || "Appointment";
+          const guestName = appt.guestName || "Guest";
+
+          for (const userId of userIds) {
+            data.push({
+              clientId,
+              userId,
+              type: "appointment.booked",
+              title: `New appointment — ${guestName}`,
+              message: `${apptType} with ${guestName} on ${formattedDate}`,
+              link: "/admin/appointments",
+              metadata: {
+                appointmentId: appt.id,
+                guestName,
+                guestEmail: appt.guestEmail,
+                appointmentType: apptType,
+                scheduledAt: scheduledAt.toISOString(),
+                synced: true,
+              },
+            });
+          }
+        }
+
+        for (const appt of missingStatus) {
+          const event = STATUS_EVENT_MAP[appt.status];
+          const eventType = `appointment.${event}`;
+          const scheduledAt = appt.scheduledAt;
+          const formattedDate = formatDate(scheduledAt);
+          const apptType = appt.appointmentType?.name || "Appointment";
+          const guestName = appt.guestName || "Guest";
+          const label = EVENT_LABELS[event] || "Updated";
+
+          let message;
+          switch (event) {
+            case "cancelled":
+              message = `${apptType} with ${guestName} on ${formattedDate} has been cancelled`;
+              break;
+            case "confirmed":
+              message = `${apptType} with ${guestName} on ${formattedDate} has been confirmed`;
+              break;
+            case "completed":
+              message = `${apptType} with ${guestName} on ${formattedDate} marked as completed`;
+              break;
+            case "noshow":
+              message = `${apptType} with ${guestName} on ${formattedDate} marked as no-show`;
+              break;
+            default:
+              message = `${apptType} with ${guestName} on ${formattedDate} has been updated`;
+          }
+
+          for (const userId of userIds) {
+            data.push({
+              clientId,
+              userId,
+              type: eventType,
+              title: `Appointment ${label.toLowerCase()} — ${guestName}`,
+              message,
+              link: "/admin/appointments",
+              metadata: {
+                appointmentId: appt.id,
+                event,
+                guestName,
+                guestEmail: appt.guestEmail,
+                appointmentType: apptType,
+                scheduledAt: scheduledAt.toISOString(),
+                synced: true,
+              },
+            });
+          }
+        }
+
+        const { count: created } = await prisma.wehowareNotification.createMany(
+          { data }
+        );
+
         return NextResponse.json({
-          synced: result.synced,
-          notifications_created: result.notifications_created,
+          synced: missingBooked.length + missingStatus.length,
+          notifications_created: created,
         });
       } finally {
         syncLocks.delete(clientId);

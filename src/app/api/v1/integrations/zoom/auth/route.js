@@ -33,7 +33,7 @@ export async function GET(request) {
     const state = Buffer.from(JSON.stringify({ clientId, userId: session.user.id })).toString("base64");
 
     const zoomClientId = process.env.ZOOM_CLIENT_ID || "";
-    const redirectUri = process.env.ZOOM_REDIRECT_URI || "http://localhost:3000/api/v1/integrations/zoom/callback";
+    const redirectUri = process.env.ZOOM_REDIRECT_URI || "https://www.app.wehoware.ca/api/v1/integrations/zoom/callback";
 
     const url = new URL("https://zoom.us/oauth/authorize");
     url.searchParams.set("response_type", "code");

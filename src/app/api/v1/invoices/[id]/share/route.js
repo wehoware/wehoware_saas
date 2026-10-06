@@ -78,7 +78,7 @@ export const POST = withAuth(
         },
       });
 
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.app.wehoware.ca";
       const shareUrl = `${baseUrl}/api/v1/invoices/public/${shareToken}/pdf`;
 
       let emailSent = false;

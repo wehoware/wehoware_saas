@@ -66,7 +66,7 @@ export async function sendAppointmentReminderSMS(appointment, clientName) {
  */
 export async function getNotificationSettings(clientId) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/v1/settings/group/appointments?format=keyValue`);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://www.app.wehoware.ca'}/api/v1/settings/group/appointments?format=keyValue`);
     if (!res.ok) return null;
     const json = await res.json();
     const raw = json.data?.appointment_settings;

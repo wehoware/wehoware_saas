@@ -40,7 +40,7 @@ export async function GET(request) {
 
     const zoomClientId = process.env.ZOOM_CLIENT_ID || "";
     const zoomClientSecret = process.env.ZOOM_CLIENT_SECRET || "";
-    const redirectUri = process.env.ZOOM_REDIRECT_URI || "http://localhost:3000/api/v1/integrations/zoom/callback";
+    const redirectUri = process.env.ZOOM_REDIRECT_URI || "https://www.app.wehoware.ca/api/v1/integrations/zoom/callback";
 
     const basicAuth = Buffer.from(`${zoomClientId}:${zoomClientSecret}`).toString("base64");
     const tokenRes = await fetch("https://zoom.us/oauth/token", {

@@ -47,7 +47,7 @@ export async function GET(request) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID || "",
         client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
-        redirect_uri: process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/v1/integrations/google/calendar/callback",
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI || "https://www.app.wehoware.ca/api/v1/integrations/google/calendar/callback",
         grant_type: "authorization_code",
       }),
     });

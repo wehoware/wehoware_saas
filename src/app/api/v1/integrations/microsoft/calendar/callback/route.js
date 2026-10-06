@@ -47,7 +47,7 @@ export async function GET(request) {
         code,
         client_id: process.env.MICROSOFT_CLIENT_ID || "",
         client_secret: process.env.MICROSOFT_CLIENT_SECRET || "",
-        redirect_uri: process.env.MICROSOFT_REDIRECT_URI || "http://localhost:3000/api/v1/integrations/microsoft/calendar/callback",
+        redirect_uri: process.env.MICROSOFT_REDIRECT_URI || "https://www.app.wehoware.ca/api/v1/integrations/microsoft/calendar/callback",
         grant_type: "authorization_code",
       }),
     });

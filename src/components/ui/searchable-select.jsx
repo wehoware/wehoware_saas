@@ -29,13 +29,17 @@ export default function SearchableSelect({
   clearable = false,
   clearLabel = "Clear selection",
   disabled = false,
+  searchable = true,
   className,
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // modal makes the portaled content part of the scroll-lock layer so the
+    // option list still scrolls when the select is rendered inside a modal
+    // Dialog/Sheet (e.g. the create-task side sheet).
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -45,8 +49,16 @@ export default function SearchableSelect({
             className
           )}
         >
-          <span className={cn("truncate text-left", !selected && "text-muted-foreground")}>
-            {selected?.label || placeholder}
+          <span
+            className={cn(
+              "flex min-w-0 items-center gap-2 text-left",
+              !selected && "text-muted-foreground"
+            )}
+          >
+            {selected?.dot && (
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", selected.dot)} />
+            )}
+            <span className="truncate">{selected?.label || placeholder}</span>
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
         </button>
@@ -56,13 +68,15 @@ export default function SearchableSelect({
         className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden"
       >
         <Command>
-          <div className="flex items-center border-b border-border/60 px-3">
-            <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-            <Command.Input
-              placeholder={searchPlaceholder}
-              className="flex h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-          </div>
+          {searchable && (
+            <div className="flex items-center border-b border-border/60 px-3">
+              <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+              <Command.Input
+                placeholder={searchPlaceholder}
+                className="flex h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
           <Command.List className="max-h-64 overflow-y-auto p-1">
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
               {emptyText}
@@ -96,6 +110,9 @@ export default function SearchableSelect({
                     o.value === value ? "opacity-100" : "opacity-0"
                   )}
                 />
+                {o.dot && (
+                  <span className={cn("mr-2 h-2 w-2 shrink-0 rounded-full", o.dot)} />
+                )}
                 <span className="truncate">{o.label}</span>
               </Command.Item>
             ))}

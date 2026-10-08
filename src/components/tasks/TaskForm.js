@@ -5,12 +5,74 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import SelectInput from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import SearchableSelect from "@/components/ui/searchable-select";
 import DatePicker from "@/components/ui/date-picker";
+import { cn } from "@/lib/utils";
+import {
+  AlertCircle,
+  Building2,
+  CalendarDays,
+  CircleDot,
+  Flag,
+  Loader2,
+  PencilLine,
+  Type,
+  UserRound,
+} from "lucide-react";
+
+const PRIORITY_OPTIONS = [
+  {
+    value: "Low",
+    label: "Low",
+    dot: "bg-green-500",
+    active:
+      "border-green-500/60 bg-green-500/10 text-green-700 dark:text-green-400",
+  },
+  {
+    value: "Medium",
+    label: "Medium",
+    dot: "bg-amber-500",
+    active:
+      "border-amber-500/60 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
+  {
+    value: "High",
+    label: "High",
+    dot: "bg-red-500",
+    active: "border-red-500/60 bg-red-500/10 text-red-700 dark:text-red-400",
+  },
+];
+
+const STATUS_OPTIONS = [
+  { value: "Backlog", label: "Backlog", dot: "bg-muted-foreground/60" },
+  { value: "To Do", label: "To Do", dot: "bg-orange-500" },
+  { value: "In Progress", label: "In Progress", dot: "bg-yellow-500" },
+  { value: "On Hold", label: "On Hold", dot: "bg-purple-500" },
+  { value: "Done", label: "Done", dot: "bg-green-500" },
+];
+
+const FieldLabel = ({ htmlFor, icon: Icon, required, children }) => (
+  <Label
+    htmlFor={htmlFor}
+    className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground"
+  >
+    {Icon && <Icon className="h-3.5 w-3.5" />}
+    {children}
+    {required && <span className="text-destructive">*</span>}
+  </Label>
+);
+
+const SectionTitle = ({ children }) => (
+  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+    {children}
+  </h3>
+);
 
 const TaskForm = ({
   initialData = null,
   onSubmit,
+  onCancel,
   users = [],
   clients = [],
   isLoading = false,
@@ -128,10 +190,6 @@ const TaskForm = ({
       processedValue = value ? String(value) : "";
     }
 
-    if (name === "priority") {
-      console.log('[TaskForm] handleChange priority:', value, '-> processed:', processedValue);
-    }
-
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
@@ -156,134 +214,178 @@ const TaskForm = ({
       priority,
       status,
     };
-    console.log('[TaskForm] submitting payload.priority:', payload.priority, 'full payload:', payload);
 
     onSubmit(payload);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-        <Label htmlFor="title" className="sm:text-right sm:col-span-1">
-          Title *
-        </Label>
-        <Input
-          id="title"
-          name="title"
-          value={formData.title}
-          onChange={handleChange}
-          className="sm:col-span-3"
-          required
-        />
-      </div>
-
-      {!lockedClientId && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-          <Label htmlFor="client_id" className="sm:text-right sm:col-span-1">
-            Client *
-          </Label>
-          <SelectInput
-            id="client_id"
-            name="client_id"
-            value={formData.client_id || ''}
-            onChange={handleChange}
-            options={clientOptions}
-            placeholder="Select a client"
-            disabled={!canChangeAssignment}
-          />
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {error && (
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-start sm:gap-x-4">
-        <Label
-          htmlFor="description"
-          className="sm:text-right sm:col-span-1 sm:pt-2"
+      {/* Task details */}
+      <section className="space-y-4">
+        <SectionTitle>Task details</SectionTitle>
+        <div className="space-y-1.5">
+          <FieldLabel htmlFor="title" icon={Type} required>
+            Title
+          </FieldLabel>
+          <Input
+            id="title"
+            name="title"
+            value={formData.title}
+            onChange={handleChange}
+            placeholder="e.g. Redesign the landing page hero"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <FieldLabel htmlFor="description" icon={PencilLine}>
+            Description
+          </FieldLabel>
+          <Textarea
+            id="description"
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            placeholder="Add context, links, or acceptance criteria..."
+            rows={4}
+            className="resize-y"
+          />
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* Assignment */}
+      <section className="space-y-4">
+        <SectionTitle>Assignment</SectionTitle>
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            !lockedClientId && "sm:grid-cols-2"
+          )}
         >
-          Description
-        </Label>
-        <Textarea
-          id="description"
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          className="sm:col-span-3"
-          placeholder="Provide task details..."
-          rows={4}
-        />
-      </div>
+          {!lockedClientId && (
+            <div className="space-y-1.5">
+              <FieldLabel htmlFor="client_id" icon={Building2} required>
+                Client
+              </FieldLabel>
+              <SearchableSelect
+                value={formData.client_id || ""}
+                onChange={(v) =>
+                  handleChange({ target: { name: "client_id", value: v } })
+                }
+                options={clientOptions}
+                placeholder="Select a client"
+                searchPlaceholder="Search clients..."
+                emptyText="No clients found."
+                disabled={!canChangeAssignment}
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="assignee_id" icon={UserRound}>
+              Assignee
+            </FieldLabel>
+            <SearchableSelect
+              value={formData.assignee_id || ""}
+              onChange={(v) =>
+                handleChange({ target: { name: "assignee_id", value: v } })
+              }
+              options={userOptions}
+              placeholder="Select an assignee"
+              searchPlaceholder="Search people..."
+              emptyText="No people found."
+              disabled={!canChangeAssignment}
+            />
+          </div>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-        <Label htmlFor="assignee_id" className="sm:text-right sm:col-span-1">
-          Assignee
-        </Label>
-        <SelectInput
-          id="assignee_id"
-          name="assignee_id"
-          value={formData.assignee_id || ''}
-          onChange={handleChange} // Use unified handleChange
-          options={userOptions}
-          disabled={!canChangeAssignment}
-        />
-      </div>
+      <Separator />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-        <Label htmlFor="due_date" className="sm:text-right sm:col-span-1">
-          Due Date
-        </Label>
-        <DatePicker
-          id="due_date"
-          name="due_date"
-          value={formData.due_date}
-          onChange={handleChange}
-          placeholder="Select a due date"
-          className="sm:col-span-3"
-        />
-      </div>
+      {/* Planning */}
+      <section className="space-y-4">
+        <SectionTitle>Planning</SectionTitle>
+        <div className="space-y-1.5">
+          <FieldLabel icon={Flag} required>
+            Priority
+          </FieldLabel>
+          <div className="grid grid-cols-3 gap-2">
+            {PRIORITY_OPTIONS.map((opt) => {
+              const isActive = formData.priority === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() =>
+                    handleChange({
+                      target: { name: "priority", value: opt.value },
+                    })
+                  }
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? opt.active
+                      : "border-input bg-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                  )}
+                  aria-pressed={isActive}
+                >
+                  <span className={cn("h-2 w-2 rounded-full", opt.dot)} />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="due_date" icon={CalendarDays}>
+              Due date
+            </FieldLabel>
+            <DatePicker
+              id="due_date"
+              name="due_date"
+              value={formData.due_date}
+              onChange={handleChange}
+              placeholder="Select a due date"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel htmlFor="status" icon={CircleDot} required>
+              Status
+            </FieldLabel>
+            <SearchableSelect
+              value={formData.status || ""}
+              onChange={(v) =>
+                handleChange({ target: { name: "status", value: v } })
+              }
+              options={STATUS_OPTIONS}
+              placeholder="Select a status"
+              searchable={false}
+            />
+          </div>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-        <Label htmlFor="priority" className="sm:text-right sm:col-span-1">
-          Priority *
-        </Label>
-        <SelectInput
-          id="priority"
-          name="priority"
-          value={formData.priority || ''}
-          onChange={handleChange} // Use unified handleChange
-          options={[
-            { value: "Low", label: "Low" },
-            { value: "Medium", label: "Medium" },
-            { value: "High", label: "High" },
-          ]}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-center sm:gap-x-4">
-        <Label htmlFor="status" className="sm:text-right sm:col-span-1">
-          Status *
-        </Label>
-        <SelectInput
-          id="status"
-          name="status"
-          value={formData.status || ''}
-          onChange={handleChange} // Use unified handleChange
-          options={[
-            { value: "Backlog", label: "Backlog" },
-            { value: "To Do", label: "To Do" },
-            { value: "In Progress", label: "In Progress" },
-            { value: "On Hold", label: "On Hold" },
-            { value: "Done", label: "Done" },
-          ]}
-        />
-      </div>
-
-      {error && (
-        <p className="text-red-500 text-sm text-center sm:col-span-4">
-          {error}
-        </p>
-      )}
-
-      <div className="flex justify-end pt-4">
-        <Button type="submit" disabled={isLoading}>
+      <div className="flex items-center justify-end gap-2 pt-1">
+        {onCancel && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isLoading}
+          >
+            Cancel
+          </Button>
+        )}
+        <Button type="submit" disabled={isLoading} className="min-w-[120px]">
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isLoading ? "Saving..." : submitButtonText}
         </Button>
       </div>

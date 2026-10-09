@@ -61,7 +61,10 @@ async function exchangeFacebookToken(code, redirectUri) {
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("code", code);
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`Facebook token exchange failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Facebook token exchange failed: ${res.status} ${body}`);
+  }
   return res.json();
 }
 
@@ -351,6 +354,21 @@ export async function GET(request, { params }) {
     } catch {
       // logging is best-effort
     }
-    return NextResponse.redirect(`${accountsUrl}?error=${encodeURIComponent("Authentication failed. Please try connecting again.")}`);
+    // Surface a coarse reason so admins can tell which stage failed from the URL
+    // without needing server log access. Keep the user-facing message generic.
+    const msg = String(err?.message || err);
+    const reason = /state|CSRF/i.test(msg)
+      ? "invalid_state"
+      : /token exchange/i.test(msg)
+        ? "token_exchange"
+        : /No .* accounts found/i.test(msg)
+          ? "no_accounts"
+          : /not configured|not found|Invalid state parameter/i.test(msg)
+            ? "config"
+            : "internal";
+    const detail = encodeURIComponent(msg.slice(0, 150));
+    return NextResponse.redirect(
+      `${accountsUrl}?error=${encodeURIComponent("Authentication failed. Please try connecting again.")}&reason=${reason}&detail=${detail}`
+    );
   }
 }

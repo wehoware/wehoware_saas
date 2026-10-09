@@ -50,7 +50,9 @@ export default function SocialAccountsPage() {
       toast.success(msg);
     }
     if (error) {
-      console.error("[oauth] connection failed:", decodeURIComponent(error));
+      const reason = params.get("reason");
+      const detail = params.get("detail");
+      console.error("[oauth] connection failed:", decodeURIComponent(error), reason ? `(reason: ${reason})` : "", detail ? decodeURIComponent(detail) : "");
       toast.error("Connection failed. Please try again.");
     }
     if (success || error) window.history.replaceState({}, "", window.location.pathname);

@@ -38,7 +38,7 @@ function writeActiveClientCookie(clientId) {
 }
 
 // Paths accessible without authentication
-const PUBLIC_PATH_PREFIXES = ["/login", "/blog", "/about", "/contact", "/services"];
+const PUBLIC_PATH_PREFIXES = ["/login", "/blog", "/about", "/contact", "/services", "/privacy-policy", "/privacy"];
 
 function isPublicPath(pathname) {
   if (pathname === "/") return true;

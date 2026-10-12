@@ -23,6 +23,15 @@ const nextConfig = {
   // Disable source maps in production to reduce .next/ output size
   // (saves ~60MB — critical for AWS Amplify's 230MB deploy artifact limit)
   productionBrowserSourceMaps: false,
+  async redirects() {
+    return [
+      {
+        source: '/privacy',
+        destination: '/privacy-policy',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

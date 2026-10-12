@@ -77,7 +77,7 @@ const sections = [
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="container max-w-3xl px-4 md:px-6 py-16 md:py-24">
+    <div className="mx-auto max-w-3xl px-4 md:px-6 pt-32 pb-16 md:pt-40 md:pb-24 text-slate-200">
       <h1 className="text-4xl font-bold tracking-tight mb-2">Privacy Policy</h1>
       <p className="text-muted-foreground mb-12">Last updated: October 10, 2026</p>
       <div className="space-y-10">

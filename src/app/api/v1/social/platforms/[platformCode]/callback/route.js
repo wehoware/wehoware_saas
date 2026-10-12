@@ -97,7 +97,12 @@ async function exchangeInstagramToken(code, redirectUri) {
     throw new Error(`Instagram token exchange failed: ${shortRes.status} ${body}`);
   }
   const shortData = await shortRes.json();
-  const shortLivedToken = shortData.access_token;
+  // Response shape: { data: [{ access_token, user_id, permissions }] }
+  const shortLivedToken =
+    shortData.data?.[0]?.access_token ?? shortData.access_token;
+  if (!shortLivedToken) {
+    throw new Error("Instagram token exchange returned no access_token");
+  }
 
   // Step 2: Exchange short-lived token for long-lived token (expires in 60 days).
   // Must be POST — GET now returns IGApiException code 100 ("method type: get").
@@ -202,19 +207,18 @@ async function fetchFacebookProfiles(accessToken) {
 async function fetchInstagramProfile(accessToken) {
   // The /me endpoint returns the user's Instagram ID and username
   const res = await fetch(
-    `https://graph.instagram.com/v25.0/me?fields=id,username&access_token=${accessToken}`
+    `https://graph.instagram.com/v25.0/me?fields=user_id,username&access_token=${accessToken}`
   );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("[Instagram callback] Profile fetch error:", res.status, body);
-    return {};
+    throw new Error(`Instagram profile fetch failed: ${res.status} ${body}`);
   }
   const data = await res.json();
   return {
     name: data.username || "Instagram Account",
     handle: data.username,
     profileData: {
-      igUserId: data.id,
+      igUserId: data.user_id ?? data.id,
       username: data.username,
     },
   };

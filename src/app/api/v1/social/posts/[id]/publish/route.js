@@ -74,7 +74,13 @@ export const POST = withAuth(
       // the request origin, then probe — platforms fetch media server-side,
       // so a webpage/relative/blocked URL would fail deep inside the
       // platform API (e.g. IG error 36001) instead of with a clear error.
-      const origin = request.nextUrl?.origin ?? new URL(request.url).origin;
+      // Behind a proxy (Amplify/CloudFront) request.url holds the internal
+      // origin (e.g. localhost:3000) — prefer the forwarded public host.
+      const fwdHost = request.headers.get("x-forwarded-host");
+      const origin = fwdHost
+        ? `${request.headers.get("x-forwarded-proto") || "https"}://${fwdHost}`
+        : process.env.NEXT_PUBLIC_APP_URL ||
+          (request.nextUrl?.origin ?? new URL(request.url).origin);
       const mediaUrls = (Array.isArray(post.mediaUrls) ? post.mediaUrls : [])
         .map((u) => resolveMediaUrl(u, origin));
       try {

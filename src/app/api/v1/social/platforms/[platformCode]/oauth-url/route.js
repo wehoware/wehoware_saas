@@ -35,7 +35,14 @@ export const GET = withAuth(async (request, { params }) => {
       return NextResponse.json({ error: "No active client" }, { status: 400 });
     }
 
-    const appOrigin = new URL(request.url).origin;
+    const reqUrl = new URL(request.url);
+    if (reqUrl.hostname === "0.0.0.0") reqUrl.hostname = "localhost";
+    // Behind a proxy (Amplify/CloudFront) request.url holds the internal origin
+    // (e.g. localhost:3000) — prefer the forwarded public host, then env config.
+    const fwdHost = request.headers.get("x-forwarded-host");
+    const appOrigin = fwdHost
+      ? `${request.headers.get("x-forwarded-proto") || "https"}://${fwdHost}`
+      : process.env.NEXT_PUBLIC_APP_URL || reqUrl.origin;
     const redirectUri =
       process.env[`${platform.platformCode.toUpperCase()}_CALLBACK_URL`] ||
       `${appOrigin}/api/v1/social/platforms/${platform.platformCode}/callback`;

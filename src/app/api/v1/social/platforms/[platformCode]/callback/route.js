@@ -253,7 +253,12 @@ export async function GET(request, { params }) {
   // running `next dev -H 0.0.0.0` for LAN access. Browsers can't reach 0.0.0.0.
   const reqUrl = new URL(request.url);
   if (reqUrl.hostname === "0.0.0.0") reqUrl.hostname = "localhost";
-  const appOrigin = reqUrl.origin;
+  // Behind a proxy (Amplify/CloudFront) request.url holds the internal origin
+  // (e.g. localhost:3000) — prefer the forwarded public host, then env config.
+  const fwdHost = request.headers.get("x-forwarded-host");
+  const appOrigin = fwdHost
+    ? `${request.headers.get("x-forwarded-proto") || "https"}://${fwdHost}`
+    : process.env.NEXT_PUBLIC_APP_URL || reqUrl.origin;
   const accountsUrl = `${appOrigin}/admin/social-media/accounts`;
 
   if (error) {

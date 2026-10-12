@@ -45,7 +45,12 @@ export async function POST(request) {
     console.error("[Meta data-deletion] processing error:", err);
   }
 
-  const origin = new URL(request.url).origin;
+  // Behind a proxy (Amplify/CloudFront) request.url holds the internal
+  // origin (e.g. localhost:3000) — prefer the forwarded public host.
+  const fwdHost = request.headers.get("x-forwarded-host");
+  const origin = fwdHost
+    ? `${request.headers.get("x-forwarded-proto") || "https"}://${fwdHost}`
+    : process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
   return NextResponse.json({
     url: `${origin}/api/v1/social/meta/data-deletion?code=${confirmationCode}`,
     confirmation_code: confirmationCode,

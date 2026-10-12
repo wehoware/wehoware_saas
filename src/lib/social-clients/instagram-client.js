@@ -49,8 +49,15 @@ export class InstagramClient extends BaseSocialClient {
   // ── Token ────────────────────────────────────────────────────────────────
 
   async refreshAccessToken() {
-    const url = `${IG_REFRESH_BASE}/refresh_access_token?grant_type=ig_refresh_token&access_token=${this.accessToken}`;
-    const res = await fetch(url);
+    // Must be POST — GET now returns IGApiException code 100 ("method type: get").
+    const res = await fetch(`${IG_REFRESH_BASE}/refresh_access_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "ig_refresh_token",
+        access_token: this.accessToken,
+      }).toString(),
+    });
     if (!res.ok) throw new Error(`Instagram token refresh failed: ${res.status}`);
     const data = await res.json();
     return {

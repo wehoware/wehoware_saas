@@ -99,10 +99,17 @@ async function exchangeInstagramToken(code, redirectUri) {
   const shortData = await shortRes.json();
   const shortLivedToken = shortData.access_token;
 
-  // Step 2: Exchange short-lived token for long-lived token (expires in 60 days)
-  const longRes = await fetch(
-    `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortLivedToken}`
-  );
+  // Step 2: Exchange short-lived token for long-lived token (expires in 60 days).
+  // Must be POST — GET now returns IGApiException code 100 ("method type: get").
+  const longRes = await fetch("https://graph.instagram.com/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "ig_exchange_token",
+      client_secret: appSecret,
+      access_token: shortLivedToken,
+    }).toString(),
+  });
   if (!longRes.ok) {
     const body = await longRes.text().catch(() => "");
     throw new Error(`Instagram long-lived token exchange failed: ${longRes.status} ${body}`);

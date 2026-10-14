@@ -13,7 +13,7 @@ export const POST = withAuth(
       const clientId = user.activeClientId || user.clientId;
       if (!clientId) return NextResponse.json({ error: "No active client" }, { status: 400 });
 
-      const results = await syncAllInboxes(clientId);
+      const results = await syncAllInboxes(clientId, { force: true });
 
       const totalConversations = results.reduce((s, r) => s + (r.conversationsSynced || 0), 0);
       const totalMessages = results.reduce((s, r) => s + (r.messagesSynced || 0), 0);

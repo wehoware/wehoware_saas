@@ -25,6 +25,12 @@ export const POST = withAuth(
       if (conv.status === "Closed") {
         return NextResponse.json({ error: "Cannot reply to a closed conversation" }, { status: 409 });
       }
+      if (conv.metadata?.isGroup || conv.metadata?.unreadable) {
+        return NextResponse.json(
+          { error: "This conversation can't be read or replied to via the platform API" },
+          { status: 409 }
+        );
+      }
 
       const body = await request.json();
       const text = (body?.text || "").trim();
@@ -50,7 +56,10 @@ export const POST = withAuth(
           );
         } catch (apiErr) {
           console.error("[inbox/reply] Platform send failed:", apiErr.message);
-          return NextResponse.json({ error: "Failed to send reply via platform" }, { status: 502 });
+          const friendly = /24-hour window|HUMAN_AGENT/i.test(apiErr.message)
+            ? apiErr.message
+            : "Failed to send reply via platform";
+          return NextResponse.json({ error: friendly }, { status: 502 });
         }
       }
 

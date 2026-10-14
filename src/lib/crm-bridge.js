@@ -194,6 +194,13 @@ export async function bridgeSocialConversationToCrm({ clientId, conversationId, 
 
     return { contact, created: true };
   } catch (err) {
+    // Lost a create race with a concurrent bridge — reuse the winner's row.
+    if (err?.code === "P2002") {
+      const winner = await prisma.wehowareCrmContact.findFirst({
+        where: { clientId, socialInboxConversationId: conversationId },
+      });
+      if (winner) return { contact: winner, created: false };
+    }
     console.error("[crm-bridge] bridgeSocialConversationToCrm error:", err);
     return { contact: null, created: false, error: err.message };
   }

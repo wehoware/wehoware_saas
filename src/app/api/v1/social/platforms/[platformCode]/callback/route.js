@@ -200,7 +200,7 @@ async function fetchFacebookProfiles(accessToken) {
 async function fetchInstagramProfile(accessToken) {
   // The /me endpoint returns the user's Instagram ID and username
   const res = await fetch(
-    `https://graph.instagram.com/v25.0/me?fields=user_id,username&access_token=${accessToken}`
+    `https://graph.instagram.com/v25.0/me?fields=id,user_id,username&access_token=${accessToken}`
   );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -211,7 +211,8 @@ async function fetchInstagramProfile(accessToken) {
     name: data.username || "Instagram Account",
     handle: data.username,
     profileData: {
-      igUserId: data.user_id ?? data.id,
+      igUserId: data.id ?? data.user_id,
+      igsid: data.user_id ?? null,
       username: data.username,
     },
   };

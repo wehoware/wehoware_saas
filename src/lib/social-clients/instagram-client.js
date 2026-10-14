@@ -9,6 +9,22 @@ const IG_REFRESH_BASE = "https://graph.instagram.com";
 export class InstagramClient extends BaseSocialClient {
   get igUserId() { return this.profileData.igUserId || null; }
 
+  /**
+   * Resolve all IDs that identify this account inside conversation payloads.
+   * URL paths use the node id (igUserId), but participants/from/to use the
+   * Instagram-scoped ID (IGSID — /me's user_id). Older account records may not
+   * have igsid stored in profileData, so resolve it lazily via /me.
+   */
+  async resolveSelfIds() {
+    if (!this._igsid && !this.profileData.igsid) {
+      try {
+        const data = await this._fetch(`${IG_API_BASE}/me?fields=user_id&access_token=${this.accessToken}`);
+        this._igsid = data.user_id || null;
+      } catch { this._igsid = null; }
+    }
+    return new Set([this.igUserId, this.profileData.igsid, this._igsid].filter(Boolean));
+  }
+
   // Instagram API uses access_token in query/body, not Bearer header.
   // Override _fetch to avoid sending the Authorization header.
   async _fetch(url, options = {}) {
@@ -36,13 +52,13 @@ export class InstagramClient extends BaseSocialClient {
   async getProfile() {
     if (!this.igUserId) throw new Error("Instagram User ID required");
     const data = await this._fetch(
-      `${IG_API_BASE}/${this.igUserId}?fields=username,name,followers_count,media_count,profile_picture_url&access_token=${this.accessToken}`
+      `${IG_API_BASE}/${this.igUserId}?fields=username,name,followers_count,media_count,profile_picture_url,user_id&access_token=${this.accessToken}`
     );
     return {
       accountName: data.name || data.username || "Instagram Account",
       accountHandle: data.username ? `@${data.username}` : null,
       followerCount: data.followers_count || 0,
-      profileData: { ...this.profileData, igUserId: this.igUserId, mediaCount: data.media_count, profilePictureUrl: data.profile_picture_url },
+      profileData: { ...this.profileData, igUserId: this.igUserId, igsid: data.user_id || this.profileData.igsid, mediaCount: data.media_count, profilePictureUrl: data.profile_picture_url },
     };
   }
 
@@ -150,14 +166,25 @@ export class InstagramClient extends BaseSocialClient {
   }
 
   async getPostMetrics(platformPostId) {
-    try {
-      const data = await this._fetch(
-        `${IG_API_BASE}/${platformPostId}/insights?metric=likes,comments,reach,impressions,saved&access_token=${this.accessToken}`
-      );
-      const metrics = {};
-      for (const item of data.data || []) metrics[item.name] = item.values?.[0]?.value || 0;
-      return metrics;
-    } catch { return {}; }
+    // Metric availability varies by media product type — e.g. photos reject
+    // `impressions` (IG error 100). Retry, stripping the rejected metric each
+    // time, rather than keeping a per-type allowlist that drifts out of date.
+    let metrics = ["reach", "likes", "comments", "saved", "shares", "views", "total_interactions"];
+    for (let attempt = 0; attempt < metrics.length; attempt++) {
+      try {
+        const data = await this._fetch(
+          `${IG_API_BASE}/${platformPostId}/insights?metric=${metrics.join(",")}&access_token=${this.accessToken}`
+        );
+        const out = {};
+        for (const item of data.data || []) out[item.name] = item.values?.[0]?.value || 0;
+        return out;
+      } catch (err) {
+        const rejected = /does not support the (\w+) metric/i.exec(err.message)?.[1];
+        if (!rejected || !metrics.includes(rejected)) return {};
+        metrics = metrics.filter((m) => m !== rejected);
+      }
+    }
+    return {};
   }
 
   // ── Post Management ──────────────────────────────────────────────────────
@@ -222,50 +249,80 @@ export class InstagramClient extends BaseSocialClient {
     if (since) url += `&since=${Math.floor(new Date(since).getTime() / 1000)}`;
 
     const data = await this._fetch(url);
+    const selfIds = await this.resolveSelfIds();
     return (data.data || []).map((conv) => {
-      const user = conv.participants?.data?.find((p) => p.id !== this.igUserId) || {};
+      // Participant ids are IGSIDs — exclude every self identifier to find
+      // the other party. More than one other party means a group thread,
+      // which the Messaging API can list but cannot read.
+      const others = (conv.participants?.data || []).filter((p) => !selfIds.has(p.id));
+      const isGroup = others.length > 1;
+      const user = others[0] || {};
       return {
         platformConversationId: conv.id,
-        participantName: user.name || user.username || "Instagram User",
-        participantHandle: user.username ? `@${user.username}` : null,
+        participantName: isGroup
+          ? `Group chat (${others.length} participants)`
+          : user.name || user.username || "Instagram User",
+        participantHandle: !isGroup && user.username ? `@${user.username}` : null,
         participantAvatar: null,
         participantId: user.id || conv.id,
         lastMessageAt: conv.updated_time ? new Date(conv.updated_time) : null,
         lastMessagePreview: conv.snippet || null,
-        metadata: {},
+        metadata: isGroup ? { isGroup: true } : {},
       };
     });
   }
 
   async fetchMessages(platformConversationId, since = null) {
-    let url = `${IG_API_BASE}/${platformConversationId}/messages?fields=id,text,from,timestamp,attachments&access_token=${this.accessToken}`;
+    // Instagram-Login API names message fields `message`/`created_time`
+    // (not `text`/`timestamp` — those belong to comments / Facebook Login).
+    let url = `${IG_API_BASE}/${platformConversationId}/messages?fields=id,message,from,to,created_time,attachments&access_token=${this.accessToken}`;
     if (since) url += `&since=${Math.floor(new Date(since).getTime() / 1000)}`;
     const data = await this._fetch(url);
+    const selfIds = await this.resolveSelfIds();
     return (data.data || []).map((msg) => ({
       platformMessageId: msg.id,
-      direction: msg.from?.id === this.igUserId ? "Outbound" : "Inbound",
+      direction: selfIds.has(msg.from?.id) ? "Outbound" : "Inbound",
       senderName: msg.from?.username || msg.from?.name || "Unknown",
       senderHandle: msg.from?.username ? `@${msg.from.username}` : null,
       senderAvatar: null,
-      content: msg.text || "[Media message]",
+      content: msg.message || "[Media message]",
       mediaUrls: (msg.attachments?.data || [])
         .map((a) => a.image_data?.url || a.video_data?.url)
         .filter(Boolean),
-      sentAt: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+      sentAt: msg.created_time ? new Date(msg.created_time) : new Date(),
       metadata: {},
     }));
   }
 
   async sendReply(_platformConversationId, participantId, text) {
     if (!this.igUserId) throw new Error("Instagram User ID required");
-    const data = await this._fetch(`${IG_API_BASE}/${this.igUserId}/messages`, {
-      method: "POST",
-      body: JSON.stringify({
-        recipient: { id: participantId },
-        message: { text },
-        access_token: this.accessToken,
-      }),
-    });
-    return data.message_id;
+    const send = (extra = {}) =>
+      this._fetch(`${IG_API_BASE}/${this.igUserId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          recipient: { id: participantId },
+          message: { text },
+          ...extra,
+          access_token: this.accessToken,
+        }),
+      });
+    try {
+      const data = await send();
+      return data.message_id;
+    } catch (err) {
+      // Standard sends are only allowed within 24h of the person's last
+      // message (error_subcode 2534022). The sole extension past that is
+      // the HUMAN_AGENT tag (7 days), which requires Meta App Review
+      // approval — retry with it only when the window error fires.
+      if (!/2534022|24 hours/i.test(err.message)) throw err;
+      try {
+        const data = await send({ tag: "HUMAN_AGENT" });
+        return data.message_id;
+      } catch {
+        throw new Error(
+          "Reply is outside Instagram's 24-hour window and the HUMAN_AGENT tag is not approved for this app"
+        );
+      }
+    }
   }
 }

@@ -163,14 +163,33 @@ export class FacebookClient extends BaseSocialClient {
 
   async sendReply(_platformConversationId, participantId, text) {
     if (!this.pageId) throw new Error("Facebook Page ID required");
-    const data = await this._fetch(`${GRAPH_API_BASE}/${this.pageId}/messages`, {
-      method: "POST",
-      body: JSON.stringify({
-        recipient: { id: participantId },
-        message: { text },
-        access_token: this.pageToken,
-      }),
-    });
-    return data.message_id;
+    const send = (extra = {}) =>
+      this._fetch(`${GRAPH_API_BASE}/${this.pageId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          recipient: { id: participantId },
+          message: { text },
+          ...extra,
+          access_token: this.pageToken,
+        }),
+      });
+    try {
+      const data = await send({ messaging_type: "RESPONSE" });
+      return data.message_id;
+    } catch (err) {
+      // Standard sends are only allowed within 24h of the person's last
+      // message (error_subcode 2018278). Past that, the sole extension is
+      // the HUMAN_AGENT tag (7 days), which requires Meta App Review
+      // approval — retry with it only when the window error fires.
+      if (!/2018278|outside of allowed window|24 hours/i.test(err.message)) throw err;
+      try {
+        const data = await send({ messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT" });
+        return data.message_id;
+      } catch {
+        throw new Error(
+          "Reply is outside Messenger's 24-hour window and the HUMAN_AGENT tag is not approved for this app"
+        );
+      }
+    }
   }
 }

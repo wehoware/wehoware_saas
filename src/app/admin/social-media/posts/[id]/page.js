@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, X, Pencil, Calendar, Hash, Image as ImageIcon, Share2, CheckCircle, AlertCircle, Trash2, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
@@ -20,6 +20,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { STATUS_COLORS, AP_STATUS_COLORS, DELETABLE_STATUSES } from "@/lib/social-clients/constants.js";
+
+// Insight metric display order/labels — values arrive as accountPost.metrics keys
+const METRIC_LABELS = {
+  reach: "Reach",
+  views: "Views",
+  likes: "Likes",
+  comments: "Comments",
+  shares: "Shares",
+  saved: "Saved",
+  total_interactions: "Interactions",
+};
+const METRIC_ORDER = Object.keys(METRIC_LABELS);
 import MediaPreviewModal, { MediaThumbnail } from "@/components/ui/media-preview-modal";
 import { toastError } from "@/lib/toast-error";
 
@@ -35,6 +47,7 @@ export default function PostDetailPage() {
   const [deleteTarget, setDeleteTarget] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [refreshingMetrics, setRefreshingMetrics] = useState(false);
 
   const loadPost = useCallback(async (skipLoadingState = false) => {
     if (!params?.id) return;
@@ -77,6 +90,23 @@ export default function PostDetailPage() {
       toastError(err, "Failed to publish post");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function handleRefreshMetrics() {
+    setRefreshingMetrics(true);
+    try {
+      const res = await fetch(`/api/v1/social/posts/${params.id}/metrics`, { method: "POST" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Refresh failed");
+      }
+      toast.success("Insights updated");
+      loadPost(true);
+    } catch (err) {
+      toastError(err, "Failed to refresh insights");
+    } finally {
+      setRefreshingMetrics(false);
     }
   }
 
@@ -241,14 +271,28 @@ export default function PostDetailPage() {
       {post.account_posts?.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Share2 className="h-4 w-4" />Platform Status
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Share2 className="h-4 w-4" />Platform Status
+              </CardTitle>
+              {post.account_posts.some((ap) => ap.status === "Published") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshMetrics}
+                  disabled={refreshingMetrics}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshingMetrics ? "animate-spin" : ""}`} />
+                  {refreshingMetrics ? "Refreshing…" : "Refresh insights"}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {post.account_posts.map((ap) => (
-                <div key={ap.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div key={ap.id} className="p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {ap.account?.platform?.logoUrl
                       ? <img src={ap.account.platform.logoUrl} alt={ap.account.platform.name} className="w-5 h-5 rounded object-contain" />
@@ -275,6 +319,17 @@ export default function PostDetailPage() {
                       </p>
                     )}
                   </div>
+                  </div>
+                  {ap.status === "Published" && ap.metrics && Object.keys(ap.metrics).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2.5 pt-2.5 border-t border-border/60">
+                      {METRIC_ORDER.filter((k) => ap.metrics[k] != null).map((k) => (
+                        <span key={k} className="text-xs bg-background rounded-full px-2.5 py-1 border">
+                          <span className="font-medium">{Number(ap.metrics[k]).toLocaleString()}</span>{" "}
+                          {METRIC_LABELS[k]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "url": "https://www.app.wehoware.ca/downloads/brain/WeHowAreBrain.zip",
+  "minMacOS": "13.0",
+  "notes": "Initial build — menubar voice assistant for the Hermes brain (⌥Space to talk)"
+}
